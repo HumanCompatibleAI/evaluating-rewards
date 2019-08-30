@@ -63,8 +63,9 @@ environments or with new comparison methods as a regression test.
 `evaluating_rewards` consists of:
 
 -   the main package, containing:
-    +   `deep.py` and `tabular.py`, defining reward models and associated
-        comparison methods for a deep neural network and tabular setting.
+    +   `rewards.py` and `comparisons.py` defining deep reward models and
+        associated comparison methods, and `tabular.py` the equivalent in a
+        tabular (finite-state) setting.
     +   `serialize.py`, to load reward models, both from this and other
         projects.
 -   `envs`, a sub-package defining some simple environments and associated
