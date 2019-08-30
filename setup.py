@@ -27,6 +27,7 @@ setuptools.setup(
     python_requires=">=3.6.0",
     packages=setuptools.find_packages(),
     install_requires=[
+        "absl-py",
         "gym",
         "imitation @ git+https://github.com/HumanCompatibleAI/imitation.git",
         "numpy",
@@ -38,10 +39,7 @@ setuptools.setup(
         "tensorflow",
         "xarray",
     ],
-    tests_require=[
-        "absl-py",
-    ],
-    # TODO(): add URL once open-sourced
+    url="https://github.com/AdamGleave/evaluating_rewards",
     license="Apache License, Version 2.0",
     classifiers=[
         # Trove classifiers

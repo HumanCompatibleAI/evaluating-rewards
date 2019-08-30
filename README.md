@@ -37,11 +37,11 @@ AIRL and GAIL. It is also simple to add new formats to `serialize.py`.
 
 ### Comparing Reward Models
 
-Please see this [Jupyter notebook](notebooks/comparison.ipynb) for an example of comparing reward
-models in a simple point mass environment. The notebook includes documentation describing the 
+Please see this [Colab notebook](notebooks/comparison.ipynb) for an example of comparing reward
+models in a simple point mass environment. The notebook includes documentation describing the
 optimization problem we are solving, and presents visualizations of the resulting reward models. The
 code can be directly applied to other environments and reward models, by changing the configuration
-and loading the appropriate models. *NOTE*: make sure you run the Jupyter notebook from a virtual
+and loading the appropriate models. *NOTE*: make sure you run the notebook from a virtual
 environment with `evaluating_rewards` installed, so that it can import the library.
 
 ### Other Information
