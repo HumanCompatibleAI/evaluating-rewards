@@ -15,6 +15,7 @@
 """A simple point-mass environment in N-dimensions."""
 
 import functools
+from typing import Optional
 
 from evaluating_rewards import rewards
 import gym
@@ -167,11 +168,26 @@ class PointMassSparseReward(rewards.BasicRewardModel):
   equivalent up to potential shaping.
   """
 
-  def __init__(self, env, ctrl_coef=1.0, threshold=0.05):
+  def __init__(self,
+               env: vec_env.VecEnv,
+               ctrl_coef: float = 1.0,
+               threshold: float = 0.05,
+               goal_offset: Optional[np.ndarray] = None):
+    """Constructs a PointMassSparseReward instance.
+
+    Args:
+      env: The environment to provide reward for.
+      ctrl_coef: The multiplier for the quadratic control penalty.
+      threshold: How near the point mass must be to the goal to receive reward.
+      goal_offset: If specified, shifts the goal in the direction specified.
+          The larger this is, the more dissimilar the reward model and resulting
+          policy will be from PointMassGroundTruth.
+    """
     self.ndim, remainder = divmod(env.observation_space.shape[0], 3)
     assert remainder == 0
     self.ctrl_coef = ctrl_coef
     self.threshold = threshold
+    self.goal_offset = goal_offset
     super().__init__(env.observation_space, env.action_space)
 
     self._reward = self.build_reward()
@@ -180,6 +196,8 @@ class PointMassSparseReward(rewards.BasicRewardModel):
     """Computes reward from observation and action in PointMass environment."""
     pos = self._proc_old_obs[:, 0:self.ndim]
     goal = self._proc_old_obs[:, 2*self.ndim:3*self.ndim]
+    if self.goal_offset is not None:
+      goal += self.goal_offset[np.newaxis, :]
     dist = tf.norm(pos - goal, axis=-1)
     goal_reward = tf.to_float(dist < self.threshold)
     ctrl_cost = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
