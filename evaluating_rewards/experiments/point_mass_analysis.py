@@ -230,14 +230,17 @@ def match_pipeline(env: point_mass.PointMassEnv,
                    target: rewards.RewardModel,
                    dataset: datasets.BatchCallable,
                    goal: Optional[np.ndarray] = None,
+                   eval_kwargs: Optional[Dict[str, Any]] = None,
                    **kwargs):
   """Wrapper for comparisons.match_pipeline that evaluates and plots reward."""
   res = comparisons.match_pipeline(original, target, dataset, **kwargs)
 
   if goal is None:
     goal = np.array([0.0])
+
+  eval_kwargs = eval_kwargs or {}
   reward = evaluate_reward_model(env, res["match"].model,
-                                 goal=goal, density=11)
+                                 goal=goal, density=11, **eval_kwargs)
   fig = plot_reward(reward, goal, zaxis="position")
 
   res["reward"] = reward

@@ -106,6 +106,7 @@ def get_affine(matching: comparisons.ModelMatch) -> rewards.AffineParameters:
   """
   sess = tf.get_default_session()
   models = matching.model_extra
-  scale = 1 / sess.run(models["affine"].models["wrapped"][1])
-  const = -sess.run(models["affine"].models["constant"][0].constant) * scale
+  scale_tensor = models["affine"].models["wrapped"][1]
+  const_tensor = models["affine"].models["constant"][0].constant
+  scale, const = sess.run([scale_tensor, const_tensor])
   return rewards.AffineParameters(constant=const, scale=scale)

@@ -74,7 +74,7 @@ def compare_synthetic(observation_space: gym.Space,
 
   It then calls `random_scale_fn` and `random_constant_fn` to generate
   scaling and shift parameters $\lambda$ and $c$ respectively, creating:
-    $$r_o(s,a,s') = \lambda (r_i(s,a,s') + c).$$
+    $$r_o(s,a,s') = \lambda \cdot r_i(s,a,s') + c.$$
 
   It then uses `ClosestPotential` to fit a potential $\phi$ to minimize
   the mean-squared error between $r_o$ after shaping with $\phi$ and $r'_g$
@@ -255,8 +255,12 @@ def compare_synthetic(observation_space: gym.Space,
       "Intrinsic Upper Bound": ub_intrinsics,
       "Shaping": shapings,
       "Extrinsic": extrinsics,
-      "Real Scale": gt_scale,
-      "Real Constant": gt_constant,
+      # Report scale from the perspective of the transformation needed to
+      # map the generated reward model back to the target. So we need to
+      # invert the gt_scale and gt_constant parameters, but can report the
+      # parameters from the AffineTransform verbatim.
+      "Real Scale": 1 / gt_scale,
+      "Real Constant": -gt_constant / gt_scale,
       "Initial Scale": initial_scales,
       "Initial Constant": initial_constants,
       "Inferred Scale": final_scales,
