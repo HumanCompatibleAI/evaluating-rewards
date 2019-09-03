@@ -78,11 +78,11 @@ NOISY_AFFINE_ENVIRONMENTS = {
     # smaller scale of potential noise than Uniform5D. So set higher upper bound
     # for Uniform5D than for Point*.
     "Uniform5D": dict(**ENVIRONMENTS["Uniform5D"],
-                      rel_upperbound=2.0),
+                      upperbound=2.0),
     "PointLine": dict(**ENVIRONMENTS["PointLine"],
-                      rel_upperbound=0.05),
+                      upperbound=0.025),
     "PointGrid": dict(**ENVIRONMENTS["PointGrid"],
-                      rel_upperbound=0.05),
+                      upperbound=0.025),
 }
 
 
@@ -153,7 +153,7 @@ class ExperimentTest(parameterized.TestCase):
         self.assertLess(final_loss, 1e-4)
         self.assertGreater(initial_loss / final_loss, 1e2)
 
-  def _test_affine(self, rel_upperbound, **kwargs):
+  def _test_affine(self, upperbound, **kwargs):
     """Do we recover affine parameters correctly?"""
     with self.graph.as_default():
       with self.sess.as_default():
@@ -164,17 +164,19 @@ class ExperimentTest(parameterized.TestCase):
                                             **kwargs)
         rel_error_scale = ((df["Inferred Scale"] - df["Real Scale"]) /
                            df["Real Scale"])
-        rel_error_constant = ((df["Inferred Constant"] - df["Real Constant"]) /
-                              df["Real Scale"])
+        # The constant parameter is in the same scale as the target
+        # (which should be consistent across test configurations),
+        # so no need to normalize.
+        abs_error_constant = df["Inferred Constant"] - df["Real Constant"]
 
         with pd.option_context("display.max_rows", None,
                                "display.max_columns", None):
           logging.info("Comparison: %s", df)
           logging.info("Relative error scale: %s", rel_error_scale)
-          logging.info("Relative error constant: %s", rel_error_constant)
+          logging.info("Absolute error constant: %s", abs_error_constant)
 
-        self.assertLess(rel_error_scale.max(), rel_upperbound)
-        self.assertLess(rel_error_constant.max(), rel_upperbound)
+        self.assertLess(rel_error_scale.abs().max(), upperbound)
+        self.assertLess(abs_error_constant.abs().max(), upperbound)
 
   @parameterized.named_parameters(util.combine_dicts_as_kwargs(
       ENVIRONMENTS, AFFINE_TRANSFORMS,
@@ -184,7 +186,7 @@ class ExperimentTest(parameterized.TestCase):
     return self._test_affine(total_timesteps=0,
                              potential_noise=np.array([0.0]),
                              model_potential=False,
-                             rel_upperbound=1e-3,
+                             upperbound=1e-3,
                              **kwargs)
 
   @parameterized.named_parameters(util.combine_dicts_as_kwargs(
