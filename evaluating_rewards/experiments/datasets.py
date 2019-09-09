@@ -122,7 +122,7 @@ def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
   obs_space = env.observation_space
   act_space = env.action_space
 
-  pm = point_mass.PointMassPolicy(env)
+  pm = point_mass.PointMassPolicy(env.observation_space, env.action_space)
   dataset_generator = rollout_generator(env, pm)
 
   return {

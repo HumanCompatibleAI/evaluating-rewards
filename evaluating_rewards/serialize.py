@@ -15,7 +15,7 @@
 """Load reward models of different types."""
 
 import contextlib
-from typing import Callable, Iterator, Type
+from typing import Callable, Iterator
 import uuid
 
 from absl import logging
@@ -23,6 +23,7 @@ from evaluating_rewards import rewards
 from imitation.rewards import reward_net
 from imitation.rewards import serialize
 from imitation.util import registry
+from imitation.util import serialize as util_serialize
 from imitation.util import util
 import numpy as np
 from stable_baselines.common import vec_env
@@ -69,51 +70,63 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
 
         yield reward_fn
 
-    serialize.reward_fn_registry.register(key=key, value=reward_fn_loader)
+    serialize.reward_registry.register(key=key, value=reward_fn_loader)
 
 
 reward_registry = RewardRegistry()
 
 
-def _load_imitation(cls: Type[reward_net.RewardNet],
-                    use_test: bool) -> RewardLoaderFn:
-  """Higher-order function, returning a reward loading function.
+def _load_imitation(use_test: bool) -> RewardLoaderFn:
+  """Higher-order function returning a reward loader function.
 
-  Args:
-    cls: The reward network, e.g. `reward_net.BasicRewardNet`.
-    use_test: If True, use the test (transfer) reward; other, train reward.
+  Arguments:
+    use_test: If True, unshaped reward; if False, shaped.
 
   Returns:
-    A function loading reward models trained via cls.
+    A function that loads reward networks.
   """
-  def f(path: str,
-        env: vec_env.VecEnv,
-       ) -> rewards.RewardModel:
-    """Loads a policy saved to path, for environment env."""
-    del env
+  def f(path: str, venv: vec_env.VecEnv) -> rewards.RewardModel:
+    """Loads a reward network saved to path, for environment venv.
+
+    Arguments:
+      path: The path to a serialized reward network.
+      venv: The environment the reward network should operate in.
+
+    Returns:
+      A RewardModel representing the reward network.
+    """
     random_id = uuid.uuid4().hex
-    with tf.variable_scope(f"model_{cls.__name__}_{random_id}"):
-      logging.info(f"Loading imitation reward model for '{cls}'' "
-                   f"from '{path}'")
-      net = cls.load(path)
+    with tf.variable_scope(f"model_{random_id}"):
+      logging.info(f"Loading imitation reward model from '{path}'")
+      net = reward_net.RewardNet.load(path)
+      assert venv.observation_space == net.observation_space
+      assert venv.action_space == net.action_space
       return rewards.RewardNetToRewardModel(net, use_test=use_test)
+
   return f
 
 
-def _add_imitation_to_reward_loaders(classes):
-  for name, cls in classes.items():
-    reward_registry.register(key=f"imitation/{name}_unshaped",
-                             value=_load_imitation(cls, use_test=True))
-    reward_registry.register(key=f"imitation/{name}_shaped",
-                             value=_load_imitation(cls, use_test=False))
+def _load_native(path: str, venv: vec_env. VecEnv) -> rewards.RewardModel:
+  """Load a RewardModel that implemented the Serializable interface."""
+
+  random_id = uuid.uuid4().hex
+  with tf.variable_scope(f"model_{random_id}"):
+    logging.info(f"Loading native evaluating rewards model from '{path}'")
+    model = util_serialize.Serializable.load(path)
+    if not isinstance(model, rewards.RewardModel):
+      raise TypeError(f"Serialized object from '{path}' is not a RewardModel")
+    assert venv.observation_space == model.observation_space
+    assert venv.action_space == model.action_space
+
+  return model
 
 
-_add_imitation_to_reward_loaders({
-    "BasicRewardNet": reward_net.BasicRewardNet,
-    "BasicShapedRewardNet": reward_net.BasicShapedRewardNet,
-})
-
-
+reward_registry.register(key="imitation/RewardNet_unshaped-v0",
+                         value=_load_imitation(True))
+reward_registry.register(key="imitation/RewardNet_shaped-v0",
+                         value=_load_imitation(False))
+reward_registry.register(key="evaluating_rewards/RewardModel-v0",
+                         value=_load_native)
 reward_registry.register(key="evaluating_rewards/Zero-v0",
                          value=registry.build_loader_fn_require_space(
                              rewards.ZeroReward
@@ -133,4 +146,5 @@ def load_reward(reward_type: str, reward_path: str, venv: vec_env.VecEnv,
     The reward model loaded from reward_path.
   """
   agent_loader = reward_registry.get(reward_type)
+  logging.debug(f"Loading {reward_type} from {reward_path}")
   return agent_loader(reward_path, venv)

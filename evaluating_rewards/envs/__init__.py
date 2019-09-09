@@ -42,13 +42,13 @@ policy_registry.register(key="evaluating_rewards/PointMassHardcoded-v0",
 # Register custom rewards with evaluating_rewards
 reward_registry.register(key="evaluating_rewards/PointMassGroundTruth-v0",
                          indirect=f"{PM_ROOT}:load_point_mass_ground_truth")
-reward_registry.register(key="evaluating_rewards/PointMassSparseReward-v0",
+reward_registry.register(key="evaluating_rewards/PointMassSparse-v0",
                          indirect=f"{PM_ROOT}:load_point_mass_sparse_reward")
 reward_registry.register(
-    key="evaluating_rewards/PointMassSparseRewardNoCtrl-v0",
+    key="evaluating_rewards/PointMassSparseNoCtrl-v0",
     indirect=f"{PM_ROOT}:load_point_mass_sparse_reward_no_ctrl")
-reward_registry.register(key="evaluating_rewards/PointMassDenseReward-v0",
+reward_registry.register(key="evaluating_rewards/PointMassDense-v0",
                          indirect=f"{PM_ROOT}:load_point_mass_dense_reward")
 reward_registry.register(
-    key="evaluating_rewards/PointMassDenseRewardNoCtrl-v0",
+    key="evaluating_rewards/PointMassDenseNoCtrl-v0",
     indirect=f"{PM_ROOT}:load_point_mass_dense_reward_no_ctrl")

@@ -21,13 +21,12 @@ evaluating_rewards.util.
 from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
+
 from evaluating_rewards.experiments import datasets
 from evaluating_rewards.experiments import synthetic
-from evaluating_rewards.experiments import util
+from tests import common
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-
 
 ENVIRONMENTS = {
     "Uniform5D": datasets.dummy_env_and_dataset(dims=5),
@@ -121,20 +120,10 @@ SYNTHETIC_TEST = {
 }
 
 
-class ExperimentTest(parameterized.TestCase):
+class ExperimentTest(common.TensorFlowTestCase):
   """Sanity checks results from miscellaneous experiments."""
 
-  def setUp(self):
-    super().setUp()
-    self.graph = tf.Graph()
-    self.sess = tf.Session(graph=self.graph)
-
-  def tearDown(self):
-    super().tearDown()
-    self.sess.close()
-    self.graph = None
-
-  @parameterized.named_parameters(util.combine_dicts_as_kwargs(
+  @parameterized.named_parameters(common.combine_dicts_as_kwargs(
       ENVIRONMENTS, ARCHITECTURES, EQUIV_SCALES
   ))
   def test_identical(self, **kwargs):
@@ -146,8 +135,8 @@ class ExperimentTest(parameterized.TestCase):
         _, metrics = synthetic.compare_synthetic(reward_noise=noise,
                                                  potential_noise=noise,
                                                  **kwargs)
-
-        loss = metrics["loss"][(0.0, 0.0)]
+        loss = pd.DataFrame(metrics["loss"])
+        loss = loss[(0.0, 0.0)]
         initial_loss = loss.iloc[0]
         final_loss = loss.iloc[-1]
         self.assertLess(final_loss, 1e-4)
@@ -178,7 +167,7 @@ class ExperimentTest(parameterized.TestCase):
         self.assertLess(rel_error_scale.abs().max(), upperbound)
         self.assertLess(abs_error_constant.abs().max(), upperbound)
 
-  @parameterized.named_parameters(util.combine_dicts_as_kwargs(
+  @parameterized.named_parameters(common.combine_dicts_as_kwargs(
       ENVIRONMENTS, AFFINE_TRANSFORMS,
   ))
   def test_clean_affine(self, **kwargs):
@@ -189,7 +178,7 @@ class ExperimentTest(parameterized.TestCase):
                              upperbound=1e-3,
                              **kwargs)
 
-  @parameterized.named_parameters(util.combine_dicts_as_kwargs(
+  @parameterized.named_parameters(common.combine_dicts_as_kwargs(
       NOISY_AFFINE_ENVIRONMENTS, AFFINE_TRANSFORMS,
   ))
   def test_pretrain_affine(self, **kwargs):
@@ -203,7 +192,7 @@ class ExperimentTest(parameterized.TestCase):
                              potential_noise=np.array([0.0, 1.0]),
                              **kwargs)
 
-  @parameterized.named_parameters(util.combine_dicts_as_kwargs(
+  @parameterized.named_parameters(common.combine_dicts_as_kwargs(
       ENVIRONMENTS, ARCHITECTURES, SYNTHETIC_TEST,
   ))
   def test_compare_synthetic(self, rel_upperbound, fudge_factor,

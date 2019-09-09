@@ -17,11 +17,14 @@
 import abc
 import collections
 import itertools
-from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
+import os
+import pickle
+from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 from absl import logging
 import gym
 from imitation.rewards import reward_net
+from imitation.util import serialize
 import numpy as np
 from stable_baselines.common import input as env_in  # avoid name clash
 import tensorflow as tf
@@ -32,7 +35,7 @@ Batch = collections.namedtuple("Batch",
                                ["old_obs", "actions", "new_obs"])
 
 
-class RewardModel(abc.ABC):
+class RewardModel(serialize.Serializable):
   """Abstract reward model."""
 
   @property
@@ -75,6 +78,7 @@ class BasicRewardModel(RewardModel):
   """Abstract reward model class with basic default implementations."""
 
   def __init__(self, obs_space: gym.Space, act_space: gym.Space):
+    RewardModel.__init__(self)
     self._obs_space = obs_space
     self._act_space = act_space
     self._old_obs_ph, self._proc_old_obs = env_in.observation_input(obs_space)
@@ -102,30 +106,34 @@ class BasicRewardModel(RewardModel):
     return (self._act_ph,)
 
 
-class MLPRewardModel(BasicRewardModel):
+class MLPRewardModel(BasicRewardModel,
+                     serialize.LayersSerializable):
   """Feed-forward reward model r(s,a,s')."""
 
   def __init__(self, obs_space: gym.Space, act_space: gym.Space,
                hid_sizes: Optional[Iterable[int]] = None, use_act: bool = True,
                use_old_obs: bool = True, use_new_obs: bool = True):
-    super().__init__(obs_space, act_space)
-
+    BasicRewardModel.__init__(self, obs_space, act_space)
     if hid_sizes is None:
       hid_sizes = [32, 32]
+    params = locals()
 
     kwargs = {
         "old_obs_input": self._proc_old_obs if use_old_obs else None,
         "new_obs_input": self._proc_new_obs if use_new_obs else None,
         "act_input": self._proc_act if use_act else None,
     }
-    self._reward, _ = reward_net.build_basic_theta_network(hid_sizes, **kwargs)
+    self._reward, layers = reward_net.build_basic_theta_network(hid_sizes,
+                                                                **kwargs)
+    serialize.LayersSerializable.__init__(**params, layers=layers)
 
   @property
   def reward(self):
     return self._reward
 
 
-class PotentialShaping(BasicRewardModel):
+class PotentialShaping(BasicRewardModel,
+                       serialize.LayersSerializable):
   r"""Models a state-only potential, reward is the difference in potential.
 
   Specifically, contains a state-only potential $$\phi(s)$$. The reward
@@ -135,19 +143,23 @@ class PotentialShaping(BasicRewardModel):
   def __init__(self, obs_space: gym.Space, act_space: gym.Space,
                hid_sizes: Optional[Iterable[int]] = None,
                discount: float = 0.99, **kwargs):
-    super().__init__(obs_space, act_space)
+    BasicRewardModel.__init__(self, obs_space, act_space)
 
     if hid_sizes is None:
       hid_sizes = [32, 32]
+    params = locals()
+    del params["kwargs"]
+    params.update(**kwargs)
 
     res = reward_net.build_basic_phi_network(hid_sizes,
                                              self._proc_old_obs,
                                              self._proc_new_obs,
                                              **kwargs)
-    self._old_potential, self._new_potential, _ = res
-
+    self._old_potential, self._new_potential, layers = res
     self.discount = discount
     self._reward_output = discount * self._new_potential - self.old_potential
+
+    serialize.LayersSerializable.__init__(**params, layers=layers)
 
   @property
   def reward(self):
@@ -162,45 +174,95 @@ class PotentialShaping(BasicRewardModel):
     return self._new_potential
 
 
-class ConstantReward(BasicRewardModel):
+class ConstantLayer(tf.keras.layers.Layer):
+  """A layer that computes the same output, regardless of input.
+
+  The output is a constant, repeated to the same shape as the input.
+  The constant is a trainable variable, and can also be assigned to explicitly.
+  """
+
+  def __init__(self,
+               name: str = None,
+               initializer: Optional[tf.keras.initializers.Initializer] = None,
+               dtype: tf.dtypes.DType = tf.float32):
+    """Constructs a ConstantLayer.
+
+    Args:
+      name: String name of the layer.
+      initializer: The initializer to use for the constant weight.
+      dtype: dtype of the constant weight.
+    """
+    if initializer is None:
+      initializer = tf.zeros_initializer
+    self.initializer = initializer
+
+    super().__init__(trainable=True, name=name, dtype=dtype)
+
+  def build(self, input_shape):
+    self._constant = self.add_weight(name="constant",
+                                     shape=(),
+                                     initializer=self.initializer,
+                                     use_resource=True)
+    super().build(input_shape)
+
+  def _check_built(self):
+    if not self.built:
+      raise ValueError("Must call build() before calling this function.")
+
+  @property
+  def constant(self):
+    self._check_built()
+    return self._constant
+
+  def set_constant(self, val):
+    self._check_built()
+    self.set_weights([np.array(val)])
+
+  def call(self, inputs):
+    return inputs * 0 + self.constant
+
+  def get_config(self):
+    return {
+        "name": self.name,
+        "initializer": self.initializer,
+        "dtype": self.dtype
+    }
+
+
+class ConstantReward(BasicRewardModel,
+                     serialize.LayersSerializable):
   """Outputs a constant reward value. Constant is a (trainable) variable."""
 
   def __init__(self, obs_space: gym.Space, act_space: gym.Space,
-               initializer=None):
-    super().__init__(obs_space, act_space)
+               initializer: Optional[tf.keras.initializers.Initializer] = None):
+    BasicRewardModel.__init__(self, obs_space, act_space)
+    params = locals()
 
-    if initializer is None:
-      initializer = tf.zeros_initializer
-
-    constant = _make_var("constant", shape=(), dtype=tf.float32,
-                         initializer=initializer, use_resource=True)
-    self._constant, self._constant_ph, self._constant_assign = constant
-
+    self._constant = ConstantLayer(name="constant", initializer=initializer)
     n_batch = tf.shape(self._proc_old_obs)[0]
-    self._reward_output = tf.fill((n_batch,), self._constant)
+    obs = tf.reshape(self._proc_old_obs, [n_batch, -1])
+    # self._reward_output is a scalar constant repeated (n_batch, ) times
+    self._reward_output = self._constant(obs[:, 0])
+
+    serialize.LayersSerializable.__init__(**params,
+                                          layers={"constant": self._constant})
 
   @property
   def constant(self):
     return self._constant
 
   @property
-  def constant_ph(self):
-    return self._constant_ph
-
-  @property
-  def constant_assign(self):
-    return self._constant_assign
-
-  @property
   def reward(self):
     return self._reward_output
 
 
-class ZeroReward(BasicRewardModel):
+class ZeroReward(BasicRewardModel,
+                 serialize.LayersSerializable):
   """A reward model that always outputs zero."""
 
   def __init__(self, obs_space: gym.Space, act_space: gym.Space):
-    super().__init__(obs_space, act_space)
+    serialize.LayersSerializable.__init__(**locals(), layers={})
+    BasicRewardModel.__init__(self, obs_space, act_space)
 
     n_batch = tf.shape(self._proc_old_obs)[0]
     self._reward_output = tf.fill((n_batch,), 0.0)
@@ -251,6 +313,19 @@ class RewardNetToRewardModel(RewardModel):
   def new_obs_ph(self):
     return (self.reward_net.new_obs_ph,)
 
+  def _load(self, cls, directory: str) -> "RewardNetToRewardModel":
+    with open(os.path.join(directory, "use_test"), "rb") as f:
+      use_test = pickle.load(f)
+
+    net = reward_net.RewardNet.load(os.path.join(directory, "net"))
+    return cls(net, use_test=use_test)
+
+  def _save(self, directory: str) -> None:
+    with open(os.path.join(directory, "use_test"), "rb") as f:
+      pickle.dump(self.use_test, f)
+
+    self.reward_net.save(os.path.join(directory, "net"))
+
 
 class RewardModelWrapper(RewardModel):
   """Wraper for RewardModel objects.
@@ -264,6 +339,7 @@ class RewardModelWrapper(RewardModel):
     Args:
       model: A RewardNet.
     """
+    RewardModel.__init__(self)
     self.model = model
 
   @property
@@ -290,6 +366,13 @@ class RewardModelWrapper(RewardModel):
   def new_obs_ph(self):
     return self.model.new_obs_ph
 
+  def _load(self, cls, directory: str) -> "RewardModelWrapper":
+    model = RewardModel.load(os.path.join(directory, "model"))
+    return cls(model)
+
+  def _save(self, directory: str) -> None:
+    self.model.save(os.path.join(directory, "model"))
+
 
 class StopGradientsModelWrapper(RewardModelWrapper):
   """Stop gradients propagating through a reward model."""
@@ -302,7 +385,7 @@ class StopGradientsModelWrapper(RewardModelWrapper):
 class LinearCombinationModelWrapper(RewardModelWrapper):
   """Builds a linear combination of different reward models."""
 
-  def __init__(self, models: Mapping[Any, Tuple[RewardModel, tf.Tensor]]):
+  def __init__(self, models: Mapping[str, Tuple[RewardModel, tf.Tensor]]):
     """Constructs a reward model that linearly combines other reward models.
 
     Args:
@@ -319,7 +402,7 @@ class LinearCombinationModelWrapper(RewardModelWrapper):
     self._reward_output = tf.reduce_sum(weighted, axis=0)
 
   @property
-  def models(self) -> Mapping[Any, Tuple[RewardModel, tf.Tensor]]:
+  def models(self) -> Mapping[str, Tuple[RewardModel, tf.Tensor]]:
     """Models we are linearly combining."""
     return self._models
 
@@ -341,16 +424,54 @@ class LinearCombinationModelWrapper(RewardModelWrapper):
   def act_ph(self):
     return tuple(itertools.chain(*[m.act_ph for m, _ in self.models.values()]))
 
+  @classmethod
+  def _load(cls, directory: str) -> "LinearCombinationModelWrapper":
+    """Restore dehydrated LinearCombinationModelWrapper.
 
-def _make_var(name: str,
-              shape: Tuple[int, ...],
-              dtype: tf.dtypes.DType,
-              **kwargs) -> Tuple[tf.Variable, tf.Tensor, tf.Tensor]:
-  """Make variable and an assignment operator."""
-  var = tf.get_variable(name=name, shape=shape, dtype=dtype, **kwargs)
-  ph = tf.placeholder(name=name, shape=shape, dtype=dtype)
-  assign = tf.assign(var, ph)
-  return var, ph, assign
+    This should preserve the outputs of the original model, but the model
+    itself may differ in two ways. The returned model is always an instance
+    of LinearCombinationModelWrapper, and *not* any subclass it may have
+    been created by (unless that subclass overrides save and load explicitly).
+    Furthermore, the weights are frozen, and so will not be updated with
+    training.
+
+    Args:
+      directory: The root of the directory to load the model from.
+
+    Returns:
+      An instance of LinearCombinationModelWrapper, making identical
+      predictions as the saved model.
+    """
+    with open(os.path.join(directory, "linear_combination.pkl"), "rb") as f:
+      loaded = pickle.load(f)
+
+    models = {}
+    for model_name, frozen_weight in loaded.items():
+      model = RewardModel.load(os.path.join(directory, model_name))
+      models[model_name] = (model, tf.constant(frozen_weight))
+
+    return LinearCombinationModelWrapper(models)
+
+  def _save(self, directory) -> None:
+    """Save weights and the constituent models.
+
+    WARNING: the weights will be evaluated and their values saved. This
+    method makes no attempt to distinguish between constant weights (the common
+    case) and variables or other tensors.
+
+    Args:
+      directory: The root of the directory to save the model to.
+    """
+    weights = {}
+    for model_name, (model, weight) in self.models.items():
+      model.save(os.path.join(directory, model_name))
+      weights[model_name] = weight
+
+    sess = tf.get_default_session()
+    evaluated_weights = sess.run(weights)
+
+    with open(os.path.join(directory, "linear_combination.pkl"), "wb") as f:
+      pickle.dump(evaluated_weights, f)
 
 
 class AffineTransform(LinearCombinationModelWrapper):
@@ -374,11 +495,9 @@ class AffineTransform(LinearCombinationModelWrapper):
     self.wrapped = wrapped
 
     if scale:
-      log_scale = _make_var("log_scale", shape=(), dtype=tf.float32,
-                            initializer=tf.zeros_initializer,
-                            use_resource=True)
-      self._log_scale, self._log_scale_ph, self._log_scale_assign = log_scale
-      model_scale = tf.exp(self._log_scale)  # force to be non-negative
+      self._log_scale = ConstantLayer("log_scale")
+      self._log_scale.build(())
+      model_scale = tf.exp(self._log_scale.constant)  # force to be non-negative
     else:
       self._log_scale = None
       model_scale = tf.constant(1.0)
@@ -436,16 +555,14 @@ class AffineTransform(LinearCombinationModelWrapper):
     if self._log_scale is not None:
       log_scale = np.log(target_std) - np.log(original_std)
       logging.info("Assigning log scale: %f", log_scale)
-      sess.run(self._log_scale_assign,
-               feed_dict={self._log_scale_ph: log_scale})
+      self._log_scale.set_constant(log_scale)
     scale = np.exp(log_scale)
 
     constant = 0.0
     if self._constant is not None:
       constant = -original_mean * target_std / original_std + target_mean
       logging.info("Assigning shift: %f", constant)
-      sess.run(self._constant.constant_assign,
-               feed_dict={self._constant.constant_ph: constant})
+      self._constant.constant.set_constant(constant)
 
     return AffineParameters(constant=constant, scale=scale)
 

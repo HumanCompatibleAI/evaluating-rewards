@@ -15,8 +15,7 @@
 """Miscellaneous utility methods."""
 
 import contextlib
-import copy
-from typing import Any, Dict, Iterator, Optional, Tuple, TypeVar
+from typing import Any, Dict, Optional
 
 from evaluating_rewards import comparisons
 from evaluating_rewards import rewards
@@ -41,57 +40,6 @@ def fresh_sess(intra_op: int = 0,
       yield
 
 
-K = TypeVar("K")
-V = TypeVar("V")
-
-
-def combine_dicts(*dicts: Dict[str, Dict[K, V]],
-                 ) -> Iterator[Tuple[str, Dict[K, V]]]:
-  """Return a generator merging together the dictionary arguments.
-
-  Usage example:
-
-    > list(combine_dicts({'a': {'x': 1}, 'b': {'x': 2}},
-                         {'c': {'y': 2}, 'd': {'x': 4, 'z': 3}}))
-    [('a_c', {'x': 1, 'y': 2}),
-     ('a_d', {'x': 4, 'z': 3}),
-     ('b_c', {'x': 2, 'y': 2}),
-     ('b_d', {'x': 4, 'z': 3})]
-
-
-  Arguments:
-    *dicts: A list of dictionaries, mapping from strings to inner dictionaries.
-
-  Yields:
-    Pairs (key, merged) computed from the cartesian product over the inner
-    dictionaries. Specifically, if *dicts is an n-length list of dictionaries,
-    then for each n-wise combination of inner dictionaries it yields
-    (key, merged) where key is the keys of each of the inner dictionaries
-    joined with "_" and merged is a dictionary containing key-value pairs from
-    each of the inner dictionaries. (If a key occurs multiple times, the
-    right-most occurrence takes precedence.)
-  """
-  head, *tail = dicts
-  if not tail:
-    for name, cfg in head.items():
-      yield name, cfg
-  else:
-    for head_name, head_cfg in head.items():
-      for tail_name, tail_cfg in combine_dicts(*tail):
-        name = head_name + "_" + tail_name
-        cfg = copy.deepcopy(head_cfg)
-        cfg.update(tail_cfg)
-        yield name, cfg
-
-
-def combine_dicts_as_kwargs(*dicts):
-  for name, cfg in combine_dicts(*dicts):
-    yield {
-        "testcase_name": name,
-        **cfg
-    }
-
-
 def get_affine(matching: comparisons.ModelMatch) -> rewards.AffineParameters:
   """Extract affine parameters from a model.
 
@@ -107,6 +55,7 @@ def get_affine(matching: comparisons.ModelMatch) -> rewards.AffineParameters:
   sess = tf.get_default_session()
   models = matching.model_extra
   scale_tensor = models["affine"].models["wrapped"][1]
-  const_tensor = models["affine"].models["constant"][0].constant
+  # .constant is a ConstantLayer, .constant.constant is the tensor
+  const_tensor = models["affine"].models["constant"][0].constant.constant
   scale, const = sess.run([scale_tensor, const_tensor])
   return rewards.AffineParameters(constant=const, scale=scale)

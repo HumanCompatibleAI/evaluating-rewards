@@ -21,9 +21,9 @@ from evaluating_rewards import rewards
 import gym
 from imitation.envs import resettable_env
 from imitation.util import registry
+from imitation.util import serialize
 import numpy as np
 from stable_baselines.common import policies
-from stable_baselines.common import vec_env
 import tensorflow as tf
 
 
@@ -136,15 +136,21 @@ class PointMassEnv(resettable_env.ResettableEnv):
       self.viewer = None
 
 
-class PointMassGroundTruth(rewards.BasicRewardModel):
+class PointMassGroundTruth(rewards.BasicRewardModel,
+                           serialize.LayersSerializable):
   """RewardModel representing the true (dense) reward in PointMass."""
 
-  def __init__(self, env, ctrl_coef=1.0):
-    self.ndim, remainder = divmod(env.observation_space.shape[0], 3)
+  def __init__(self,
+               observation_space: gym.Space,
+               action_space: gym.Space,
+               ctrl_coef: float = 1.0):
+    serialize.LayersSerializable.__init__(**locals(), layers={})
+
+    self.ndim, remainder = divmod(observation_space.shape[0], 3)
     assert remainder == 0
     self.ctrl_coef = ctrl_coef
-    super().__init__(env.observation_space, env.action_space)
 
+    rewards.BasicRewardModel.__init__(self, observation_space, action_space)
     self._reward = self.build_reward()
 
   def build_reward(self):
@@ -161,7 +167,8 @@ class PointMassGroundTruth(rewards.BasicRewardModel):
     return self._reward
 
 
-class PointMassSparseReward(rewards.BasicRewardModel):
+class PointMassSparseReward(rewards.BasicRewardModel,
+                            serialize.LayersSerializable):
   """A sparse reward for the point mass being close to the goal.
 
   Should produce similar behavior to PointMassGroundTruth. However, it is not
@@ -169,26 +176,30 @@ class PointMassSparseReward(rewards.BasicRewardModel):
   """
 
   def __init__(self,
-               env: vec_env.VecEnv,
+               observation_space: gym.Space,
+               action_space: gym.Space,
                ctrl_coef: float = 1.0,
                threshold: float = 0.05,
                goal_offset: Optional[np.ndarray] = None):
     """Constructs a PointMassSparseReward instance.
 
     Args:
-      env: The environment to provide reward for.
+      observation_space: Observation space of environment.
+      action_space: Action of environment.
       ctrl_coef: The multiplier for the quadratic control penalty.
       threshold: How near the point mass must be to the goal to receive reward.
       goal_offset: If specified, shifts the goal in the direction specified.
           The larger this is, the more dissimilar the reward model and resulting
           policy will be from PointMassGroundTruth.
     """
-    self.ndim, remainder = divmod(env.observation_space.shape[0], 3)
+    serialize.LayersSerializable.__init__(**locals(), layers={})
+
+    self.ndim, remainder = divmod(observation_space.shape[0], 3)
     assert remainder == 0
     self.ctrl_coef = ctrl_coef
     self.threshold = threshold
     self.goal_offset = goal_offset
-    super().__init__(env.observation_space, env.action_space)
+    rewards.BasicRewardModel.__init__(self, observation_space, action_space)
 
     self._reward = self.build_reward()
 
@@ -209,14 +220,17 @@ class PointMassSparseReward(rewards.BasicRewardModel):
     return self._reward
 
 
-class PointMassShaping(rewards.BasicRewardModel):
+class PointMassShaping(rewards.BasicRewardModel,
+                       serialize.LayersSerializable):
   """Potential shaping term, based on distance to goal."""
 
-  def __init__(self, env):
-    self.ndim, remainder = divmod(env.observation_space.shape[0], 3)
-    assert remainder == 0
-    super().__init__(env.observation_space, env.action_space)
+  def __init__(self, observation_space: gym.Space, action_space: gym.Space):
+    serialize.LayersSerializable.__init__(**locals(), layers={})
 
+    self.ndim, remainder = divmod(observation_space.shape[0], 3)
+    assert remainder == 0
+
+    rewards.BasicRewardModel.__init__(self, observation_space, action_space)
     self._reward = self.build_reward()
 
   def build_reward(self):
@@ -237,13 +251,32 @@ class PointMassShaping(rewards.BasicRewardModel):
     return self._reward
 
 
+class PointMassDenseReward(rewards.LinearCombinationModelWrapper):
+  """Sparse reward plus potential shaping."""
+
+  def __init__(self,
+               observation_space: gym.Space,
+               action_space: gym.Space,
+               **kwargs):
+    sparse = PointMassSparseReward(observation_space, action_space, **kwargs)
+    shaping = PointMassShaping(observation_space, action_space)
+    models = {
+        "sparse": (sparse, tf.constant(1.0)),
+        "shaping": (shaping, tf.constant(10.0)),
+    }
+    super().__init__(models)
+
+
 class PointMassPolicy(policies.BasePolicy):
   """Hard-coded policy that accelerates towards goal."""
 
-  def __init__(self, env, magnitude=1.0):
-    self.ob_space = env.observation_space
-    self.ac_space = env.action_space
-    self.ndim, remainder = divmod(env.observation_space.shape[0], 3)
+  def __init__(self,
+               observation_space: gym.Space,
+               action_space: gym.Space,
+               magnitude: float = 1.0):
+    self.ob_space = observation_space
+    self.ac_space = action_space
+    self.ndim, remainder = divmod(observation_space.shape[0], 3)
     assert remainder == 0
     self.magnitude = magnitude
 
@@ -264,23 +297,16 @@ class PointMassPolicy(policies.BasePolicy):
 
 
 # Loaders for deserialize interface
-load_point_mass_policy = registry.build_loader_fn_require_env(PointMassPolicy)
-load_point_mass_ground_truth = registry.build_loader_fn_require_env(
+load_point_mass_policy = registry.build_loader_fn_require_space(PointMassPolicy)
+load_point_mass_ground_truth = registry.build_loader_fn_require_space(
     PointMassGroundTruth)
-load_point_mass_sparse_reward = registry.build_loader_fn_require_env(
+load_point_mass_sparse_reward = registry.build_loader_fn_require_space(
     PointMassSparseReward)
-load_point_mass_sparse_reward_no_ctrl = registry.build_loader_fn_require_env(
+load_point_mass_sparse_reward_no_ctrl = registry.build_loader_fn_require_space(
     functools.partial(PointMassSparseReward, ctrl_coef=0.0))
-
-
-def load_point_mass_dense_reward(path: str,  # pylint: disable=unused-argument
-                                 venv: vec_env.VecEnv, **kwargs):
-  return rewards.LinearCombinationModelWrapper({
-      "sparse": (PointMassSparseReward(venv, **kwargs), tf.constant(1.0)),
-      "shaping": (PointMassShaping(venv), tf.constant(10.0)),
-  })
-
-
-load_point_mass_dense_reward_no_ctrl = functools.partial(
-    load_point_mass_dense_reward,
-    ctrl_coef=0.0)
+load_point_mass_dense_reward = registry.build_loader_fn_require_space(
+    PointMassDenseReward
+)
+load_point_mass_dense_reward_no_ctrl = registry.build_loader_fn_require_space(
+    functools.partial(PointMassDenseReward, ctrl_coef=0.0)
+)
