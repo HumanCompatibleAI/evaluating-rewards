@@ -157,9 +157,9 @@ def mesh_input(env: point_mass.PointMassEnv,
   next_states = env.transition(states, actions)
   next_obs = env.obs_from_state(next_states)
 
-  dataset = rewards.Batch(old_obs=obs,
+  dataset = rewards.Batch(obs=obs,
                           actions=actions,
-                          new_obs=next_obs)
+                          next_obs=next_obs)
   return idxs, dataset
 
 

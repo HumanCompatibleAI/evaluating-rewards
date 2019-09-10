@@ -55,16 +55,16 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
       with util.make_session() as (_, sess):
         reward_model = reward_model_loader(path, venv)
 
-        def reward_fn(old_obs: np.ndarray,
+        def reward_fn(obs: np.ndarray,
                       actions: np.ndarray,
-                      new_obs: np.ndarray,
+                      next_obs: np.ndarray,
                       steps: np.ndarray,
                      ) -> np.ndarray:
           """Helper method computing reward for registered model."""
           del steps
-          batch = rewards.Batch(old_obs=old_obs,
+          batch = rewards.Batch(obs=obs,
                                 actions=actions,
-                                new_obs=new_obs)
+                                next_obs=next_obs)
           fd = rewards.make_feed_dict([reward_model], batch)
           return sess.run(reward_model.reward, feed_dict=fd)
 

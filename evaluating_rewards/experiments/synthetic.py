@@ -127,7 +127,7 @@ def compare_synthetic(observation_space: gym.Space,
 
   noise_kwargs = {}
   if state_only:
-    noise_kwargs = {"use_act": False, "use_new_obs": False}
+    noise_kwargs = {"use_act": False, "use_next_obs": False}
 
   with tf.variable_scope("ground_truth"):
     ground_truth = rewards.MLPRewardModel(observation_space, action_space,

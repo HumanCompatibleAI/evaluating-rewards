@@ -19,7 +19,7 @@ import collections
 import itertools
 import os
 import pickle
-from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterable, NamedTuple, Mapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
 import gym
@@ -29,10 +29,32 @@ import numpy as np
 from stable_baselines.common import input as env_in  # avoid name clash
 import tensorflow as tf
 
-AffineParameters = collections.namedtuple("AffineParameters",
-                                          ["constant", "scale"])
-Batch = collections.namedtuple("Batch",
-                               ["old_obs", "actions", "new_obs"])
+
+class AffineParameters(NamedTuple):
+  """Parameters of an affine transformation.
+
+  Attributes:
+    constant: The additive shift.
+    scale: The multiplicative dilation factor.
+  """
+
+  constant: float
+  scale: float
+
+
+class Batch(NamedTuple):
+  """A batch of training data, consisting of obs-act-next obs transitions.
+
+  Attributes:
+    obs: Observations. Shape (batch_size, ) + obs_shape.
+    actions: Actions. Shape (batch_size, ) + act_shape.
+    next_obs: Observations. Shape (batch_size, ) + obs_shape.
+  """
+
+  # TODO(): switch to rollout.TransitionsNoRew, see imitation issue #95
+  obs: np.ndarray
+  actions: np.ndarray
+  next_obs: np.ndarray
 
 
 class RewardModel(serialize.Serializable):
@@ -60,8 +82,8 @@ class RewardModel(serialize.Serializable):
   # to third-party codebases.
   @property
   @abc.abstractmethod
-  def old_obs_ph(self) -> Iterable[tf.Tensor]:
-    """Gets the old observation placeholder(s)."""
+  def obs_ph(self) -> Iterable[tf.Tensor]:
+    """Gets the current observation placeholder(s)."""
 
   @property
   @abc.abstractmethod
@@ -70,8 +92,8 @@ class RewardModel(serialize.Serializable):
 
   @property
   @abc.abstractmethod
-  def new_obs_ph(self) -> Iterable[tf.Tensor]:
-    """Gets the new observation placeholder(s)."""
+  def next_obs_ph(self) -> Iterable[tf.Tensor]:
+    """Gets the next observation placeholder(s)."""
 
 
 class BasicRewardModel(RewardModel):
@@ -81,8 +103,8 @@ class BasicRewardModel(RewardModel):
     RewardModel.__init__(self)
     self._obs_space = obs_space
     self._act_space = act_space
-    self._old_obs_ph, self._proc_old_obs = env_in.observation_input(obs_space)
-    self._new_obs_ph, self._proc_new_obs = env_in.observation_input(obs_space)
+    self._obs_ph, self._proc_obs = env_in.observation_input(obs_space)
+    self._next_obs_ph, self._proc_next_obs = env_in.observation_input(obs_space)
     self._act_ph, self._proc_act = env_in.observation_input(act_space)
 
   @property
@@ -94,12 +116,12 @@ class BasicRewardModel(RewardModel):
     return self._act_space
 
   @property
-  def old_obs_ph(self):
-    return (self._old_obs_ph,)
+  def obs_ph(self):
+    return (self._obs_ph,)
 
   @property
-  def new_obs_ph(self):
-    return (self._new_obs_ph,)
+  def next_obs_ph(self):
+    return (self._next_obs_ph,)
 
   @property
   def act_ph(self):
@@ -112,15 +134,15 @@ class MLPRewardModel(BasicRewardModel,
 
   def __init__(self, obs_space: gym.Space, act_space: gym.Space,
                hid_sizes: Optional[Iterable[int]] = None, use_act: bool = True,
-               use_old_obs: bool = True, use_new_obs: bool = True):
+               use_obs: bool = True, use_next_obs: bool = True):
     BasicRewardModel.__init__(self, obs_space, act_space)
     if hid_sizes is None:
       hid_sizes = [32, 32]
     params = locals()
 
     kwargs = {
-        "old_obs_input": self._proc_old_obs if use_old_obs else None,
-        "new_obs_input": self._proc_new_obs if use_new_obs else None,
+        "obs_input": self._proc_obs if use_obs else None,
+        "next_obs_input": self._proc_next_obs if use_next_obs else None,
         "act_input": self._proc_act if use_act else None,
     }
     self._reward, layers = reward_net.build_basic_theta_network(hid_sizes,
@@ -152,8 +174,8 @@ class PotentialShaping(BasicRewardModel,
     params.update(**kwargs)
 
     res = reward_net.build_basic_phi_network(hid_sizes,
-                                             self._proc_old_obs,
-                                             self._proc_new_obs,
+                                             self._proc_obs,
+                                             self._proc_next_obs,
                                              **kwargs)
     self._old_potential, self._new_potential, layers = res
     self.discount = discount
@@ -239,8 +261,8 @@ class ConstantReward(BasicRewardModel,
     params = locals()
 
     self._constant = ConstantLayer(name="constant", initializer=initializer)
-    n_batch = tf.shape(self._proc_old_obs)[0]
-    obs = tf.reshape(self._proc_old_obs, [n_batch, -1])
+    n_batch = tf.shape(self._proc_obs)[0]
+    obs = tf.reshape(self._proc_obs, [n_batch, -1])
     # self._reward_output is a scalar constant repeated (n_batch, ) times
     self._reward_output = self._constant(obs[:, 0])
 
@@ -264,7 +286,7 @@ class ZeroReward(BasicRewardModel,
     serialize.LayersSerializable.__init__(**locals(), layers={})
     BasicRewardModel.__init__(self, obs_space, act_space)
 
-    n_batch = tf.shape(self._proc_old_obs)[0]
+    n_batch = tf.shape(self._proc_obs)[0]
     self._reward_output = tf.fill((n_batch,), 0.0)
 
   @property
@@ -302,16 +324,16 @@ class RewardNetToRewardModel(RewardModel):
     return self.reward_net.action_space
 
   @property
-  def old_obs_ph(self):
-    return (self.reward_net.old_obs_ph,)
+  def obs_ph(self):
+    return (self.reward_net.obs_ph,)
 
   @property
   def act_ph(self):
     return (self.reward_net.act_ph,)
 
   @property
-  def new_obs_ph(self):
-    return (self.reward_net.new_obs_ph,)
+  def next_obs_ph(self):
+    return (self.reward_net.next_obs_ph,)
 
   def _load(self, cls, directory: str) -> "RewardNetToRewardModel":
     with open(os.path.join(directory, "use_test"), "rb") as f:
@@ -355,18 +377,18 @@ class RewardModelWrapper(RewardModel):
     return self.model.action_space
 
   @property
-  def old_obs_ph(self):
-    return self.model.old_obs_ph
+  def obs_ph(self):
+    return self.model.obs_ph
 
   @property
   def act_ph(self):
     return self.model.act_ph
 
   @property
-  def new_obs_ph(self):
-    return self.model.new_obs_ph
+  def next_obs_ph(self):
+    return self.model.next_obs_ph
 
-  def _load(self, cls, directory: str) -> "RewardModelWrapper":
+  def _load(self, cls: Type[serialize.T], directory: str) -> serialize.T:
     model = RewardModel.load(os.path.join(directory, "model"))
     return cls(model)
 
@@ -411,13 +433,13 @@ class LinearCombinationModelWrapper(RewardModelWrapper):
     return self._reward_output
 
   @property
-  def old_obs_ph(self):
-    return tuple(itertools.chain(*[m.old_obs_ph
+  def obs_ph(self):
+    return tuple(itertools.chain(*[m.obs_ph
                                    for m, _ in self.models.values()]))
 
   @property
-  def new_obs_ph(self):
-    return tuple(itertools.chain(*[m.new_obs_ph
+  def next_obs_ph(self):
+    return tuple(itertools.chain(*[m.next_obs_ph
                                    for m, _ in self.models.values()]))
 
   @property
@@ -589,10 +611,10 @@ class PotentialShapingWrapper(LinearCombinationModelWrapper):
 def make_feed_dict(models: Iterable[RewardModel],
                    batch: Batch) -> Dict[tf.Tensor, np.ndarray]:
   """Construct a feed dictionary for models for data in batch."""
-  assert batch.old_obs.shape == batch.new_obs.shape
-  assert batch.old_obs.shape[0] == batch.actions.shape[0]
+  assert batch.obs.shape == batch.next_obs.shape
+  assert batch.obs.shape[0] == batch.actions.shape[0]
   a_model = next(iter(models))
-  assert batch.old_obs.shape[1:] == a_model.observation_space.shape
+  assert batch.obs.shape[1:] == a_model.observation_space.shape
   assert batch.actions.shape[1:] == a_model.action_space.shape
   for m in models:
     assert a_model.observation_space == m.observation_space
@@ -600,9 +622,9 @@ def make_feed_dict(models: Iterable[RewardModel],
 
   feed_dict = {}
   for m in models:
-    feed_dict.update({ph: batch.old_obs for ph in m.old_obs_ph})
+    feed_dict.update({ph: batch.obs for ph in m.obs_ph})
     feed_dict.update({ph: batch.actions for ph in m.act_ph})
-    feed_dict.update({ph: batch.new_obs for ph in m.new_obs_ph})
+    feed_dict.update({ph: batch.next_obs for ph in m.next_obs_ph})
 
   return feed_dict
 

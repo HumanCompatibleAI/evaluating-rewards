@@ -155,8 +155,8 @@ class PointMassGroundTruth(rewards.BasicRewardModel,
 
   def build_reward(self):
     """Computes reward from observation and action in PointMass environment."""
-    pos = self._proc_old_obs[:, 0:self.ndim]
-    goal = self._proc_old_obs[:, 2*self.ndim:3*self.ndim]
+    pos = self._proc_obs[:, 0:self.ndim]
+    goal = self._proc_obs[:, 2 * self.ndim:3 * self.ndim]
     dist = tf.norm(pos - goal, axis=-1)
     ctrl_cost = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
     return -dist - self.ctrl_coef * ctrl_cost
@@ -205,8 +205,8 @@ class PointMassSparseReward(rewards.BasicRewardModel,
 
   def build_reward(self):
     """Computes reward from observation and action in PointMass environment."""
-    pos = self._proc_old_obs[:, 0:self.ndim]
-    goal = self._proc_old_obs[:, 2*self.ndim:3*self.ndim]
+    pos = self._proc_obs[:, 0:self.ndim]
+    goal = self._proc_obs[:, 2 * self.ndim:3 * self.ndim]
     if self.goal_offset is not None:
       goal += self.goal_offset[np.newaxis, :]
     dist = tf.norm(pos - goal, axis=-1)
@@ -234,14 +234,14 @@ class PointMassShaping(rewards.BasicRewardModel,
     self._reward = self.build_reward()
 
   def build_reward(self):
-    """Computes shaping from old and next observations."""
+    """Computes shaping from current and next observations."""
     def dist(obs):
       pos = obs[:, 0:self.ndim]
       goal = obs[:, 2*self.ndim:3*self.ndim]
       return tf.norm(pos - goal, axis=-1)
 
-    old_dist = dist(self._proc_old_obs)
-    new_dist = dist(self._proc_new_obs)
+    old_dist = dist(self._proc_obs)
+    new_dist = dist(self._proc_next_obs)
 
     return old_dist - new_dist
 

@@ -42,12 +42,12 @@ def dummy_env_and_dataset(dims: int = 5):
   def dataset_generator(total_timesteps, batch_size):
     nbatches = math.ceil(total_timesteps / batch_size)
     for _ in range(nbatches):
-      old_obs = np.array([obs_space.sample() for _ in range(batch_size)])
+      obs = np.array([obs_space.sample() for _ in range(batch_size)])
       actions = np.array([act_space.sample() for _ in range(batch_size)])
-      new_obs = (old_obs + actions).clip(0.0, 1.0)
-      yield rewards.Batch(old_obs=old_obs,
+      next_obs = (obs + actions).clip(0.0, 1.0)
+      yield rewards.Batch(obs=obs,
                           actions=actions,
-                          new_obs=new_obs)
+                          next_obs=next_obs)
 
   return {
       "observation_space": obs_space,
@@ -67,12 +67,13 @@ def rollout_generator(env: gym.Env,
   def f(total_timesteps: int, batch_size: int) -> Iterator[rewards.Batch]:
     nbatch = math.ceil(total_timesteps / batch_size)
     for _ in range(nbatch):
-      res = rollout.generate_transitions(policy, env, n_timesteps=batch_size,
-                                         truncate=True)
-      old_obs, actions, new_obs, _ = res
-      yield rewards.Batch(old_obs=old_obs,
-                          actions=actions,
-                          new_obs=new_obs)
+      transitions = rollout.generate_transitions(policy, env,
+                                                 n_timesteps=batch_size,
+                                                 truncate=True)
+      # TODO(): can we switch to rollout.Transition?
+      yield rewards.Batch(obs=transitions.obs,
+                          actions=transitions.act,
+                          next_obs=transitions.next_obs)
   return f
 
 
@@ -97,22 +98,22 @@ def random_generator(env: resettable_env.ResettableEnv) -> BatchCallable:
     """Helper function."""
     nbatch = math.ceil(total_timesteps / batch_size)
     for _ in range(nbatch):
-      old_obses = []
+      obses = []
       acts = []
-      new_obses = []
+      next_obses = []
       for _ in range(batch_size):
         old_state = env.state_space.sample()
-        old_obs = env.obs_from_state(old_state)
+        obs = env.obs_from_state(old_state)
         act = env.action_space.sample()
         new_state = env.transition(old_state, act)  # may be non-deterministic
-        new_obs = env.obs_from_state(new_state)
+        next_obs = env.obs_from_state(new_state)
 
-        old_obses.append(old_obs)
+        obses.append(obs)
         acts.append(act)
-        new_obses.append(new_obs)
-      yield rewards.Batch(old_obs=np.array(old_obses),
+        next_obses.append(next_obs)
+      yield rewards.Batch(obs=np.array(obses),
                           actions=np.array(acts),
-                          new_obs=np.array(new_obses))
+                          next_obs=np.array(next_obses))
   return f
 
 

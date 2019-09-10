@@ -89,21 +89,21 @@ class MonteCarloGreedyPolicy(policies.BasePolicy):
 
     try:
       # TODO(): vectorizing transition would improve performance
-      new_obs = []
+      next_obs = []
       for old_ob, act in zip(dup_obs, dup_actions):
         old_s = self.venv.env_method("state_from_obs", old_ob, indices=[0])[0]
         new_s = self.venv.env_method("transition", old_s, act, indices=[0])[0]
-        new_ob = self.venv.env_method("obs_from_state", new_s, indices=[0])[0]
-        new_obs.append(new_ob)
-      new_obs = np.array(new_obs)
+        next_ob = self.venv.env_method("obs_from_state", new_s, indices=[0])[0]
+        next_obs.append(next_ob)
+      next_obs = np.array(next_obs)
     except AttributeError:
       warnings.warn("Environment is not model-based: will assume next "
                     "observation is the same as current observation.")
-      new_obs = dup_obs
+      next_obs = dup_obs
 
-    batch = rewards.Batch(old_obs=dup_obs,
+    batch = rewards.Batch(obs=dup_obs,
                           actions=dup_actions,
-                          new_obs=new_obs)
+                          next_obs=next_obs)
     feed_dict = rewards.make_feed_dict([self.reward_model], batch)
     # TODO(): add a function to RewardModel to compute this?
     reward = self.sess.run(self.reward_model.reward, feed_dict=feed_dict)
