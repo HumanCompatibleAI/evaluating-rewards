@@ -40,11 +40,12 @@ def fresh_sess(intra_op: int = 0,
       yield
 
 
-def get_affine(matching: comparisons.ModelMatch) -> rewards.AffineParameters:
+def get_affine(matching: comparisons.RegressWrappedModel,
+              ) -> rewards.AffineParameters:
   """Extract affine parameters from a model.
 
   Arguments:
-    matching: The ModelMatch object fitting a model to a target.
+    matching: The RegressWrappedModel object fitting a model to a target.
 
   Returns:
     The current affine parameters (scale and shift), from the perspective of

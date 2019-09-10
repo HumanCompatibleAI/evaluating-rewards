@@ -39,22 +39,23 @@ def build_graph(original: rewards.RewardModel,
     original: A reward model.
     target: The reward model we wish to try and make original close to.
     name: A name describing the graph.
-    wrapper: A function passed to `deep.ModelMatch` to wrap `original`.
-        This defines the equivalence class of reward models we can search over.
-    **kwargs: Passed through to `deep.ModelMatch`.
+    wrapper: A function passed to `comparisons.RegressWrappedModel` to wrap
+        `original`. This defines the equivalence class of reward models we
+        can search over.
+    **kwargs: Passed through to `comparisons.RegressWrappedModel`.
 
   Returns:
-    A tuple (model_match, init) where `model_match` is the deep.ModelMatch
+    A tuple (model_match, init) where `model_match` is the RegressWrappedModel
     object and `init` is a TensorFlow operation that initializes the
     variables in `model_match`.
   """
   scope_name = "matching_" + name
   with tf.variable_scope(scope_name):
-    match = comparisons.ModelMatch(original,
-                                   target,
-                                   model_wrapper=wrapper,
-                                   learning_rate=1e-2,
-                                   **kwargs)
+    match = comparisons.RegressWrappedModel(original,
+                                            target,
+                                            model_wrapper=wrapper,
+                                            learning_rate=1e-2,
+                                            **kwargs)
   match_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
                                  scope=scope_name)
   match_vars_init = tf.initializers.variables(match_vars,
@@ -66,13 +67,13 @@ def build_graph(original: rewards.RewardModel,
 def fit_match(original: rewards.RewardModel,
               target: rewards.RewardModel,
               dataset: datasets.BatchCallable,
-              match: comparisons.ModelMatch,
+              match: comparisons.RegressWrappedModel,
               match_vars_init: tf.Tensor,
               pretrain: bool = True,
               pretrain_size: int = 4096,
               total_timesteps: int = 2**20,
               batch_size: int = 1024) -> Dict[str, Any]:
-  """Fits a deep.ModelMatch and evaluates the result.
+  """Fits a comparisons.RegressWrappedModel and evaluates the result.
 
   Arguments:
     original: The original reward model.
@@ -106,7 +107,7 @@ def fit_match(original: rewards.RewardModel,
 
   test_set = next(dataset(4096, 4096))
   stats = comparisons.summary_comparison(original=original,
-                                         matched=match.model,
+                                         matched=match.source,
                                          target=target,
                                          test_set=test_set)
 
@@ -139,7 +140,7 @@ def match_pipeline(original: rewards.RewardModel,
 
   Returns:
     A dictionary containing the results from `fit_match`, augmented with the
-    `deep.ModelMatch` object and name.
+    `deep.RegressWrappedModel` object and name.
   """
   if name is None:
     name = uuid.uuid4().hex
@@ -184,7 +185,7 @@ def norm_diff(predicted: np.ndarray,
   return np.linalg.norm(delta, ord=norm) / scale
 
 
-def constant_baseline(match: comparisons.ModelMatch,
+def constant_baseline(match: comparisons.RegressModel,
                       target: rewards.RewardModel,
                       dataset: datasets.BatchCallable,
                       test_size: int = 4096) -> Dict[str, Any]:
@@ -200,7 +201,7 @@ def constant_baseline(match: comparisons.ModelMatch,
     A dictionary containing summary statistics.
   """
   test_set = next(dataset(test_size, test_size))
-  models = [match.model, target]
+  models = [match.source, target]
   matched_preds, target_preds = rewards.evaluate_models(models, test_set)
 
   actual_delta = matched_preds - target_preds

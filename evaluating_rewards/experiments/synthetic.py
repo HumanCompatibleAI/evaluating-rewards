@@ -177,10 +177,11 @@ def compare_synthetic(observation_space: gym.Space,
               hid_sizes=model_potential_hids,
               activation=model_activation,
               discount=discount)
-          matched = comparisons.ModelMatch(noised_ground_shaped, ground_truth,
-                                           model_wrapper=model_wrapper,
-                                           learning_rate=learning_rate,
-                                           optimizer=optimizer)
+          matched = comparisons.RegressWrappedModel(noised_ground_shaped,
+                                                    ground_truth,
+                                                    model_wrapper=model_wrapper,
+                                                    learning_rate=learning_rate,
+                                                    optimizer=optimizer)
           matchings[(rew_nm, pot_nm)] = matched
 
   # Initialization
@@ -212,7 +213,7 @@ def compare_synthetic(observation_space: gym.Space,
       initial_scales[key] = 1
 
   # Train potential shaping and other parameters
-  metrics = comparisons.potential_fit(matchings, training_generator)
+  metrics = comparisons.fit_models(matchings, training_generator)
 
   # Evaluation
   intrinsics = {}
@@ -233,7 +234,7 @@ def compare_synthetic(observation_space: gym.Space,
         shaping_model = matched.model_extra["shaping"].models["shaping"][0]
 
       res = comparisons.summary_comparison(original=original,
-                                           matched=matched.model,
+                                           matched=matched.source,
                                            target=ground_truth,
                                            shaping=shaping_model,
                                            test_set=test_set)

@@ -239,7 +239,7 @@ def match_pipeline(env: point_mass.PointMassEnv,
     goal = np.array([0.0])
 
   eval_kwargs = eval_kwargs or {}
-  reward = evaluate_reward_model(env, res["match"].model,
+  reward = evaluate_reward_model(env, res["match"].source,
                                  goal=goal, density=11, **eval_kwargs)
   fig = plot_reward(reward, goal, zaxis="position")
 

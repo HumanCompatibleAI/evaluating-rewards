@@ -14,27 +14,82 @@
 
 """Methods to compare reward models."""
 import logging
-from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Tuple, Type, TypeVar
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, Type, TypeVar
 
 from evaluating_rewards import rewards
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 
-class ModelMatch(object):
-  """Builds a model wrapping a source model and fits it to match target."""
+class RegressModel(object):
+  """Regress source model onto target."""
 
   def __init__(self,
                source: rewards.RewardModel,
                target: rewards.RewardModel,
-               model_wrapper: Callable[[rewards.RewardModel],
-                                       Tuple[rewards.RewardModel, Any]],
+               *,
                loss_fn: Callable[[tf.Tensor, tf.Tensor], tf.Tensor] =
                tf.losses.mean_squared_error,
                optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
                learning_rate: float = 1e-2):
-    """Constructs ModelMatch.
+    """Constructs RegressModel.
+
+    Args:
+      source: The original model.
+      target: The model we want to match.
+      loss_fn: A function computing the loss from labels and predictions.
+      optimizer: The type of optimizer to use.
+      learning_rate: Hyperparameter for optimizer.
+    """
+    assert source.observation_space == target.observation_space
+    assert source.action_space == target.action_space
+
+    self.source = source
+    self.target = rewards.StopGradientsModelWrapper(target)
+    self.learning_rate = learning_rate
+
+    self.loss = loss_fn(self.target.reward, self.source.reward)
+
+    self._opt = optimizer(learning_rate=self.learning_rate)  # pytype: disable=wrong-keyword-args
+    self._grads = self._opt.compute_gradients(self.loss)
+    self.opt_op = self._opt.apply_gradients(self._grads)
+
+    self.metrics = {}
+    self.metrics["grad_norm"] = {
+        variable.name: tf.norm(gradient)
+        for gradient, variable in self._grads
+        if gradient is not None
+    }
+
+  def build_feed_dict(self, batch: rewards.Batch):
+    """Construct feed dict given a batch of data."""
+    models = [self.source, self.target]
+    return rewards.make_feed_dict(models, batch)
+
+  def fit(self, dataset: Iterator[rewards.Batch],
+          log_interval: int = 10) -> Mapping[str, List[Mapping[str, Any]]]:
+    """Fits shaping to target."""
+    return fit_models({"singleton": self},
+                      dataset=dataset,
+                      log_interval=log_interval)
+
+
+class RegressWrappedModel(RegressModel):
+  """Wrap a source model and regress the wrapped model onto target.
+
+  Does not change the source model: only the wrapper.
+  """
+
+  def __init__(self,
+               source: rewards.RewardModel,
+               target: rewards.RewardModel,
+               *,
+               model_wrapper: Callable[[rewards.RewardModel],
+                                       Tuple[rewards.RewardModel, Any]],
+               loss_fn: Callable[[tf.Tensor, tf.Tensor], tf.Tensor] =
+               tf.losses.mean_squared_error,
+               **kwargs):
+    """Constructs RegressWrappedModel.
 
     Args:
       source: The original model.
@@ -43,38 +98,12 @@ class ModelMatch(object):
           to target. Typically the wrapper is constrained to not change the
           equivalence class of source.
       loss_fn: A function computing the loss from labels and predictions.
-      optimizer: The type of optimizer to use.
-      learning_rate: Hyperparameter for optimizer.
+      **kwargs: Passed through to super-class.
     """
-    assert source.observation_space == target.observation_space
-    assert source.action_space == target.action_space
-    self.source = rewards.StopGradientsModelWrapper(source)
-    self.target = rewards.StopGradientsModelWrapper(target)
-    self.learning_rate = learning_rate
-
-    self.model, self.model_extra = model_wrapper(self.source)
-
-    self.loss = loss_fn(self.target.reward, self.model.reward)
-    self.unshaped_mse = loss_fn(self.target.reward, self.source.reward)
-
-    self._opt = optimizer(learning_rate=self.learning_rate)  # pytype: disable=wrong-keyword-args
-    self._grads = self._opt.compute_gradients(self.loss)
-    self.grad_norm = {variable: tf.norm(gradient)
-                      for variable, gradient in self._grads
-                      if gradient is not None}
-    self.opt_op = self._opt.apply_gradients(self._grads)
-
-  def build_feed_dict(self, batch: rewards.Batch):
-    """Construct feed dict given a batch of data."""
-    models = [self.source, self.target, self.model]
-    return rewards.make_feed_dict(models, batch)
-
-  def fit(self, dataset: Iterator[rewards.Batch],
-          log_interval: int = 10) -> Mapping[str, pd.DataFrame]:
-    """Fits shaping to target."""
-    return potential_fit({"singleton": self},
-                         dataset=dataset,
-                         log_interval=log_interval)
+    self.unwrapped_source = rewards.StopGradientsModelWrapper(source)
+    model, self.model_extra = model_wrapper(self.unwrapped_source)
+    super().__init__(source=model, target=target, loss_fn=loss_fn, **kwargs)
+    self.metrics["unwrapped_loss"] = loss_fn(self.target.reward, source.reward)
 
 
 def _scaled_norm(x):
@@ -166,10 +195,13 @@ def equivalence_model_wrapper(wrapped: rewards.RewardModel,
 K = TypeVar("K")
 
 
-def potential_fit(potentials: Mapping[K, ModelMatch],
-                  dataset: Iterator[rewards.Batch],
-                  log_interval: int = 10) -> Mapping[K, pd.DataFrame]:
-  """Fits potentials to dataset.
+def fit_models(potentials: Mapping[K, RegressModel],
+               dataset: Iterator[rewards.Batch],
+               log_interval: int = 10) -> Mapping[str, List[Mapping[K, Any]]]:
+  """Regresses model(s).
+
+  Each training step is executed concurrently for all the models, enabling
+  TensorFlow to exploit any available concurrency.
 
   Args:
     potentials: A mapping from strings to a potential-shaped reward model.
@@ -180,31 +212,27 @@ def potential_fit(potentials: Mapping[K, ModelMatch],
     Metrics from training.
   """
   sess = tf.get_default_session()
-  ops = {k: [p.opt_op, p.grad_norm, p.loss, p.unshaped_mse]
+  ops = {k: [p.opt_op, p.loss, p.metrics]
          for k, p in potentials.items()}
-  grad_norms = []
   losses = []
-  unshaped_mses = []
+  metrics = []
   for i, batch in enumerate(dataset):
     feed_dict = {}
     for potential in potentials.values():
       feed_dict.update(potential.build_feed_dict(batch))
 
     outputs = sess.run(ops, feed_dict=feed_dict)
-    grad_norm = {k: v[1] for k, v in outputs.items()}
-    loss = {k: v[2] for k, v in outputs.items()}
-    unshaped_mse = {k: v[3] for k, v in outputs.items()}
-    grad_norms.append(grad_norm)
+    loss = {k: v[1] for k, v in outputs.items()}
+    metric = {k: v[2] for k, v in outputs.items()}
     losses.append(loss)
-    unshaped_mses.append(unshaped_mse)
+    metrics.append(metric)
 
     if i % log_interval == 0:
-      logging.info(f"{i}: grad norm = {grad_norm}, shaped MSE = {loss}, "
-                   f"unshaped MSE = {unshaped_mse}")
+      logging.info(f"{i}: loss = {loss}, "
+                   f"metrics = {metric}")
 
   # TODO(): better logging method, e.g. TensorBoard summaries?
   return {
-      "grad_norm": grad_norms,
-      "loss": pd.DataFrame(losses),
-      "unshaped_mse": pd.DataFrame(unshaped_mses),
+      "loss": losses,
+      "metrics": metrics,
   }
