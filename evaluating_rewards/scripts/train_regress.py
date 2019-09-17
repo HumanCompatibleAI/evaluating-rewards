@@ -15,7 +15,6 @@
 """CLI script to regress a model onto another, pre-loaded model."""
 
 import functools
-import os
 from typing import Any, Callable, Mapping
 
 from absl import app
@@ -45,9 +44,6 @@ def default_config():
   batch_size = 4096
   learning_rate = 1e-2
 
-  # Logging
-  log_root = os.path.join("output", "train_regress")  # output directory
-
 
 @train_regress_ex.named_config
 def fast():
@@ -56,7 +52,7 @@ def fast():
 # pylint:enable=unused-variable
 
 
-train_regress_ex.config(regress_utils.logging_config)
+script_utils.add_logging_config(train_regress_ex, "train_regress")
 
 
 @train_regress_ex.main

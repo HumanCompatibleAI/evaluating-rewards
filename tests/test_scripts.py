@@ -21,8 +21,10 @@ from absl.testing import parameterized
 from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
 from evaluating_rewards.scripts.train_regress import train_regress_ex
+from evaluating_rewards.scripts.visualize_pm_reward import visualize_pm_reward_ex
 from tests import common
 import pandas as pd
+import xarray as xr
 
 
 EXPERIMENTS = {
@@ -38,6 +40,10 @@ EXPERIMENTS = {
         "experiment": train_preferences_ex,
         "expected_type": pd.DataFrame,
     },
+    "visualize_pm_reward": {
+        "experiment": visualize_pm_reward_ex,
+        "expected_type": xr.DataArray,
+    }
 }
 
 

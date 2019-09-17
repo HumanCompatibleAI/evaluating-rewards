@@ -26,19 +26,22 @@ def _get_output_dir():
   return os.path.join(os.getenv('HOME'), 'output')
 
 
-def make_main(experiment, name):
-  """Returns a main function for experiment."""
+def logging_config(log_root, env_name):
+  # pylint: disable=unused-variable
+  log_dir = os.path.join(log_root, env_name.replace('/', '_'),
+                         util.make_unique_timestamp())
+  # pylint: enable=unused-variable
 
+
+def add_logging_config(experiment, name):
   experiment.add_config({
       'log_root': os.path.join(_get_output_dir(), name)
   })
+  experiment.config(logging_config)
 
-  @experiment.config
-  def logging(log_root, env_name):
-    # pylint: disable=unused-variable
-    log_dir = os.path.join(log_root, env_name.replace('/', '_'),
-                           util.make_unique_timestamp())
-    # pylint: enable=unused-variable
+
+def make_main(experiment, name):
+  """Returns a main function for experiment."""
 
   def main(argv):
     # TODO(): this writes output to disk, which may fail on some VMs

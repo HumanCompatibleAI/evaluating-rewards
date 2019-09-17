@@ -21,5 +21,6 @@ from imitation.scripts import eval_policy  # pylint: disable=unused-import
 
 
 if __name__ == "__main__":
+  script_utils.add_logging_config(eval_policy.eval_policy_ex, "eval_policy")
   main = script_utils.make_main(eval_policy.eval_policy_ex, "eval_policy")
   app.run(main)

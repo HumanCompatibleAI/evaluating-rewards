@@ -82,7 +82,7 @@ def fast():
 # pylint:enable=unused-variable
 
 
-model_comparison_ex.config(regress_utils.logging_config)
+script_utils.add_logging_config(model_comparison_ex, "model_comparison")
 
 
 @model_comparison_ex.main

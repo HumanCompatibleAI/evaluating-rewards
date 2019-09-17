@@ -17,6 +17,7 @@
 import os
 from typing import Iterable, Optional, Tuple
 
+from absl import logging
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -39,12 +40,18 @@ def plot_shaping_comparison(df: pd.DataFrame,
   return longform
 
 
+def save_fig(path: str, fig: plt.Figure, **kwargs):
+  root_dir = os.path.dirname(path)
+  os.makedirs(root_dir, exist_ok=True)
+  logging.info(f"Saving figure to {path}")
+  with open(path, "wb") as f:
+    fig.savefig(f, format="pdf", **kwargs)
+
+
 def save_figs(root_dir: str,
               generator: Iterable[Tuple[str, plt.Figure]],
               **kwargs) -> None:
   for name, fig in generator:
-    os.makedirs(root_dir, exist_ok=True)
     name = name.replace("/", "_")
     path = os.path.join(root_dir, name + ".pdf")
-    with open(path, "wb") as f:
-      fig.savefig(f, format="pdf", **kwargs)
+    save_fig(path, fig, **kwargs)

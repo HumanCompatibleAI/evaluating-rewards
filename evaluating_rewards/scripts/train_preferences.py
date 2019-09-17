@@ -15,7 +15,6 @@
 """CLI script to fit a model to synthetically generated preferences."""
 
 import functools
-import os
 from typing import Any, Mapping
 
 from absl import app
@@ -47,9 +46,6 @@ def default_config():
   batch_size = 128
   learning_rate = 1e-3
 
-  # Logging
-  log_root = os.path.join("output", "train_preferences")  # output directory
-
 
 @train_preferences_ex.named_config
 def fast():
@@ -58,7 +54,7 @@ def fast():
 # pylint:enable=unused-variable
 
 
-train_preferences_ex.config(regress_utils.logging_config)
+script_utils.add_logging_config(train_preferences_ex, "train_preferences")
 
 
 @train_preferences_ex.main

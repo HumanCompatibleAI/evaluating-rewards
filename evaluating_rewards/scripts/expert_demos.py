@@ -19,5 +19,6 @@ from evaluating_rewards.scripts import script_utils
 from imitation.scripts import expert_demos
 
 if __name__ == "__main__":
+  script_utils.add_logging_config(expert_demos.expert_demos_ex, "expert_demos")
   main = script_utils.make_main(expert_demos.expert_demos_ex, "expert_demos")
   app.run(main)

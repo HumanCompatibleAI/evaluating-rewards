@@ -20,5 +20,7 @@ from imitation.scripts import train_adversarial
 
 
 if __name__ == "__main__":
+  script_utils.add_logging_config(train_adversarial.train_ex,
+                                  "train_adversarial")
   main = script_utils.make_main(train_adversarial.train_ex, "train_adversarial")
   app.run(main)
