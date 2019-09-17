@@ -219,7 +219,7 @@ def compare_synthetic(observation_space: gym.Space,
   intrinsics = {}
   shapings = {}
   extrinsics = {}
-  ub_intrinsic = rewards.evaluate_models([noise_reward], test_set)[0]
+  ub_intrinsic = rewards.evaluate_models({"n": noise_reward}, test_set)["n"]
   ub_intrinsic = np.linalg.norm(ub_intrinsic) / np.sqrt(len(ub_intrinsic))
   ub_intrinsics = {}
   final_constants = {}
@@ -286,16 +286,14 @@ def summary_stats(observation_space: gym.Space,
   tf.get_default_session().run(tf.global_variables_initializer())
 
   # Compute their predictions on dataset
-  reward, shaping = rewards.evaluate_models([rew_model, pot_model], dataset)
+  models = {"reward": rew_model, "shaping": pot_model}
+  preds = rewards.evaluate_models(models, dataset)
   potentials = rewards.evaluate_potentials([pot_model], dataset)
   old_potential = potentials[0][0]
   new_potential = potentials[1][0]
 
   # Compute summary statistics
-  res = {
-      "reward": reward,
-      "old_potential": old_potential,
-      "new_potential": new_potential,
-      "shaping": shaping,
-  }
+  res = dict(**preds,
+             old_potential=old_potential,
+             new_potential=new_potential)
   return {k: sp.stats.describe(v) for k, v in res.items()}

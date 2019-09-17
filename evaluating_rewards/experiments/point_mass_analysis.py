@@ -181,7 +181,7 @@ def evaluate_reward_model(env: point_mass.PointMassEnv,
   assert model.observation_space == env.observation_space
   assert model.action_space == env.action_space
   idxs, dataset = mesh_input(env, goal=goal, **kwargs)
-  reward = rewards.evaluate_models([model], dataset)[0]
+  reward = rewards.evaluate_models({"m": model}, dataset)["m"]
   reward = reward.reshape(*[len(idx) for idx in idxs])
   reward = xarray.DataArray(reward, coords=idxs,
                             dims=["position", "velocity", "acceleration"])

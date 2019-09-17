@@ -93,16 +93,16 @@ class RewardTest(common.TensorFlowTestCase):
         model_name = "evaluating_rewards/RewardModel-v0"
         loaded_indirect = serialize.load_reward(model_name, tmpdir, venv)
 
-      models = [original, loaded_direct, loaded_indirect]
+      models = {"o": original, "ld": loaded_direct, "li": loaded_indirect}
       preds = rewards.evaluate_models(models, batch)
 
-    for model in models[1:]:
+    for model in models.values():
       assert original.observation_space == model.observation_space
       assert original.action_space == model.action_space
 
     assert len(preds) == len(models)
-    for pred in preds[1:]:
-      assert np.allclose(preds[0], pred)
+    for pred in preds.values():
+      assert np.allclose(preds["o"], pred)
 
   @parameterized.named_parameters(common.combine_dicts_as_kwargs(
       STANDALONE_REWARD_MODELS

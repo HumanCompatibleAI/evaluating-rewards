@@ -201,13 +201,15 @@ def constant_baseline(match: comparisons.RegressModel,
     A dictionary containing summary statistics.
   """
   test_set = next(dataset(test_size, test_size))
-  models = [match.source, target]
-  matched_preds, target_preds = rewards.evaluate_models(models, test_set)
+  models = {"matched": match.source, "target": target}
+  preds = rewards.evaluate_models(models, test_set)
 
-  actual_delta = matched_preds - target_preds
+  actual_delta = preds["matched"] - preds["target"]
   return {
-      "int_l1": norm_diff(actual_delta, target_preds, norm=1),
-      "int_l2": norm_diff(actual_delta, target_preds, norm=2),
-      "baseline_l1": norm_diff(np.median(target_preds), target_preds, norm=1),
-      "baseline_l2": norm_diff(np.mean(target_preds), target_preds, norm=2),
+      "int_l1": norm_diff(actual_delta, preds["target"], norm=1),
+      "int_l2": norm_diff(actual_delta, preds["target"], norm=2),
+      "baseline_l1": norm_diff(np.median(preds["target"]),
+                               preds["target"], norm=1),
+      "baseline_l2": norm_diff(np.mean(preds["target"]),
+                               preds["target"], norm=2),
   }

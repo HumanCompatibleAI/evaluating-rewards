@@ -15,19 +15,22 @@
 """Deep neural network reward models."""
 
 import abc
-import collections
 import itertools
 import os
 import pickle
-from typing import Dict, Iterable, NamedTuple, Mapping, Optional, Sequence, Tuple, Type, Union
+from typing import Dict, Iterable, NamedTuple, Mapping, Optional, Sequence, Tuple, Type, TypeVar
 
 from absl import logging
 import gym
 from imitation.rewards import reward_net
+from imitation.util import rollout
 from imitation.util import serialize
 import numpy as np
 from stable_baselines.common import input as env_in  # avoid name clash
 import tensorflow as tf
+
+
+K = TypeVar("K")
 
 
 class AffineParameters(NamedTuple):
@@ -145,9 +148,9 @@ class MLPRewardModel(BasicRewardModel,
         "next_obs_input": self._proc_next_obs if use_next_obs else None,
         "act_input": self._proc_act if use_act else None,
     }
-    self._reward, layers = reward_net.build_basic_theta_network(hid_sizes,
-                                                                **kwargs)
-    serialize.LayersSerializable.__init__(**params, layers=layers)
+    self._reward, self.layers = reward_net.build_basic_theta_network(hid_sizes,
+                                                                     **kwargs)
+    serialize.LayersSerializable.__init__(**params, layers=self.layers)
 
   @property
   def reward(self):
@@ -305,6 +308,7 @@ class RewardNetToRewardModel(RewardModel):
       use_test: if True, uses `reward_output_test`; otherwise, uses
           `reward_output_train`.
     """
+    RewardModel.__init__(self)
     self.reward_net = network
     self.use_test = use_test
 
@@ -629,18 +633,46 @@ def make_feed_dict(models: Iterable[RewardModel],
   return feed_dict
 
 
-def evaluate_models(models: Union[Mapping[str, RewardModel],
-                                  Sequence[RewardModel]],
-                    batch: Batch) -> np.ndarray:
+def evaluate_models(models: Mapping[K, RewardModel],
+                    batch: Batch) -> Mapping[K, np.ndarray]:
   """Computes prediction of reward models."""
-  if isinstance(models, collections.abc.Mapping):
-    reward_outputs = {k: m.reward for k, m in models.items()}
-    seq_models = models.values()
-  elif isinstance(models, collections.abc.Sequence):
-    reward_outputs = [m.reward for m in models]
-    seq_models = models
-  feed_dict = make_feed_dict(seq_models, batch)
+  reward_outputs = {k: m.reward for k, m in models.items()}
+  feed_dict = make_feed_dict(models.values(), batch)
   return tf.get_default_session().run(reward_outputs, feed_dict=feed_dict)
+
+
+def compute_returns(models: Mapping[K, RewardModel],
+                    trajectories: Sequence[rollout.Trajectory],
+                   ) -> Mapping[K, np.ndarray]:
+  """Computes the (undiscounted) returns of each trajectory under each model.
+
+  Args:
+    models: A collection of reward models.
+    trajectories: A sequence of trajectories.
+
+  Returns:
+    A collection of NumPy arrays containing the returns from each model.
+  """
+  # Reward models are Markovian so only operate on a timestep at a time,
+  # expecting input shape (batch_size, ) + {obs,act}_shape. Flatten the
+  # trajectories to accommodate this.
+  transitions = rollout.flatten_trajectories(trajectories)
+  flattened = Batch(obs=transitions.obs,
+                    actions=transitions.act,
+                    next_obs=transitions.next_obs)
+  preds = evaluate_models(models, flattened)
+
+  # To compute returns, we must sum over slices of the flattened reward
+  # sequence corresponding to each episode. Find the episode boundaries.
+  ep_boundaries = np.where(transitions.done)[0]
+  # NumPy equivalent of Python ep_boundaries = [0] + ep_boundaries[:-1]
+  idxs = np.pad(ep_boundaries[:-1], (1, 0), "constant")
+  # ep_boundaries is inclusive, but reduceat takes exclusive range
+  idxs = idxs + 1
+  # Now, sum over the slices.
+  ep_returns = {k: np.add.reduceat(v, idxs) for k, v in preds.items()}
+
+  return ep_returns
 
 
 def evaluate_potentials(potentials: Iterable[PotentialShaping],

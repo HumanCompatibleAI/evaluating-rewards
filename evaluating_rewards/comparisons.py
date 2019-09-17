@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 
-class RegressModel(object):
+class RegressModel:
   """Regress source model onto target."""
 
   def __init__(self,
@@ -31,6 +31,7 @@ class RegressModel(object):
                loss_fn: Callable[[tf.Tensor, tf.Tensor], tf.Tensor] =
                tf.losses.mean_squared_error,
                optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
+               # TODO(): change to optimizer_kwargs?
                learning_rate: float = 1e-2):
     """Constructs RegressModel.
 
