@@ -234,7 +234,7 @@ def compare_synthetic(observation_space: gym.Space,
         shaping_model = matched.model_extra["shaping"].models["shaping"][0]
 
       res = comparisons.summary_comparison(original=original,
-                                           matched=matched.source,
+                                           matched=matched.model,
                                            target=ground_truth,
                                            shaping=shaping_model,
                                            test_set=test_set)

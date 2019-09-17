@@ -14,6 +14,7 @@
 
 """CLI script to fit a model to synthetically generated preferences."""
 
+import functools
 import os
 from typing import Any, Mapping
 
@@ -81,6 +82,8 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
   """Entry-point into script for synthetic preference comparisons."""
   venv = util.make_vec_env(env_name, n_envs=num_vec, seed=_seed)
 
+  make_source = functools.partial(regress_utils.make_model, model_reward_type)
+
   def make_trainer(model, model_scope, target):
     del target
     model_params = model_scope.global_variables()
@@ -99,11 +102,11 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
 
     return regress_utils.regress(seed=_seed,
                                  venv=venv,
+                                 make_source=make_source,
                                  make_trainer=make_trainer,
                                  do_training=do_training,
                                  target_reward_type=target_reward_type,
                                  target_reward_path=target_reward_path,
-                                 model_reward_type=model_reward_type,
                                  log_dir=log_dir)
 
 

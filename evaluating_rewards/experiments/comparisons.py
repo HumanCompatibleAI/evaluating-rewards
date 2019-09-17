@@ -107,7 +107,7 @@ def fit_match(original: rewards.RewardModel,
 
   test_set = next(dataset(4096, 4096))
   stats = comparisons.summary_comparison(original=original,
-                                         matched=match.source,
+                                         matched=match.model,
                                          target=target,
                                          test_set=test_set)
 
@@ -201,7 +201,7 @@ def constant_baseline(match: comparisons.RegressModel,
     A dictionary containing summary statistics.
   """
   test_set = next(dataset(test_size, test_size))
-  models = {"matched": match.source, "target": target}
+  models = {"matched": match.model, "target": target}
   preds = rewards.evaluate_models(models, test_set)
 
   actual_delta = preds["matched"] - preds["target"]

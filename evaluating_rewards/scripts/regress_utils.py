@@ -47,20 +47,25 @@ def logging_config(log_root, env_name):
   # pylint:enable=unused-variable
 
 
+MakeModelFn = Callable[[vec_env.VecEnv], T]
 MakeTrainerFn = Callable[[rewards.RewardModel, tf.VariableScope,
                           rewards.RewardModel], T]
 DoTrainingFn = Callable[[rewards.RewardModel, T], V]
 
 
+def make_model(model_reward_type: EnvRewardFactory,
+               venv: vec_env.VecEnv) -> rewards.RewardModel:
+  return model_reward_type(venv.observation_space, venv.action_space)
+
+
 def regress(seed: int,
             venv: vec_env.VecEnv,
+            make_source: MakeModelFn,
             make_trainer: MakeTrainerFn,
             do_training: DoTrainingFn,
 
             target_reward_type: str,
             target_reward_path: str,
-
-            model_reward_type: EnvRewardFactory,
 
             log_dir: str,
            ) -> V:
@@ -69,7 +74,7 @@ def regress(seed: int,
     tf.random.set_random_seed(seed)
 
     with tf.variable_scope("source") as model_scope:
-      model = model_reward_type(venv.observation_space, venv.action_space)
+      model = make_source(venv)
 
     with tf.variable_scope("target"):
       target = serialize.load_reward(target_reward_type,
@@ -85,6 +90,8 @@ def regress(seed: int,
 
     stats = do_training(target, trainer)
 
-    model.save(os.path.join(log_dir, "model"))
+    # Trainer may wrap source, so save trainer.source not source directly
+    # (see e.g. RegressWrappedModel).
+    trainer.model.save(os.path.join(log_dir, "model"))
 
   return stats

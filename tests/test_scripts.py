@@ -18,6 +18,7 @@ import tempfile
 
 from absl.testing import absltest
 from absl.testing import parameterized
+from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
 from evaluating_rewards.scripts.train_regress import train_regress_ex
 from tests import common
@@ -25,6 +26,10 @@ import pandas as pd
 
 
 EXPERIMENTS = {
+    "comparison": {
+        "experiment": model_comparison_ex,
+        "expected_type": dict,
+    },
     "regress": {
         "experiment": train_regress_ex,
         "expected_type": dict,

@@ -14,6 +14,7 @@
 
 """CLI script to regress a model onto another, pre-loaded model."""
 
+import functools
 import os
 from typing import Any, Callable, Mapping
 
@@ -37,10 +38,6 @@ def default_config():
   locals().update(**regress_utils.DEFAULT_CONFIG)
   # TODO(): make these configurable outside of Python?
   dataset_factory = datasets.random_generator
-
-  # Reward model to copy/regress onto
-  target_reward_type = "evaluating_rewards/Zero-v0"  # see serialize.py
-  target_reward_path = "dummy"  # path understood by target_reward_type
 
   # Model to train and hyperparameters
   model_reward_type = rewards.MLPRewardModel
@@ -84,6 +81,8 @@ def train_regress(_seed: int,  # pylint:disable=invalid-name
   dataset_callable = dataset_factory(env)
   dataset = dataset_callable(total_timesteps, batch_size)
 
+  make_source = functools.partial(regress_utils.make_model, model_reward_type)
+
   def make_trainer(model, model_scope, target):
     del model_scope
     return comparisons.RegressModel(model, target, learning_rate=learning_rate)
@@ -94,11 +93,11 @@ def train_regress(_seed: int,  # pylint:disable=invalid-name
 
   return regress_utils.regress(seed=_seed,
                                venv=venv,
+                               make_source=make_source,
                                make_trainer=make_trainer,
                                do_training=do_training,
                                target_reward_type=target_reward_type,
                                target_reward_path=target_reward_path,
-                               model_reward_type=model_reward_type,
                                log_dir=log_dir)
 
 

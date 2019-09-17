@@ -25,7 +25,7 @@ class RegressModel:
   """Regress source model onto target."""
 
   def __init__(self,
-               source: rewards.RewardModel,
+               model: rewards.RewardModel,
                target: rewards.RewardModel,
                *,
                loss_fn: Callable[[tf.Tensor, tf.Tensor], tf.Tensor] =
@@ -36,20 +36,20 @@ class RegressModel:
     """Constructs RegressModel.
 
     Args:
-      source: The original model.
-      target: The model we want to match.
+      model: The model to fit.
+      target: The target we want to match.
       loss_fn: A function computing the loss from labels and predictions.
       optimizer: The type of optimizer to use.
       learning_rate: Hyperparameter for optimizer.
     """
-    assert source.observation_space == target.observation_space
-    assert source.action_space == target.action_space
+    assert model.observation_space == target.observation_space
+    assert model.action_space == target.action_space
 
-    self.source = source
+    self.model = model
     self.target = rewards.StopGradientsModelWrapper(target)
     self.learning_rate = learning_rate
 
-    self.loss = loss_fn(self.target.reward, self.source.reward)
+    self.loss = loss_fn(self.target.reward, self.model.reward)
 
     self._opt = optimizer(learning_rate=self.learning_rate)  # pytype: disable=wrong-keyword-args
     self._grads = self._opt.compute_gradients(self.loss)
@@ -64,7 +64,7 @@ class RegressModel:
 
   def build_feed_dict(self, batch: rewards.Batch):
     """Construct feed dict given a batch of data."""
-    models = [self.source, self.target]
+    models = [self.model, self.target]
     return rewards.make_feed_dict(models, batch)
 
   def fit(self, dataset: Iterator[rewards.Batch],
@@ -75,6 +75,10 @@ class RegressModel:
                       log_interval=log_interval)
 
 
+ModelWrapperFn = Callable[[rewards.RewardModel],
+                          Tuple[rewards.RewardModel, Any]]
+
+
 class RegressWrappedModel(RegressModel):
   """Wrap a source model and regress the wrapped model onto target.
 
@@ -82,18 +86,17 @@ class RegressWrappedModel(RegressModel):
   """
 
   def __init__(self,
-               source: rewards.RewardModel,
+               model: rewards.RewardModel,
                target: rewards.RewardModel,
                *,
-               model_wrapper: Callable[[rewards.RewardModel],
-                                       Tuple[rewards.RewardModel, Any]],
+               model_wrapper: ModelWrapperFn,
                loss_fn: Callable[[tf.Tensor, tf.Tensor], tf.Tensor] =
                tf.losses.mean_squared_error,
                **kwargs):
     """Constructs RegressWrappedModel.
 
     Args:
-      source: The original model.
+      model: The original model.
       target: The model we want to match.
       model_wrapper: A wrapper applied to source. This wrapper will be fit
           to target. Typically the wrapper is constrained to not change the
@@ -101,10 +104,11 @@ class RegressWrappedModel(RegressModel):
       loss_fn: A function computing the loss from labels and predictions.
       **kwargs: Passed through to super-class.
     """
-    self.unwrapped_source = rewards.StopGradientsModelWrapper(source)
+    self.unwrapped_source = rewards.StopGradientsModelWrapper(model)
     model, self.model_extra = model_wrapper(self.unwrapped_source)
-    super().__init__(source=model, target=target, loss_fn=loss_fn, **kwargs)
-    self.metrics["unwrapped_loss"] = loss_fn(self.target.reward, source.reward)
+    super().__init__(model=model, target=target, loss_fn=loss_fn, **kwargs)
+    self.metrics["unwrapped_loss"] = loss_fn(self.target.reward,
+                                             self.unwrapped_source.reward)
 
 
 def _scaled_norm(x):
@@ -161,8 +165,7 @@ def equivalence_model_wrapper(wrapped: rewards.RewardModel,
                               affine_kwargs: Optional[Dict[str, Any]] = None,
                               **kwargs,
                              ) -> Tuple[rewards.RewardModel,
-                                        Mapping[str,
-                                                rewards.RewardModel]]:
+                                        Mapping[str, rewards.RewardModel]]:
   """Affine transform model and add potential shaping.
 
   That is, all transformations that are guaranteed to preserve optimal policy.
