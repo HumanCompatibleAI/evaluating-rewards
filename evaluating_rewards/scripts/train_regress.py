@@ -90,6 +90,7 @@ def train_regress(_seed: int,  # pylint:disable=invalid-name
   return regress_utils.regress(seed=_seed,
                                venv=venv,
                                make_source=make_source,
+                               source_init=True,
                                make_trainer=make_trainer,
                                do_training=do_training,
                                target_reward_type=target_reward_type,

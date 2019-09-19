@@ -141,7 +141,7 @@ class MLPRewardModel(BasicRewardModel,
     BasicRewardModel.__init__(self, obs_space, act_space)
     if hid_sizes is None:
       hid_sizes = [32, 32]
-    params = locals()
+    params = dict(locals())
 
     kwargs = {
         "obs_input": self._proc_obs if use_obs else None,
@@ -172,7 +172,7 @@ class PotentialShaping(BasicRewardModel,
 
     if hid_sizes is None:
       hid_sizes = [32, 32]
-    params = locals()
+    params = dict(locals())
     del params["kwargs"]
     params.update(**kwargs)
 
@@ -218,7 +218,7 @@ class ConstantLayer(tf.keras.layers.Layer):
       dtype: dtype of the constant weight.
     """
     if initializer is None:
-      initializer = tf.zeros_initializer
+      initializer = tf.zeros_initializer()
     self.initializer = initializer
 
     super().__init__(trainable=True, name=name, dtype=dtype)
@@ -261,7 +261,7 @@ class ConstantReward(BasicRewardModel,
   def __init__(self, obs_space: gym.Space, act_space: gym.Space,
                initializer: Optional[tf.keras.initializers.Initializer] = None):
     BasicRewardModel.__init__(self, obs_space, act_space)
-    params = locals()
+    params = dict(locals())
 
     self._constant = ConstantLayer(name="constant", initializer=initializer)
     n_batch = tf.shape(self._proc_obs)[0]

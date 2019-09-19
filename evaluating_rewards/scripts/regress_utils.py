@@ -62,6 +62,7 @@ def make_model(model_reward_type: EnvRewardFactory,
 def regress(seed: int,
             venv: vec_env.VecEnv,
             make_source: MakeModelFn,
+            source_init: bool,
             make_trainer: MakeTrainerFn,
             do_training: DoTrainingFn,
 
@@ -86,7 +87,9 @@ def regress(seed: int,
 
     # Do not initialize any variables from target, which have already been
     # set during serialization.
-    init_vars = model_scope.global_variables() + train_scope.global_variables()
+    init_vars = train_scope.global_variables()
+    if source_init:
+      init_vars += model_scope.global_variables()
     sess.run(tf.initializers.variables(init_vars))
 
     stats = do_training(target, trainer)
