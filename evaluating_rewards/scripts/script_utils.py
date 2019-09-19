@@ -23,21 +23,33 @@ from sacred import observers
 
 
 def _get_output_dir():
-  return os.path.join(os.getenv('HOME'), 'output')
+  return os.path.join(os.getenv("HOME"), "output")
 
 
 def logging_config(log_root, env_name):
   # pylint: disable=unused-variable
-  log_dir = os.path.join(log_root, env_name.replace('/', '_'),
+  log_dir = os.path.join(log_root, env_name.replace("/", "_"),
                          util.make_unique_timestamp())
   # pylint: enable=unused-variable
 
 
 def add_logging_config(experiment, name):
   experiment.add_config({
-      'log_root': os.path.join(_get_output_dir(), name)
+      "log_root": os.path.join(_get_output_dir(), name)
   })
   experiment.config(logging_config)
+
+
+def add_sacred_symlink(observer: observers.FileStorageObserver):
+  def f(log_dir: str) -> None:
+    """Adds a symbolic link in log_dir to observer output directory."""
+    if observer.dir is None:
+      # In a command like print_config that produces no permanent output
+      return
+    os.makedirs(log_dir, exist_ok=True)
+    os.symlink(observer.dir, os.path.join(log_dir, "sacred"),
+               target_is_directory=True)
+  return f
 
 
 def make_main(experiment, name):
@@ -45,9 +57,10 @@ def make_main(experiment, name):
 
   def main(argv):
     # TODO(): this writes output to disk, which may fail on some VMs
-    sacred_dir = os.path.join(_get_output_dir(), 'sacred', name)
+    sacred_dir = os.path.join(_get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)
     experiment.observers.append(observer)
+    experiment.pre_run_hook(add_sacred_symlink(observer))
     experiment.run_commandline(argv)
 
   return main
