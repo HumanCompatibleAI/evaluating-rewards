@@ -18,6 +18,10 @@ import evaluating_rewards
 import setuptools
 
 
+with open("requirements.txt") as f:
+  install_requires = f.read().strip().split("\n")
+
+
 setuptools.setup(
     name="evaluating_rewards",
     version=evaluating_rewards.__version__,
@@ -26,19 +30,7 @@ setuptools.setup(
     author="DeepMind Technologies Limited",
     python_requires=">=3.6.0",
     packages=setuptools.find_packages(),
-    install_requires=[
-        "absl-py",
-        "gym",
-        "imitation @ git+https://github.com/HumanCompatibleAI/imitation.git",
-        "numpy",
-        "matplotlib",
-        "pandas",
-        "scipy",
-        "seaborn",
-        "stable-baselines @ git+https://github.com/hill-a/stable-baselines.git",
-        "tensorflow",
-        "xarray",
-    ],
+    install_requires=install_requires,
     url="https://github.com/AdamGleave/evaluating_rewards",
     license="Apache License, Version 2.0",
     classifiers=[

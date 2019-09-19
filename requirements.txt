@@ -1,0 +1,12 @@
+absl-py
+gym
+imitation @ git+https://github.com/HumanCompatibleAI/imitation.git
+numpy
+matplotlib
+pandas
+setuptools
+seaborn
+scipy
+stable-baselines @ git+https://github.com/hill-a/stable-baselines.git
+tensorflow>=1.13,<1.14
+xarray
