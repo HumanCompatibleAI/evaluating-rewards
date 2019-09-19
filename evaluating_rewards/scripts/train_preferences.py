@@ -37,8 +37,10 @@ def default_config():
   locals().update(**regress_utils.DEFAULT_CONFIG)
   num_vec = 8  # number of environments in VecEnv
 
+  # Trajectory specification
   policy_type = "random"  # type of policy to generate comparison trajectories
   policy_path = "dummy"  # path to policy
+  trajectory_length = 25  # length of trajectories compared
 
   # Hyperparameters
   model_reward_type = rewards.MLPRewardModel
@@ -69,6 +71,7 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
                       target_reward_path: str,
                       # Model parameters
                       model_reward_type: regress_utils.EnvRewardFactory,
+                      trajectory_length: int,
                       total_comparisons: int,
                       batch_size: int,
                       learning_rate: float,
@@ -94,6 +97,7 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
       return trainer.fit_synthetic(venv,
                                    policy=policy,
                                    target=target,
+                                   trajectory_length=trajectory_length,
                                    total_comparisons=total_comparisons)
 
     return regress_utils.regress(seed=_seed,

@@ -23,7 +23,7 @@ regularization based on validation accuracy.
 """
 
 import math
-from typing import Any, Dict, Iterable, List, NamedTuple, Type
+from typing import Any, Dict, Iterable, List, NamedTuple, Sequence, Type
 
 from absl import logging
 from evaluating_rewards import rewards
@@ -71,6 +71,63 @@ def _concatenate(preferences: List[TrajectoryPreference],
   trajb = np.stack([getattr(p.trajb, attr)[idx] for p in preferences])
   stacked = np.stack([traja, trajb])
   return stacked.reshape((-1,) + stacked.shape[3:])
+
+
+def _slice_trajectory(trajectory: rollout.Trajectory,
+                      start: int, end: int) -> rollout.Trajectory:
+  """Slice trajectory from timestep start to timestep end."""
+  return rollout.Trajectory(
+      obs=trajectory.obs[start:end+1],
+      act=trajectory.act[start:end],
+      rew=trajectory.rew[start:end],
+  )
+
+
+def generate_trajectories(venv: vec_env.VecEnv,
+                          policy: policies.BasePolicy,
+                          trajectory_length: int,
+                          num_trajectories: int,
+                         ) -> Sequence[rollout.Trajectory]:
+  """Rollouts policy in venv collecting num_trajectories segments.
+
+  Complete episodes are collected. An episode of length N is split into
+  (N // trajectory_length) trajectories of trajectory_length. If N is not
+  exactly divisible by trajectory_length, we start from a random offset between
+  0 and (N % trajectory_length).
+
+  Arguments:
+    venv: The environment to generate trajectories in.
+    policy: The policy to generate trajectories with.
+    trajectory_length: The length of each trajectory.
+    num_trajectories: The number of trajectories to sample.
+
+  Returns:
+    A Sequence of num_trajectories trajectories, each of length
+    trajectory_length.
+  """
+  def sample_until(episodes: Sequence[rollout.Trajectory]):
+    """Computes whether a full batch of data has been collected."""
+    episode_lengths = np.array([len(t.act) for t in episodes])
+    num_trajs = episode_lengths // trajectory_length
+    return np.sum(num_trajs) >= num_trajectories
+
+  episodes = rollout.generate_trajectories(policy, venv, sample_until)
+  trajectories = []
+  for episode in episodes:
+    ep_len = len(episode.act)
+    remainder = ep_len % trajectory_length
+    offset = 0 if remainder == 0 else np.random.randint(remainder)
+    n_trajs = ep_len // trajectory_length
+    for i in range(n_trajs):
+      start = offset + i * trajectory_length
+      end = start + trajectory_length
+      trajectory = _slice_trajectory(episode, start, end)
+      trajectories.append(trajectory)
+
+  # We may collect too much data due to episode boundaries, truncate.
+  trajectories = trajectories[:num_trajectories]
+  assert len(trajectories) == num_trajectories
+  return trajectories
 
 
 class PreferenceComparisonTrainer(object):
@@ -282,44 +339,46 @@ class PreferenceComparisonTrainer(object):
                     venv: vec_env.VecEnv,
                     policy: policies.BasePolicy,
                     target: rewards.RewardModel,
+                    trajectory_length: int,
                     total_comparisons: int) -> pd.DataFrame:
     """Trains using synthetic comparisons from target.
 
+    Collects rollouts in `venv` using `policy`, splitting the episodes up into
+    sequential trajectories of length `trajectory_length`. The `target` model
+    is used to evaluate each trajectory
+
     Args:
       venv: The environment to generate trajectories in.
-          Must be fixed-horizon.
       policy: The policy to generate trajectories with.
       target: The reward model to compare the trajectories via.
+      trajectory_length: The length of each trajectory to compare.
+          The episodes must be at least as long as this.
       total_comparisons: The total number of trajectory *pairs* to compare.
 
     Returns:
       A dataframe containing training statistics.
     """
     n_batches = math.ceil(total_comparisons / self.batch_size)
-    n_episodes = 2 * self.batch_size
+    num_trajectories = 2 * self.batch_size
 
     stats = {}
     for epoch in range(n_batches):
-      trajectories = rollout.generate_trajectories(policy, venv,
-                                                   n_episodes=n_episodes)
-
-      traj_len = len(trajectories[0].act)
-      for traj in trajectories:
-        if len(traj.act) != traj_len:
-          # TODO(): slice the trajectories so they're fixed length?
-          # (Currently we require environment be fixed horizon.)
-          # It also seems possible in principle to train on variable-length
-          # trajectories, but a bit awkward (would probably need to pad?)
-          raise ValueError("Trajectories must be fixed length.")
-
+      batch = []
+      # Sample trajectories and compute their returns
+      trajectories = generate_trajectories(venv, policy, trajectory_length,
+                                           num_trajectories)
       returns = rewards.compute_returns({"t": target}, trajectories)["t"]
 
-      batch = []
-      for i in range(self.batch_size):
+      # Sample pairs of trajectories at random and compare
+      idxs = np.random.choice(num_trajectories,
+                              size=(num_trajectories,),
+                              replace=False)
+      idxs = idxs.reshape(-1, 2)
+      for idx_a, idx_b in idxs:
         preference = TrajectoryPreference(
-            traja=trajectories[2*i],
-            trajb=trajectories[2*i+1],
-            label=int(returns[2*i] >= returns[2*i+1]),
+            traja=trajectories[idx_a],
+            trajb=trajectories[idx_b],
+            label=int(returns[idx_a] >= returns[idx_b]),
         )
         batch.append(preference)
 

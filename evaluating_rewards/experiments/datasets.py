@@ -68,8 +68,7 @@ def rollout_generator(env: gym.Env,
     nbatch = math.ceil(total_timesteps / batch_size)
     for _ in range(nbatch):
       transitions = rollout.generate_transitions(policy, env,
-                                                 n_timesteps=batch_size,
-                                                 truncate=True)
+                                                 n_timesteps=batch_size)
       # TODO(): can we switch to rollout.Transition?
       yield rewards.Batch(obs=transitions.obs,
                           actions=transitions.act,
