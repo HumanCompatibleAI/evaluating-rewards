@@ -15,6 +15,7 @@
 """Common training boilerplate shared between CLI scripts."""
 
 import os
+import pickle
 from typing import Callable, TypeVar
 
 from evaluating_rewards import rewards
@@ -93,5 +94,8 @@ def regress(seed: int,
     # Trainer may wrap source, so save trainer.source not source directly
     # (see e.g. RegressWrappedModel).
     trainer.model.save(os.path.join(log_dir, "model"))
+
+    with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
+      pickle.dump(stats, f)
 
   return stats

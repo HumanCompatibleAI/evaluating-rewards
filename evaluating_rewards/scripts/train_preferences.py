@@ -44,15 +44,15 @@ def default_config():
 
   # Hyperparameters
   model_reward_type = rewards.MLPRewardModel
-  total_comparisons = 16384
-  batch_size = 128
+  total_timesteps = 2e6
+  batch_timesteps = 10000
   learning_rate = 1e-3
 
 
 @train_preferences_ex.named_config
 def fast():
   """Small number of epochs, finish quickly, intended for tests / debugging."""
-  total_comparisons = 256
+  total_timesteps = 1e4
 # pylint:enable=unused-variable
 
 
@@ -72,8 +72,8 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
                       # Model parameters
                       model_reward_type: regress_utils.EnvRewardFactory,
                       trajectory_length: int,
-                      total_comparisons: int,
-                      batch_size: int,
+                      total_timesteps: int,
+                      batch_timesteps: int,
                       learning_rate: float,
                       # Logging
                       log_dir: str,
@@ -86,6 +86,7 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
   def make_trainer(model, model_scope, target):
     del target
     model_params = model_scope.global_variables()
+    batch_size = batch_timesteps // trajectory_length
     kwargs = {"learning_rate": learning_rate}
     return preferences.PreferenceComparisonTrainer(model,
                                                    model_params,
@@ -94,6 +95,9 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
 
   with policies_serialize.load_policy(policy_type, policy_path, venv) as policy:
     def do_training(target, trainer):
+      # Specify in terms of total_timesteps so longer trajectory_length
+      # does not give model more data.
+      total_comparisons = total_timesteps // trajectory_length
       return trainer.fit_synthetic(venv,
                                    policy=policy,
                                    target=target,

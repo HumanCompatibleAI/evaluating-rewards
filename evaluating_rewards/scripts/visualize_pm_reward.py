@@ -85,7 +85,7 @@ def visualize_pm_reward(env_name: str,
                                                        act_lim=lim)
 
   fig = point_mass_analysis.plot_reward(reward, goal, zaxis="position")
-  visualize.save_fig(f"{save_path}.pdf", fig)
+  visualize.save_fig(save_path, fig)
 
   return reward
 
