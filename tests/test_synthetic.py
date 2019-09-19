@@ -95,7 +95,7 @@ def const_functor(x):
 AFFINE_TRANSFORMS = {
     "random": {
         "scale_fn": synthetic.log_normal,
-        "constant_fn": np.random.normal,
+        "constant_fn": lambda scale: scale * np.random.normal(),
     },
     "identity": {}
 }
@@ -113,7 +113,7 @@ SYNTHETIC_TEST = {
     },
     "random_scale": {
         "scale_fn": synthetic.log_normal,
-        "constant_fn": np.random.normal,
+        "constant_fn": lambda scale: scale * np.random.normal(),
         "rescale": True,
         "fudge_factor": 2.0,  # be twice as lenient
     },
