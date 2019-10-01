@@ -24,6 +24,15 @@ import tensorflow as tf
 FitStats = Mapping[str, List[Mapping[str, Any]]]
 
 
+def ellp_norm_loss(labels, predictions, p=0.5):
+  """Loss based on L^p norm between `labels` and `predictions`."""
+  delta = labels - predictions
+  delta = tf.abs(delta)
+  delta_pow = tf.pow(delta, p)
+  mean_delta_pow = tf.reduce_mean(delta_pow)
+  return tf.pow(mean_delta_pow, 1 / p)
+
+
 class RegressModel:
   """Regress source model onto target."""
 

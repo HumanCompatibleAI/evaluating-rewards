@@ -25,6 +25,8 @@ from evaluating_rewards.experiments import datasets
 from evaluating_rewards.scripts import regress_utils
 from evaluating_rewards.scripts import script_utils
 import sacred
+import tensorflow as tf
+
 
 model_comparison_ex = sacred.Experiment("model_comparison")
 
@@ -44,6 +46,7 @@ def default_config():
   # Model to train and hyperparameters
   model_wrapper_fn = comparisons.equivalence_model_wrapper  # equivalence class
   model_wrapper_kwargs = dict()
+  loss_fn = tf.losses.mean_squared_error
   pretrain = True  # set initial scale and constant to match target
   pretrain_size = 16386  # number of timesteps to use in pretraining
   total_timesteps = 1e6
@@ -65,7 +68,7 @@ def affine_only():
 def no_rescale():
   """Equivalence class are shifts plus potential shaping (no scaling)."""
   model_wrapper_fn = comparisons.equivalence_model_wrapper
-  model_wrapper_kwargs = dict(scale=False)
+  model_wrapper_kwargs = dict(affine_kwargs=dict(scale=False))
 
 
 @model_comparison_ex.named_config
@@ -74,6 +77,18 @@ def shaping_only():
   model_wrapper_fn = comparisons.equivalence_model_wrapper
   model_wrapper_kwargs = dict(affine=False)
   pretrain = False
+
+
+@model_comparison_ex.named_config
+def ellp_loss():
+  p = 0.5
+  # Note if p specified at CLI, it will take priority over p above here
+  # (Sacred configuration scope magic).
+  loss_fn = functools.partial(comparisons.ellp_norm_loss, p=p)
+
+# TODO(): add a sparsify named config combining ellp_loss, no_rescale
+# and Zero target. (Sacred does not currently support combining named configs
+# but they're intending to add it.)
 
 
 @model_comparison_ex.named_config
