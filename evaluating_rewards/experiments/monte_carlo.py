@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Implementations of simple hard-coded policies."""
+"""Greedy Monte-Carlo optimization of a reward model with a true simulator."""
 
 import warnings
 
