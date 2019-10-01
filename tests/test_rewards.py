@@ -69,6 +69,13 @@ STANDALONE_REWARD_MODELS.update(common.combine_dicts(
     POINT_MASS_MODELS,
 ))
 
+REWARD_WRAPPERS = {
+    "base_wrapper": {"wrapper_cls": rewards.RewardModelWrapper},
+    "stop_gradients": {"wrapper_cls": rewards.StopGradientsModelWrapper},
+    "affine": {"wrapper_cls": rewards.AffineTransform},
+    "potential": {"wrapper_cls": rewards.PotentialShapingWrapper},
+}
+
 
 class RewardTest(common.TensorFlowTestCase):
   """Unit tests for evaluating_rewards.rewards."""
@@ -135,21 +142,14 @@ class RewardTest(common.TensorFlowTestCase):
 
     return self._test_serialize_identity(env_id, make_model)
 
-  @parameterized.named_parameters(common.combine_dicts_as_kwargs(ENVS))
-  def test_serialize_identity_affine_transform(self, env_id):
-    """Checks for equality between original and loaded affine transformation."""
+  @parameterized.named_parameters(common.combine_dicts_as_kwargs(
+      REWARD_WRAPPERS, ENVS
+  ))
+  def test_serialize_identity_wrapper(self, wrapper_cls, env_id):
+    """Checks for equality between original and loaded wrapped reward."""
     def make_model(env):
       mlp = rewards.MLPRewardModel(env.observation_space, env.action_space)
-      return rewards.AffineTransform(mlp)
-
-    return self._test_serialize_identity(env_id, make_model)
-
-  @parameterized.named_parameters(common.combine_dicts_as_kwargs(ENVS))
-  def test_serialize_identity_potential_wrapper(self, env_id):
-    """Checks for equality between original and reloaded potential shaping."""
-    def make_model(env):
-      mlp = rewards.MLPRewardModel(env.observation_space, env.action_space)
-      return rewards.PotentialShapingWrapper(mlp)
+      return wrapper_cls(mlp)
 
     return self._test_serialize_identity(env_id, make_model)
 

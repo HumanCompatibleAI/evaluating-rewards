@@ -392,7 +392,8 @@ class RewardModelWrapper(RewardModel):
   def next_obs_ph(self):
     return self.model.next_obs_ph
 
-  def _load(self, cls: Type[serialize.T], directory: str) -> serialize.T:
+  @classmethod
+  def _load(cls: Type[serialize.T], directory: str) -> serialize.T:
     model = RewardModel.load(os.path.join(directory, "model"))
     return cls(model)
 
@@ -518,26 +519,24 @@ class AffineTransform(LinearCombinationModelWrapper):
       scale: If true, adds a positive scale parameter.
       shift: If true, adds a shift parameter.
     """
-    self.wrapped = wrapped
-
+    self._log_scale_layer = None
     if scale:
-      self._log_scale = ConstantLayer("log_scale")
-      self._log_scale.build(())
-      model_scale = tf.exp(self._log_scale.constant)  # force to be non-negative
+      self._log_scale_layer = ConstantLayer("log_scale")
+      self._log_scale_layer.build(())
+      scale = tf.exp(self._log_scale_layer.constant)  # force to be non-negative
     else:
-      self._log_scale = None
-      model_scale = tf.constant(1.0)
+      scale = tf.constant(1.0)
 
     models = {
-        "wrapped": (self.wrapped, model_scale),
+        "wrapped": (wrapped, scale),
     }
 
     if shift:
-      self._constant = ConstantReward(wrapped.observation_space,
-                                      wrapped.action_space)
-      models["constant"] = (self._constant, tf.constant(1.0))
+      constant = ConstantReward(wrapped.observation_space,
+                                wrapped.action_space)
     else:
-      self._constant = None
+      constant = ZeroReward(wrapped.observation_space, wrapped.action_space)
+    models["constant"] = (constant, tf.constant(1.0))
 
     super().__init__(models)
 
@@ -569,7 +568,7 @@ class AffineTransform(LinearCombinationModelWrapper):
       The initial shift and scale parameters.
     """
     if original is None:
-      original = self.wrapped
+      original = self.models["wrapped"][0]
 
     feed_dict = make_feed_dict([original, target], batch)
     sess = tf.get_default_session()
@@ -578,19 +577,62 @@ class AffineTransform(LinearCombinationModelWrapper):
     original_std, target_std = np.std(preds, axis=-1)
 
     log_scale = 0.0
-    if self._log_scale is not None:
+    if self._log_scale_layer is not None:
       log_scale = np.log(target_std) - np.log(original_std)
       logging.info("Assigning log scale: %f", log_scale)
-      self._log_scale.set_constant(log_scale)
+      self._log_scale_layer.set_constant(log_scale)
     scale = np.exp(log_scale)
 
     constant = 0.0
-    if self._constant is not None:
+    constant_model = self.models["constant"][0]
+    if isinstance(constant_model, ConstantReward):
       constant = -original_mean * target_std / original_std + target_mean
       logging.info("Assigning shift: %f", constant)
-      self._constant.constant.set_constant(constant)
+      constant_model.constant.set_constant(constant)
 
     return AffineParameters(constant=constant, scale=scale)
+
+  @property
+  def constant(self) -> tf.Tensor:
+    """The additive shift."""
+    return self.models["constant"][0].constant.constant
+
+  @property
+  def scale(self) -> tf.Tensor:
+    """The multiplicative dilation."""
+    return self.models["wrapped"][1]
+
+  def get_weights(self):
+    """Extract affine parameters from a model.
+
+    Returns:
+      The current affine parameters (scale and shift), from the perspective of
+      mapping the *original* onto the *target*; that is, the inverse of the
+      transformation actually performed in the model. (This is for ease of
+      comparison with results returned by other methods.)
+    """
+    sess = tf.get_default_session()
+    const, scale = sess.run([self.constant, self.scale])
+    return AffineParameters(constant=const, scale=scale)
+
+  @classmethod
+  def _load(cls, directory: str) -> "AffineTransform":
+    """Load an AffineTransform.
+
+    We use the same saving logic as LinearCombinationModelWrapper. This works
+    as AffineTransform does not have any extra state needed for inference.
+    (There is self._log_scale which is used in pretraining.)
+
+    Args:
+      directory: The directory to load from.
+
+    Returns:
+      The deserialized AffineTransform instance.
+    """
+    obj = cls.__new__(cls)
+    lc = LinearCombinationModelWrapper._load(directory)
+    LinearCombinationModelWrapper.__init__(obj, lc.models)
+    return obj
 
 
 class PotentialShapingWrapper(LinearCombinationModelWrapper):

@@ -23,7 +23,6 @@ import uuid
 from evaluating_rewards import comparisons
 from evaluating_rewards import rewards
 from evaluating_rewards.experiments import datasets
-from evaluating_rewards.experiments import util
 import numpy as np
 import tensorflow as tf
 
@@ -103,7 +102,7 @@ def fit_match(original: rewards.RewardModel,
 
   # Train potential shaping and other parameters
   training_metrics = match.fit(dataset(total_timesteps, batch_size))
-  final_affine = util.get_affine(match)
+  final_affine = match.model_extra["affine"].get_weights()
 
   test_set = next(dataset(4096, 4096))
   stats = comparisons.summary_comparison(original=original,

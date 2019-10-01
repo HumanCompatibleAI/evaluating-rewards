@@ -75,8 +75,10 @@ class RegressModel:
                       log_interval=log_interval)
 
 
-ModelWrapperFn = Callable[[rewards.RewardModel],
-                          Tuple[rewards.RewardModel, Any]]
+ModelWrapperRet = Tuple[rewards.RewardModel,
+                        Any,
+                        Mapping[str, tf.Tensor]]
+ModelWrapperFn = Callable[[rewards.RewardModel], ModelWrapperRet]
 
 
 class RegressWrappedModel(RegressModel):
@@ -105,10 +107,11 @@ class RegressWrappedModel(RegressModel):
       **kwargs: Passed through to super-class.
     """
     self.unwrapped_source = rewards.StopGradientsModelWrapper(model)
-    model, self.model_extra = model_wrapper(self.unwrapped_source)
+    model, self.model_extra, metrics = model_wrapper(self.unwrapped_source)
     super().__init__(model=model, target=target, loss_fn=loss_fn, **kwargs)
     self.metrics["unwrapped_loss"] = loss_fn(self.target.reward,
                                              self.unwrapped_source.reward)
+    self.metrics.update(metrics)
 
 
 def _scaled_norm(x):
@@ -164,8 +167,7 @@ def equivalence_model_wrapper(wrapped: rewards.RewardModel,
                               affine: bool = True,
                               affine_kwargs: Optional[Dict[str, Any]] = None,
                               **kwargs,
-                             ) -> Tuple[rewards.RewardModel,
-                                        Mapping[str, rewards.RewardModel]]:
+                             ) -> ModelWrapperRet:
   """Affine transform model and add potential shaping.
 
   That is, all transformations that are guaranteed to preserve optimal policy.
@@ -183,17 +185,20 @@ def equivalence_model_wrapper(wrapped: rewards.RewardModel,
 
   model = wrapped
   models = {"original": wrapped}
+  metrics = {}
 
   if affine:
     affine_kwargs = affine_kwargs or {}
     model = rewards.AffineTransform(model, **affine_kwargs)
     models["affine"] = model
+    metrics["constant"] = model.constant
+    metrics["scale"] = model.scale
 
   if potential:
     model = rewards.PotentialShapingWrapper(model, **kwargs)
     models["shaping"] = model
 
-  return model, models
+  return model, models, metrics
 
 
 K = TypeVar("K")

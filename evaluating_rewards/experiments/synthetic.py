@@ -24,7 +24,6 @@ from absl import logging
 from evaluating_rewards import comparisons
 from evaluating_rewards import rewards
 from evaluating_rewards.experiments import datasets
-from evaluating_rewards.experiments import util
 import gym
 import numpy as np
 import pandas as pd
@@ -245,7 +244,7 @@ def compare_synthetic(observation_space: gym.Space,
       ub_intrinsics[(rew_nm, pot_nm)] = rew_nm * ub_intrinsic
 
       if model_affine:
-        final = util.get_affine(matched)
+        final = matched.model_extra["affine"].get_weights()
       else:
         final = rewards.AffineParameters(constant=0, scale=1.0)
       final_constants[(rew_nm, pot_nm)] = final.constant
