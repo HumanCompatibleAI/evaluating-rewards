@@ -22,7 +22,7 @@ from imitation.util import util
 from sacred import observers
 
 
-def _get_output_dir():
+def get_output_dir():
   return os.path.join(os.getenv("HOME"), "output")
 
 
@@ -35,7 +35,7 @@ def logging_config(log_root, env_name):
 
 def add_logging_config(experiment, name):
   experiment.add_config({
-      "log_root": os.path.join(_get_output_dir(), name)
+      "log_root": os.path.join(get_output_dir(), name)
   })
   experiment.config(logging_config)
 
@@ -57,7 +57,7 @@ def make_main(experiment, name):
 
   def main(argv):
     # TODO(): this writes output to disk, which may fail on some VMs
-    sacred_dir = os.path.join(_get_output_dir(), "sacred", name)
+    sacred_dir = os.path.join(get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)
     experiment.observers.append(observer)
     experiment.pre_run_hook(add_sacred_symlink(observer))
