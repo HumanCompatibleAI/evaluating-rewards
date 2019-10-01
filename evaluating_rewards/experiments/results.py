@@ -15,6 +15,8 @@
 """Helper methods to load and analyse results from experiments."""
 
 import collections
+import functools
+import itertools
 import json
 import os
 import pickle
@@ -36,6 +38,7 @@ Stats = Mapping[str, Any]
 ConfigStatsMapping = Mapping[Config, Stats]
 DirStatsMapping = Mapping[str, Stats]
 DirConfigMapping = Mapping[str, Config]
+FilterFn = Callable[[Iterable[str]], bool]
 PreprocessFn = Callable[[pd.Series], pd.Series]
 
 
@@ -296,8 +299,32 @@ def control(args: Iterable[str]) -> bool:
   return same(args)
 
 
+def sparse_or_dense(args: Iterable[str]) -> bool:
+  """Args are both sparse or both dense?"""
+  args = replace(r"(.*)(Sparse|Dense)(.*)", r"\1\2")(args)
+  return same(args)
+
+
+def direction(args: Iterable[str]) -> bool:
+  """Do args differ only in terms of forward/backward and control cost?"""
+  pattern = r"evaluating_rewards/(.*?)(Backward|Forward)(WithCtrl|NoCtrl)(.*)"
+  args = replace(pattern, r"\1\4")(args)
+  return same(args)
+
+
+def no_ctrl(args: Iterable[str]) -> bool:
+  """Are args all without control cost?"""
+  return all("NoCtrl" in arg for arg in args)
+
+
+def always_true(args: Iterable[str]) -> bool:
+  """Constant true."""
+  del args
+  return True
+
+
 def mask(series: pd.Series,
-         matchings: Iterable[Callable[[Iterable[str]], bool]],
+         matchings: Iterable[FilterFn],
          levels: Iterable[str]
          = ("source_reward_type", "target_reward_type"),
         ) -> pd.Series:
@@ -328,7 +355,7 @@ def mask(series: pd.Series,
   return ~res
 
 
-def pipeline(stats, **kwargs):
+def pipeline(stats: ConfigStatsMapping, **kwargs):
   """Run loss and affine pipeline on stats."""
   if not stats:
     raise ValueError("'stats' is empty.")
@@ -337,3 +364,127 @@ def pipeline(stats, **kwargs):
       "loss": loss_pipeline(stats, **kwargs),
       "affine": affine_pipeline(stats, **kwargs),
   }
+
+
+short_fmt = functools.partial(visualize.short_e, precision=0)
+
+
+def compact_heatmaps(loss: pd.Series,
+                     order: Iterable[str],
+                     masks: Mapping[str, Iterable[FilterFn]],
+                     fmt: Callable[[float], str] = short_fmt,
+                     after_plot: Callable[[], None] = lambda: None,
+                    ) -> Mapping[str, plt.Figure]:
+  """Plots a series of compact heatmaps, suitable for presentations.
+
+  Args:
+    loss: The loss between source and target.
+        The index should consist of target_reward_type, one of
+        source_reward_{type,path}, and any number of seed indices.
+        source_reward_path, if present, is rewritten into source_reward_type
+        and a seed index.
+    order: The order to plot the source and reward types.
+    masks: A mapping from strings to collections of filter functions. Any
+        (source, reward) pair not matching one of these filters is masked
+        from the figure.
+    fmt: A Callable mapping losses to strings to annotate cells in heatmap.
+    after_plot: Called after plotting, for environment-specific tweaks.
+
+  Returns:
+    A mapping from strings to figures.
+  """
+  names = loss.index.names
+  if "source_reward_path" in names:
+    loss = loss.reset_index(level="source_reward_path")
+    components = loss["source_reward_path"].str.split("/")
+    loss["comparison_seed"] = components.str[-2]
+    paths = components.str[0:-2].str.join("/")
+    paths = visualize.path_rewrite(paths)
+    paths = paths.str.replace("evaluating_rewards_", "evaluating_rewards/")
+    loss = loss.drop(columns="source_reward_path")
+    loss["source_reward_type"] = paths
+    loss = loss.set_index("source_reward_type", append=True)
+    loss = loss.set_index("comparison_seed", append=True)
+    loss = loss[0]  # DataFrame->Series
+
+  loss = compact(loss)
+
+  source_order = list(order)
+  zero_type = "evaluating_rewards/Zero-v0"
+  if zero_type in loss.index.get_level_values("source_reward_type"):
+    if zero_type not in source_order:
+      source_order.append(zero_type)
+  loss = loss.reindex(index=source_order, level="source_reward_type")
+  loss = loss.reindex(index=order, level="target_reward_type")
+
+  figs = {}
+  for name, matching in masks.items():
+    fig, ax = plt.subplots(1, 1, figsize=(5, 4), squeeze=True)
+    match_mask = mask(loss, matching)
+    visualize.comparison_heatmap(loss,
+                                 fmt=fmt,
+                                 mask=match_mask,
+                                 ax=ax)
+    # make room for multi-line xlabels
+    # TODO(): this only makes sense for PM I think?
+    after_plot()
+    figs[name] = fig
+
+  return figs
+
+
+def _norm(args: Iterable[str]) -> bool:
+  return any(match("evaluating_rewards/PointMassGroundTruth-v0")(args))
+
+
+def _point_mass_after_plot():
+  plt.subplots_adjust(bottom=0.15, top=0.95, left=0.16, right=0.95)
+
+
+def point_mass_heatmaps(loss: pd.Series, **kwargs):
+  """Heatmaps for evaluating_rewards/PointMass* environments."""
+  masks = {
+      "diagonal": [zero, same],
+      "control": [zero, control],
+      "dense_vs_sparse": [zero, sparse_or_dense],
+      "norm": [zero, same, _norm],
+      "all": [always_true],
+  }
+  order = ["SparseNoCtrl", "Sparse", "DenseNoCtrl", "Dense", "GroundTruth"]
+  order = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
+  return compact_heatmaps(loss, order, masks,
+                          after_plot=_point_mass_after_plot,
+                          **kwargs)
+
+
+def _hopper_activity(args: Iterable[str]) -> bool:
+  pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
+  repl = replace(pattern, r"\1\2")(args)
+  return len(set(repl)) > 1 and no_ctrl(args)
+
+
+def _hopper_after_plot():
+  plt.yticks(rotation="horizontal")
+
+
+def hopper_heatmaps(loss: pd.Series, **kwargs):
+  """Heatmaps for Hopper-v3."""
+  masks = {
+      "diagonal": [zero, same],
+      "control": [zero, control],
+      "direction": [zero, direction],
+      "no_ctrl": [zero, no_ctrl],
+      "different_activity": [zero, _hopper_activity],
+      "all": [always_true],
+  }
+  activities = ["GroundTruth", "Backflip"]
+  order = ["ForwardNoCtrl", "ForwardWithCtrl",
+           "BackwardNoCtrl", "BackwardWithCtrl"]
+  order = [f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
+           for prefix, suffix in itertools.product(activities, order)]
+
+  return compact_heatmaps(loss,
+                          order,
+                          masks,
+                          after_plot=_hopper_after_plot,
+                          **kwargs)

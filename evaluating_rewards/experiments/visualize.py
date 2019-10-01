@@ -16,7 +16,7 @@
 
 import os
 import re
-from typing import Callable, Iterable, Optional, Tuple
+from typing import Callable, Iterable, Mapping, Optional, Tuple
 
 from absl import logging
 import matplotlib.pyplot as plt
@@ -25,6 +25,13 @@ import pandas as pd
 import seaborn as sns
 
 # Internal dependencies
+
+SYMBOLS = {
+    "running": "\U0001f3c3",  # runner
+    "backflip": "\U0001f938",  # cartwheel: closest Unicode has
+    "withctrl": "\U0001f40c",  # snail
+    "noctrl": "\U0001f406",  # cheetah
+}
 
 
 TRANSFORMATIONS = {
@@ -37,12 +44,12 @@ TRANSFORMATIONS = {
     "^Zero-v0$": "Zero",
     r"^Hopper(.*)": r"\1",
     r"^HalfCheetah(.*)": r"\1",
-    r"(.*)GroundTruth(.*)": "\\1\U0001f3c3\\2",  # Runner emoji
-    r"(.*)Backflip(.*)": "\\1\U0001f938\\2",  # Cartwheel emoji
+    r"(.*)GroundTruth(.*)": f"\\1{SYMBOLS['running']}\\2",
+    r"(.*)Backflip(.*)": f"\\1{SYMBOLS['backflip']}\\2",
     r"^(.*)Backward(.*)": r"\1←\2",
     r"^(.*)Forward(.*)": r"\1→\2",
-    r"^(.*)WithCtrl(.*)": "\\1\U0001F40C\\2",  # Snail Emoji
-    r"^(.*)NoCtrl(.*)": "\\1\U0001F406\\2",  # Cheetah emoji
+    r"^(.*)WithCtrl(.*)": f"\\1{SYMBOLS['withctrl']}\\2",
+    r"^(.*)NoCtrl(.*)": f"\\1{SYMBOLS['noctrl']}\\2",
 }
 
 
@@ -115,6 +122,19 @@ def short_e(x: float, precision: int = 2) -> str:
   return f"{base}e{exponent}"
 
 
+def _is_str_ascii(x: str) -> bool:
+  # TODO(): in 3.7+, can just use .isascii method
+  try:
+    x.encode("ascii")
+    return True
+  except UnicodeEncodeError:
+    return False
+
+
+def _is_ascii(idx: pd.Index) -> bool:
+  return all([_is_str_ascii(str(x)) for x in idx])
+
+
 def comparison_heatmap(vals: pd.Series,
                        log: bool = True,
                        fmt: Callable[[float], str] = short_e,
@@ -171,5 +191,35 @@ def comparison_heatmap(vals: pd.Series,
   if robust:
     flat = data.values.flatten()
     kwargs["vmin"], kwargs["vmax"] = np.quantile(flat, [0.25, 0.75])
-  sns.heatmap(data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws,
-              mask=mask, **kwargs)
+  ax = sns.heatmap(data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws,
+                   mask=mask, **kwargs)
+
+  labels_symbols = not (_is_ascii(vals.index) and _is_ascii(vals.columns))
+  if labels_symbols:
+    # TODO(): ideally we'd set symbola as a fall-back font, but this
+    # is not supported by matplotlib currently, see e.g.
+    # https://stackoverflow.com/questions/53581589/matplotlib-can-i-use-a-secondary-font-for-missing-glyphs
+    ax.set_xticklabels(ax.get_xticklabels(), fontfamily="symbola")
+    ax.set_yticklabels(ax.get_yticklabels(), fontfamily="symbola")
+
+
+def print_symbols(out_dir: str,
+                  symbols: Optional[Mapping[str, str]] = None,
+                  fontfamily: str = "symbola",
+                 ) -> Mapping[str, plt.Figure]:
+  """Save PNG rendering of `symbols` to `out_dir`."""
+  if symbols is None:
+    symbols = SYMBOLS
+
+  figs = {}
+  for symbol_name, symbol in symbols.items():
+    fig = plt.figure(figsize=(0.15, 0.15))
+    plt.text(0, 0, symbol, fontfamily=fontfamily)
+    plt.axis("off")
+    plt.tight_layout()
+    figs[symbol_name] = fig
+
+  save_figs(out_dir, figs.items(),
+            bbox_inches=0, fmt="png", dpi=1200)
+
+  return figs
