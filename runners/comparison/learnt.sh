@@ -18,7 +18,7 @@ learnt_model_dir=${OUTPUT_ROOT}/${model_prefix}
 
 case ${model_prefix} in
 train_adversarial)
-  source_reward_type="RewardNet_unshaped"
+  source_reward_type="imitation/RewardNet_unshaped-v0"
   model_name="checkpoints/final/discrim/reward_net"
   ;;
 *)

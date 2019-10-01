@@ -35,17 +35,21 @@ SYMBOLS = {
 
 
 TRANSFORMATIONS = {
-    r"evaluating_rewards[_/](.*)-v0$": r"\1",
-    "^PointMassDense$": "Dense",
-    "^PointMassDenseNoCtrl$": "Dense\nNo Ctrl",
-    "^PointMassGroundTruth$": "Norm",
-    "^PointMassSparse$": "Sparse",
-    "^PointMassSparseNoCtrl$": "Sparse\nNo Ctrl",
-    "^Zero-v0$": "Zero",
+    r"^evaluating_rewards[_/](.*)-v0": r"\1",
+    r"^imitation[_/](.*)-v0": r"\1",
+    "^Zero-v0": "Zero",
+    "^PointMassDense": "Dense",
+    "^PointMassDenseNoCtrl": "Dense\nNo Ctrl",
+    "^PointMassGroundTruth": "Norm",
+    "^PointMassSparse": "Sparse",
+    "^PointMassSparseNoCtrl": "Sparse\nNo Ctrl",
+    "^PointMazeGroundTruth": "GT",
+    r"(.*)(Hopper|HalfCheetah)GroundTruth(.*)":
+        f"\\1\\2{SYMBOLS['running']}\\3",
+    r"(.*)(Hopper|HalfCheetah)Backflip(.*)":
+        f"\\1\\2{SYMBOLS['backflip']}\\3",
     r"^Hopper(.*)": r"\1",
     r"^HalfCheetah(.*)": r"\1",
-    r"(.*)GroundTruth(.*)": f"\\1{SYMBOLS['running']}\\2",
-    r"(.*)Backflip(.*)": f"\\1{SYMBOLS['backflip']}\\2",
     r"^(.*)Backward(.*)": r"\1←\2",
     r"^(.*)Forward(.*)": r"\1→\2",
     r"^(.*)WithCtrl(.*)": f"\\1{SYMBOLS['withctrl']}\\2",
@@ -140,6 +144,7 @@ def comparison_heatmap(vals: pd.Series,
                        fmt: Callable[[float], str] = short_e,
                        cmap: str = "GnBu",
                        robust: bool = False,
+                       preserve_order: bool = False,
                        mask: Optional[pd.Series] = None,
                        **kwargs) -> None:
   """Plot a heatmap, with target_reward_type as x-axis and remainder as y-axis.
@@ -156,27 +161,34 @@ def comparison_heatmap(vals: pd.Series,
     robust: If true, set vmin and vmax to 25th and 75th quantiles.
         This makes the color scale robust to outliers, but will compress it
         more than is desirable if the data does not contain outliers.
+    preserve_order: If true, retains the same order as the input index
+        after rewriting the index values for readability. If false,
+        sorts the rewritten values alphabetically.
     mask: If provided, only display cells where mask is True.
     **kwargs: passed through to sns.heatmap.
   """
   def to_df(series):
     """Helper to reformat labels for ease of interpretability."""
-    series = series.rename(index=pretty_rewrite)
+    series = series.copy()
     for i, level in enumerate(series.index.levels):
       if "path" in level.name:
         new_level = path_rewrite(level)
         series.index = series.index.set_levels(new_level, level=i)
     series.index.names = [LEVEL_NAMES.get(name, name)
                           for name in series.index.names]
+    series = series.rename(index=pretty_rewrite)
 
     # Preserve order of inputs
     df = series.unstack("Target")
-    df = df.reindex(columns=series.index.get_level_values("Target").unique())
-    for level in series.index.names:
-      kwargs = dict(level=level) if isinstance(df.index, pd.MultiIndex) else {}
-      if level != "Target":
-        df = df.reindex(index=series.index.get_level_values(level).unique(),
-                        **kwargs)
+    if preserve_order:
+      df = df.reindex(columns=series.index.get_level_values("Target").unique())
+      for level in series.index.names:
+        kwargs = {}
+        if isinstance(df.index, pd.MultiIndex):
+          kwargs = dict(level=level)
+        if level != "Target":
+          df = df.reindex(index=series.index.get_level_values(level).unique(),
+                          **kwargs)
     return df
 
   vals = to_df(vals)

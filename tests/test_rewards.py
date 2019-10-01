@@ -42,7 +42,7 @@ GENERAL_REWARD_MODELS = {
     },
     "mlp_wide": {
         "model_class": rewards.MLPRewardModel,
-        "kwargs": {"hid_sizes": [64, 64]},
+        "hid_sizes": [64, 64],
     },
     "potential": {
         "model_class": rewards.PotentialShaping,
@@ -74,6 +74,11 @@ STANDALONE_REWARD_MODELS = {
         "env_id": "evaluating_rewards/Hopper-v3",
         "model_class": mujoco.HopperBackflipReward,
     },
+    "point_maze_ground_truth": {
+        "env_id": "imitation/PointMazeLeft-v0",
+        "model_class": mujoco.PointMazeReward,
+        "target": np.array([0.3, 0.3, 0]),
+    }
 }
 STANDALONE_REWARD_MODELS.update(common.combine_dicts(
     ENVS, GENERAL_REWARD_MODELS
@@ -94,11 +99,16 @@ REWARD_WRAPPERS = {
 GROUND_TRUTH = {
     "half_cheetah": {
         "env_id": "evaluating_rewards/HalfCheetah-v3",
-        "reward_cls": mujoco.HalfCheetahGroundTruthReward,
+        "reward_id": ("evaluating_rewards/HalfCheetahGroundTruth"
+                      "ForwardWithCtrl-v0"),
     },
     "hopper": {
         "env_id": "evaluating_rewards/Hopper-v3",
-        "reward_cls": mujoco.HopperGroundTruthReward,
+        "reward_id": "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
+    },
+    "point_maze": {
+        "env_id": "imitation/PointMazeLeft-v0",
+        "reward_id": "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
     }
 }
 
@@ -140,11 +150,8 @@ class RewardTest(common.TensorFlowTestCase):
   @parameterized.named_parameters(common.combine_dicts_as_kwargs(
       STANDALONE_REWARD_MODELS
   ))
-  def test_serialize_identity_standalone(self, env_id, model_class,
-                                         kwargs=None):
+  def test_serialize_identity_standalone(self, env_id, model_class, **kwargs):
     """Creates reward model, saves it, reloads it, and checks for equality."""
-    kwargs = kwargs or {}
-
     def make_model(venv):
       return model_class(venv.observation_space, venv.action_space, **kwargs)
 
@@ -180,7 +187,7 @@ class RewardTest(common.TensorFlowTestCase):
     return self._test_serialize_identity(env_id, make_model)
 
   @parameterized.named_parameters(common.combine_dicts_as_kwargs(GROUND_TRUTH))
-  def test_ground_truth_similar_to_gym(self, env_id, reward_cls):
+  def test_ground_truth_similar_to_gym(self, env_id, reward_id):
     """Checks that reward models predictions match those of Gym reward."""
     # Generate rollouts, recording Gym reward
     venv = vec_env.DummyVecEnv([lambda: common.make_env(env_id)])
@@ -193,7 +200,7 @@ class RewardTest(common.TensorFlowTestCase):
 
     # Make predictions using reward model
     with self.graph.as_default(), self.sess.as_default():
-      reward_model = reward_cls(venv.observation_space, venv.action_space)
+      reward_model = serialize.load_reward(reward_id, "dummy", venv)
       pred_reward = rewards.evaluate_models({"m": reward_model}, batch)["m"]
 
     # Are the predictions close to true Gym reward?

@@ -17,6 +17,7 @@
 from evaluating_rewards.envs import mujoco
 from evaluating_rewards.envs import point_mass
 import gym
+import imitation.envs.examples  # pylint:disable=unused-import
 
 PROJECT_ROOT = "evaluating_rewards.envs"
 PM_ROOT = f"{PROJECT_ROOT}.point_mass"

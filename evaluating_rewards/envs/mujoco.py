@@ -21,6 +21,8 @@ from evaluating_rewards import serialize as reward_serialize
 import gym
 from imitation.util import registry
 from imitation.util import serialize
+import numpy as np
+from stable_baselines.common import vec_env
 import tensorflow as tf
 
 
@@ -238,6 +240,54 @@ class HopperBackflipReward(MujocoHardcodedReward):
     return reward
 
 
+class PointMazeReward(MujocoHardcodedReward):
+  """Reward for imitation/PointMaze{Left,Right}-v0.
+
+  This in turn is based on on Fu et al (2018)'s PointMaze environment:
+  https://arxiv.org/pdf/1710.11248.pdf
+  """
+
+  def __init__(self,
+               observation_space: gym.Space,
+               action_space: gym.Space,
+               target: np.ndarray,
+               ctrl_coef: float = 1e-3):
+    """Constructs the reward model.
+
+    Args:
+      observation_space: The observation space of the environment.
+      action_space: The action space of the environment.
+      target: The position of the target (goal state).
+      ctrl_coef: Scale factor for control penalty.
+    """
+    super().__init__(observation_space, action_space,
+                     target=target, ctrl_coef=ctrl_coef)
+    self.target = target
+
+  @classmethod
+  def from_venv(cls, venv: vec_env.VecEnv, *args, **kwargs):
+    """Factory constructor, extracting spaces and target from environment."""
+    target = venv.env_method("get_body_com", "target")
+    assert np.all(target[0] == target)
+    return PointMazeReward(venv.observation_space, venv.action_space,
+                           target[0], *args, **kwargs)
+
+  def build_reward(self) -> tf.Tensor:
+    """Matches the ground-truth reward, with default constructor arguments.
+
+    Known differences: none.
+
+    Returns:
+      A tensor containing reward, shape (batch_size,).
+    """
+    assert self.observation_space.shape == (3,)
+    particle = self._proc_obs[:, 0:3]
+    reward_dist = tf.norm(particle - self.target, axis=-1)
+    reward_ctrl = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
+    reward = -reward_dist - self.ctrl_coef * reward_ctrl
+    return reward
+
+
 # Register reward models
 def _register_models(format_str, cls, forward=True):
   """Registers reward models of type cls under key formatted by format_str."""
@@ -245,7 +295,7 @@ def _register_models(format_str, cls, forward=True):
       "Forward": {"forward": forward},
       "Backward": {"forward": not forward}
   }
-  control = {"WithCtrl": {"ctrl_coef": 0.1}, "NoCtrl": {"ctrl_coef": 0.0}}
+  control = {"WithCtrl": {}, "NoCtrl": {"ctrl_coef": 0.0}}
 
   res = {}
   for k1, cfg1 in forwards.items():
@@ -256,9 +306,20 @@ def _register_models(format_str, cls, forward=True):
   return res
 
 
+def _register_point_maze():
+  control = {"WithCtrl": {}, "NoCtrl": {"ctrl_coef": 0.0}}
+  for k, cfg in control.items():
+    fn = registry.build_loader_fn_require_env(PointMazeReward.from_venv, **cfg)
+    reward_serialize.reward_registry.register(
+        key=f"imitation/PointMazeGroundTruth{k}-v0",
+        value=fn
+    )
+
+
 _register_models("evaluating_rewards/HalfCheetahGroundTruth{}-v0",
                  HalfCheetahGroundTruthReward)
 _register_models("evaluating_rewards/HopperGroundTruth{}-v0",
                  HopperGroundTruthReward)
 _register_models("evaluating_rewards/HopperBackflip{}-v0",
                  HopperBackflipReward, forward=False)
+_register_point_maze()

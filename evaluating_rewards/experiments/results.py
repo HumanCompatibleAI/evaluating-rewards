@@ -401,6 +401,7 @@ def compact_heatmaps(loss: pd.Series,
     paths = components.str[0:-2].str.join("/")
     paths = visualize.path_rewrite(paths)
     paths = paths.str.replace("evaluating_rewards_", "evaluating_rewards/")
+    paths = paths.str.replace("imitation_", "imitation/")
     loss = loss.drop(columns="source_reward_path")
     loss["source_reward_type"] = paths
     loss = loss.set_index("source_reward_type", append=True)
@@ -423,6 +424,7 @@ def compact_heatmaps(loss: pd.Series,
     match_mask = mask(loss, matching)
     visualize.comparison_heatmap(loss,
                                  fmt=fmt,
+                                 preserve_order=True,
                                  mask=match_mask,
                                  ax=ax)
     # make room for multi-line xlabels
@@ -455,6 +457,15 @@ def point_mass_heatmaps(loss: pd.Series, **kwargs):
   return compact_heatmaps(loss, order, masks,
                           after_plot=_point_mass_after_plot,
                           **kwargs)
+
+
+def point_maze_heatmaps(loss: pd.Series, **kwargs):
+  """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
+  masks = {"all": [always_true]}  # "all" is still only only 3x3
+  order = ["imitation/PointMazeGroundTruthWithCtrl-v0",
+           "imitation/PointMazeGroundTruthNoCtrl-v0",
+           "evaluating_rewards/Zero-v0"]
+  return compact_heatmaps(loss, order, masks, **kwargs)
 
 
 def _hopper_activity(args: Iterable[str]) -> bool:
