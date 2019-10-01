@@ -25,6 +25,7 @@ from evaluating_rewards.envs import point_mass
 from evaluating_rewards.experiments import datasets
 from tests import common
 from imitation.policies import base
+from imitation.rewards import reward_net
 from imitation.util import rollout
 from imitation.util import serialize as util_serialize
 import numpy as np
@@ -113,6 +114,12 @@ GROUND_TRUTH = {
 }
 
 
+USE_TEST = {
+    "test": {"use_test": True},
+    "train": {"use_test": False},
+}
+
+
 class RewardTest(common.TensorFlowTestCase):
   """Unit tests for evaluating_rewards.rewards."""
 
@@ -183,6 +190,16 @@ class RewardTest(common.TensorFlowTestCase):
     def make_model(env):
       mlp = rewards.MLPRewardModel(env.observation_space, env.action_space)
       return wrapper_cls(mlp)
+
+    return self._test_serialize_identity(env_id, make_model)
+
+  @parameterized.named_parameters(common.combine_dicts_as_kwargs(
+      ENVS, USE_TEST
+  ))
+  def test_serialize_identity_reward_net(self, env_id, use_test):
+    def make_model(env):
+      net = reward_net.BasicRewardNet(env.observation_space, env.action_space)
+      return rewards.RewardNetToRewardModel(net, use_test=use_test)
 
     return self._test_serialize_identity(env_id, make_model)
 

@@ -339,7 +339,8 @@ class RewardNetToRewardModel(RewardModel):
   def next_obs_ph(self):
     return (self.reward_net.next_obs_ph,)
 
-  def _load(self, cls, directory: str) -> "RewardNetToRewardModel":
+  @classmethod
+  def _load(cls, directory: str) -> "RewardNetToRewardModel":
     with open(os.path.join(directory, "use_test"), "rb") as f:
       use_test = pickle.load(f)
 
@@ -347,7 +348,7 @@ class RewardNetToRewardModel(RewardModel):
     return cls(net, use_test=use_test)
 
   def _save(self, directory: str) -> None:
-    with open(os.path.join(directory, "use_test"), "rb") as f:
+    with open(os.path.join(directory, "use_test"), "wb") as f:
       pickle.dump(self.use_test, f)
 
     self.reward_net.save(os.path.join(directory, "net"))
