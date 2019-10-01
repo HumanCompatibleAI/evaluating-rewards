@@ -78,7 +78,7 @@ def rollout_generator(venv: vec_env.VecEnv,
                                                  n_timesteps=batch_size)
       # TODO(): can we switch to rollout.Transition?
       yield rewards.Batch(obs=transitions.obs,
-                          actions=transitions.act,
+                          actions=transitions.acts,
                           next_obs=transitions.next_obs)
   return f
 
@@ -149,12 +149,12 @@ def random_policy_generator(env_name: str, num_vec: int = 8, seed: int = 0,
 
 def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
   """Make Point Mass environment and dataset generator."""
-  env = gym.make(env_name)
-  obs_space = env.observation_space
-  act_space = env.action_space
+  venv = util.make_vec_env(env_name)
+  obs_space = venv.observation_space
+  act_space = venv.action_space
 
-  pm = point_mass.PointMassPolicy(env.observation_space, env.action_space)
-  dataset_generator = rollout_generator(env, pm)
+  pm = point_mass.PointMassPolicy(obs_space, act_space)
+  dataset_generator = rollout_generator(venv, pm)
 
   return {
       "observation_space": obs_space,

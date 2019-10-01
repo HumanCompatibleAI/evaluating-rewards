@@ -76,10 +76,12 @@ def _concatenate(preferences: List[TrajectoryPreference],
 def _slice_trajectory(trajectory: rollout.Trajectory,
                       start: int, end: int) -> rollout.Trajectory:
   """Slice trajectory from timestep start to timestep end."""
+  infos = trajectory.infos[start:end] if trajectory.infos is not None else None
   return rollout.Trajectory(
       obs=trajectory.obs[start:end+1],
-      act=trajectory.act[start:end],
-      rew=trajectory.rew[start:end],
+      acts=trajectory.acts[start:end],
+      rews=trajectory.rews[start:end],
+      infos=infos,
   )
 
 
@@ -107,14 +109,14 @@ def generate_trajectories(venv: vec_env.VecEnv,
   """
   def sample_until(episodes: Sequence[rollout.Trajectory]):
     """Computes whether a full batch of data has been collected."""
-    episode_lengths = np.array([len(t.act) for t in episodes])
+    episode_lengths = np.array([len(t.acts) for t in episodes])
     num_trajs = episode_lengths // trajectory_length
     return np.sum(num_trajs) >= num_trajectories
 
   episodes = rollout.generate_trajectories(policy, venv, sample_until)
   trajectories = []
   for episode in episodes:
-    ep_len = len(episode.act)
+    ep_len = len(episode.acts)
     remainder = ep_len % trajectory_length
     offset = 0 if remainder == 0 else np.random.randint(remainder)
     n_trajs = ep_len // trajectory_length
@@ -312,7 +314,7 @@ class PreferenceComparisonTrainer(object):
     """
     batch = rewards.Batch(
         obs=_concatenate(preferences, "obs", slice(0, -1)),
-        actions=_concatenate(preferences, "act", slice(None)),
+        actions=_concatenate(preferences, "acts", slice(None)),
         next_obs=_concatenate(preferences, "obs", slice(1, None)),
     )
     feed_dict = rewards.make_feed_dict([self.model], batch)

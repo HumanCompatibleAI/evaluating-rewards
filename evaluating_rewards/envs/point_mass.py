@@ -286,10 +286,11 @@ class PointMassPolicy(policies.BasePolicy):
     vel = obs[:, self.ndim:2 * self.ndim]
     goal = obs[:, 2 * self.ndim:3 * self.ndim]
     target_vel = goal - pos
-    target_vel = target_vel / np.linalg.norm(target_vel, axis=1)
+    target_vel = target_vel / np.linalg.norm(target_vel, axis=1).reshape(-1, 1)
     delta_vel = target_vel - vel
-    delta_vel_norm = np.linalg.norm(delta_vel, ord=np.inf, axis=1)
-    act = delta_vel / max(delta_vel_norm, 1e-4)
+    delta_vel_norm = np.linalg.norm(delta_vel,
+                                    ord=np.inf, axis=1).reshape(-1, 1)
+    act = delta_vel / np.maximum(delta_vel_norm, 1e-4)
     act = act.clip(-1, 1)
     return act, None, None, None
 

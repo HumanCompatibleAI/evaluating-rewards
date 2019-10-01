@@ -187,9 +187,9 @@ class RewardTest(common.TensorFlowTestCase):
     policy = base.RandomPolicy(venv.observation_space, venv.action_space)
     transitions = rollout.generate_transitions(policy, venv, n_timesteps=1024)
     batch = rewards.Batch(obs=transitions.obs,
-                          actions=transitions.act,
+                          actions=transitions.acts,
                           next_obs=transitions.next_obs)
-    gym_reward = transitions.rew
+    gym_reward = transitions.rews
 
     # Make predictions using reward model
     with self.graph.as_default(), self.sess.as_default():

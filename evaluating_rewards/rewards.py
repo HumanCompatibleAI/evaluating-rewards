@@ -702,13 +702,13 @@ def compute_returns(models: Mapping[K, RewardModel],
   # trajectories to accommodate this.
   transitions = rollout.flatten_trajectories(trajectories)
   flattened = Batch(obs=transitions.obs,
-                    actions=transitions.act,
+                    actions=transitions.acts,
                     next_obs=transitions.next_obs)
   preds = evaluate_models(models, flattened)
 
   # To compute returns, we must sum over slices of the flattened reward
   # sequence corresponding to each episode. Find the episode boundaries.
-  ep_boundaries = np.where(transitions.done)[0]
+  ep_boundaries = np.where(transitions.dones)[0]
   # NumPy equivalent of Python ep_boundaries = [0] + ep_boundaries[:-1]
   idxs = np.pad(ep_boundaries[:-1], (1, 0), "constant")
   # ep_boundaries is inclusive, but reduceat takes exclusive range
