@@ -8,13 +8,14 @@ function call_script {
 }
 
 PM_ENVS="evaluating_rewards/PointMassLine-v0 \
-         evaluating_rewards/PointMassLineFixedHorizon-v0 \
+         evaluating_rewards/PointMassLineVariableHorizon-v0 \
          evaluating_rewards/PointMassGrid-v0"
-ENVS=${PM_ENVS}
-PM_REWARDS="PointMassSparse-v0 \
-            PointMassDense-v0 \
-            PointMassSparseNoCtrl-v0 \
-            PointMassDenseNoCtrl-v0 \
-            PointMassGroundTruth-v0 \
-            Zero-v0"
+
+ENV_REWARD_CMD=$(call_script "env_rewards")
+# This declares REWARDS_BY_ENV
+echo "Loading environment to reward mapping"
+eval "$(${ENV_REWARD_CMD} 2>/dev/null)"
+ENVS="${!REWARDS_BY_ENV[@]}"
+echo "Loaded mappings for environments ${ENVS}"
+
 OUTPUT_ROOT=$HOME/output

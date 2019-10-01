@@ -14,12 +14,13 @@
 
 """A simple point-mass environment in N-dimensions."""
 
-import functools
 from typing import Optional
 
 from evaluating_rewards import rewards
+from evaluating_rewards import serialize as reward_serialize
 import gym
 from imitation.envs import resettable_env
+from imitation.policies import serialize as policy_serialize
 from imitation.util import registry
 from imitation.util import serialize
 import numpy as np
@@ -31,7 +32,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
   """A simple point-mass environment."""
 
   def __init__(self, ndim: int = 2, dt: float = 1e-1,
-               ctrl_coef: float = 1.0, threshold: float = 0.05):
+               ctrl_coef: float = 1.0, threshold: float = -1):
     """Builds a PointMass environment.
 
     Args:
@@ -86,7 +87,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
 
   def terminal(self, state, step: int) -> bool:
     dist = np.linalg.norm(state["pos"] - state["goal"])
-    return dist < self.threshold
+    return bool(dist < self.threshold)
 
   def obs_from_state(self, state):
     return np.concatenate([state["pos"], state["vel"], state["goal"]], axis=-1)
@@ -296,17 +297,28 @@ class PointMassPolicy(policies.BasePolicy):
     raise NotImplementedError()
 
 
-# Loaders for deserialize interface
-load_point_mass_policy = registry.build_loader_fn_require_space(PointMassPolicy)
-load_point_mass_ground_truth = registry.build_loader_fn_require_space(
-    PointMassGroundTruth)
-load_point_mass_sparse_reward = registry.build_loader_fn_require_space(
-    PointMassSparseReward)
-load_point_mass_sparse_reward_no_ctrl = registry.build_loader_fn_require_space(
-    functools.partial(PointMassSparseReward, ctrl_coef=0.0))
-load_point_mass_dense_reward = registry.build_loader_fn_require_space(
-    PointMassDenseReward
+# Register custom policies with imitation
+policy_serialize.policy_registry.register(
+    key="evaluating_rewards/PointMassHardcoded-v0",
+    value=registry.build_loader_fn_require_space(PointMassPolicy))
+
+# Register custom rewards with evaluating_rewards
+reward_serialize.reward_registry.register(
+    key="evaluating_rewards/PointMassGroundTruth-v0",
+    value=registry.build_loader_fn_require_space(PointMassGroundTruth))
+reward_serialize.reward_registry.register(
+    key="evaluating_rewards/PointMassSparse-v0",
+    value=registry.build_loader_fn_require_space(PointMassSparseReward))
+reward_serialize.reward_registry.register(
+    key="evaluating_rewards/PointMassSparseNoCtrl-v0",
+    value=registry.build_loader_fn_require_space(PointMassSparseReward,
+                                                 ctrl_coef=0.0)
 )
-load_point_mass_dense_reward_no_ctrl = registry.build_loader_fn_require_space(
-    functools.partial(PointMassDenseReward, ctrl_coef=0.0)
+reward_serialize.reward_registry.register(
+    key="evaluating_rewards/PointMassDense-v0",
+    value=registry.build_loader_fn_require_space(PointMassDenseReward))
+reward_serialize.reward_registry.register(
+    key="evaluating_rewards/PointMassDenseNoCtrl-v0",
+    value=registry.build_loader_fn_require_space(PointMassDenseReward,
+                                                 ctrl_coef=0.0)
 )

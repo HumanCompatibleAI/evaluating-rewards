@@ -48,13 +48,14 @@ RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sc
     && chmod +x /usr/local/bin/patchelf
 
 ENV LANG C.UTF-8
-ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 
 RUN    mkdir -p /root/.mujoco \
     && wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco200.zip \
     && unzip mujoco200.zip -d /root/.mujoco \
     && mv /root/.mujoco/mujoco200_linux /root/.mujoco/mujoco200 \
     && rm mujoco200.zip
+
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/root/.mujoco/mujoco200/bin
 
 WORKDIR /evaluating-rewards
 # Copy only necessary dependencies to build virtual environment.

@@ -14,9 +14,9 @@
 
 """Module for Gym environments. __init__ registers environments."""
 
-from evaluating_rewards.serialize import reward_registry
+from evaluating_rewards.envs import mujoco
+from evaluating_rewards.envs import point_mass
 import gym
-from imitation.policies.serialize import policy_registry
 
 PROJECT_ROOT = "evaluating_rewards.envs"
 PM_ROOT = f"{PROJECT_ROOT}.point_mass"
@@ -29,26 +29,39 @@ def register_point_mass(suffix, **kwargs):
                max_episode_steps=100,
                kwargs=kwargs)
 
-register_point_mass("Line", ndim=1)
-register_point_mass("LineFixedHorizon", ndim=1, threshold=-1)
-register_point_mass("LineFixedHorizonStateOnly", ndim=1,
-                    threshold=-1, ctrl_coef=0.0)
+register_point_mass("Line", ndim=1, threshold=0.05)
+register_point_mass("LineVariableHorizon", ndim=1, threshold=-1)
+register_point_mass("LineStateOnly", ndim=1, ctrl_coef=0.0)
 register_point_mass("Grid", ndim=2)
 
-# Register custom policies with imitation
-policy_registry.register(key="evaluating_rewards/PointMassHardcoded-v0",
-                         indirect=f"{PM_ROOT}:load_point_mass_policy")
 
-# Register custom rewards with evaluating_rewards
-reward_registry.register(key="evaluating_rewards/PointMassGroundTruth-v0",
-                         indirect=f"{PM_ROOT}:load_point_mass_ground_truth")
-reward_registry.register(key="evaluating_rewards/PointMassSparse-v0",
-                         indirect=f"{PM_ROOT}:load_point_mass_sparse_reward")
-reward_registry.register(
-    key="evaluating_rewards/PointMassSparseNoCtrl-v0",
-    indirect=f"{PM_ROOT}:load_point_mass_sparse_reward_no_ctrl")
-reward_registry.register(key="evaluating_rewards/PointMassDense-v0",
-                         indirect=f"{PM_ROOT}:load_point_mass_dense_reward")
-reward_registry.register(
-    key="evaluating_rewards/PointMassDenseNoCtrl-v0",
-    indirect=f"{PM_ROOT}:load_point_mass_dense_reward_no_ctrl")
+def register_similar(existing_name: str, new_name: str, **kwargs_delta):
+  """Registers a gym environment at new_id modifying existing_id by kwargs.
+
+  Args:
+    existing_name: The name of an environment registered in Gym.
+    new_name: The new name to register with Gym.
+    **kwargs_delta: Arguments to override the specification from existing_id.
+  """
+  existing_spec = gym.spec(existing_name)
+  fields = ["entry_point", "reward_threshold", "nondeterministic",
+            "tags", "max_episode_steps"]
+  kwargs = {k: getattr(existing_spec, k) for k in fields}
+  kwargs["kwargs"] = existing_spec._kwargs  # pylint:disable=protected-access
+  kwargs.update(**kwargs_delta)
+  gym.register(id=new_name, **kwargs)
+
+
+GYM_MUJOCO_V3_ENVS = ["Ant-v3", "HalfCheetah-v3", "Hopper-v3",
+                      "Humanoid-v3", "Swimmer-v3", "Walker2d-v3"]
+
+
+def register_mujoco():
+  kwargs = dict(exclude_current_positions_from_observation=False)
+  for env_name in GYM_MUJOCO_V3_ENVS:
+    register_similar(existing_name=env_name,
+                     new_name=f"evaluating_rewards/{env_name}",
+                     kwargs=kwargs)
+
+
+register_mujoco()

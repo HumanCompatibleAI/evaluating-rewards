@@ -17,7 +17,7 @@ done
 
 parallel --header : --results $HOME/output/parallel/point_mass_different_rewards/expert \
          ${EXPERT_DEMOS_CMD} \
-         env_name=evaluating_rewards/PointMassLineFixedHorizon-v0 \
+         env_name=evaluating_rewards/PointMassLine-v0 \
          reward_type={reward_type} \
          seed={seed} \
          log_dir=$HOME/output/point_mass_different_rewards/expert/{sanitized_reward_type}/{seed} \
@@ -30,7 +30,7 @@ for expert_sanitized_type in ${SANITIZED_REWARD_TYPES}; do
            ${EVAL_POLICY_CMD} \
            render=False \
            timesteps=10000 \
-           env_name=evaluating_rewards/PointMassLineFixedHorizon-v0 \
+           env_name=evaluating_rewards/PointMassLine-v0 \
            policy_type=ppo2 \
            policy_path=$HOME/output/point_mass_different_rewards/expert/${expert_sanitized_type}/{seed}/policies/final \
            reward_type={reward_type} \

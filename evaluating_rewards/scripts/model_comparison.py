@@ -16,7 +16,7 @@
 
 import functools
 import os
-from typing import Any, Callable, Dict, Mapping
+from typing import Any, Dict, Mapping
 
 from absl import app
 from evaluating_rewards import comparisons
@@ -24,9 +24,7 @@ from evaluating_rewards import serialize
 from evaluating_rewards.experiments import datasets
 from evaluating_rewards.scripts import regress_utils
 from evaluating_rewards.scripts import script_utils
-import gym
 import sacred
-from stable_baselines.common import vec_env
 
 model_comparison_ex = sacred.Experiment("model_comparison")
 
@@ -36,8 +34,8 @@ model_comparison_ex = sacred.Experiment("model_comparison")
 def default_config():
   """Default configuration values."""
   locals().update(**regress_utils.DEFAULT_CONFIG)
-  # TODO(): make these configurable outside of Python?
-  dataset_factory = datasets.random_generator
+  dataset_factory = datasets.random_policy_generator
+  dataset_factory_kwargs = {}
 
   # Model to fit to target
   source_reward_type = "evaluating_rewards/PointMassSparse-v0"
@@ -83,6 +81,12 @@ def fast():
   """Small number of epochs, finish quickly, intended for tests / debugging."""
   pretrain_size = 512
   total_timesteps = 8192
+
+
+@model_comparison_ex.named_config
+def dataset_random_transition():
+  """Randomly samples state and action and computes next state from dynamics."""
+  dataset_factory = datasets.random_transition_generator
 # pylint:enable=unused-variable
 
 
@@ -93,8 +97,8 @@ script_utils.add_logging_config(model_comparison_ex, "model_comparison")
 def model_comparison(_seed: int,  # pylint:disable=invalid-name
                      # Dataset
                      env_name: str,
-                     dataset_factory: Callable[[gym.Env],
-                                               datasets.BatchCallable],
+                     dataset_factory: datasets.DatasetFactory,
+                     dataset_factory_kwargs: Dict[str, Any],
                      # Source specification
                      source_reward_type: str,
                      source_reward_path: str,
@@ -113,9 +117,8 @@ def model_comparison(_seed: int,  # pylint:disable=invalid-name
                      log_dir: str,
                     ) -> Mapping[str, Any]:
   """Entry-point into script to regress source onto target reward model."""
-  env = gym.make(env_name)
-  venv = vec_env.DummyVecEnv([lambda: env])
-  dataset_callable = dataset_factory(env)
+  dataset_callable = dataset_factory(env_name, seed=_seed,
+                                     **dataset_factory_kwargs)
   dataset = dataset_callable(total_timesteps, batch_size)
 
   def make_source(venv):
@@ -136,7 +139,7 @@ def model_comparison(_seed: int,  # pylint:disable=invalid-name
     return trainer.fit(dataset, pretrain=pretrain_set)
 
   return regress_utils.regress(seed=_seed,
-                               venv=venv,
+                               env_name=env_name,
                                make_source=make_source,
                                source_init=False,
                                make_trainer=make_trainer,

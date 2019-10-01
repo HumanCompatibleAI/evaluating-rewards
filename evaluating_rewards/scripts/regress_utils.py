@@ -34,7 +34,7 @@ EnvRewardFactory = Callable[[gym.Space, gym.Space],
 
 
 DEFAULT_CONFIG = {
-    "env_name": "evaluating_rewards/PointMassLineFixedHorizon-v0",
+    "env_name": "evaluating_rewards/PointMassLine-v0",
     "target_reward_type": "evaluating_rewards/Zero-v0",
     "target_reward_path": "dummy",
     "model_reward_type": rewards.MLPRewardModel,
@@ -60,7 +60,7 @@ def make_model(model_reward_type: EnvRewardFactory,
 
 
 def regress(seed: int,
-            venv: vec_env.VecEnv,
+            env_name: str,
             make_source: MakeModelFn,
             source_init: bool,
             make_trainer: MakeTrainerFn,
@@ -72,6 +72,9 @@ def regress(seed: int,
             log_dir: str,
            ) -> V:
   """Train a model on target and save the results, reporting training stats."""
+  # This venv is needed by serialize.load_reward, but is never stepped.
+  venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
+
   with util.make_session() as (_, sess):
     tf.random.set_random_seed(seed)
 

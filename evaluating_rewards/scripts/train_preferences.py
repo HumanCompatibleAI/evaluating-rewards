@@ -105,7 +105,7 @@ def train_preferences(_seed: int,  # pylint:disable=invalid-name
                                    total_comparisons=total_comparisons)
 
     return regress_utils.regress(seed=_seed,
-                                 venv=venv,
+                                 env_name=env_name,
                                  make_source=make_source,
                                  source_init=True,
                                  make_trainer=make_trainer,

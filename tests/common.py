@@ -16,7 +16,9 @@
 import copy
 from typing import Dict, Iterator, Tuple, TypeVar
 
+from absl.testing import absltest
 from absl.testing import parameterized
+import gym
 import tensorflow as tf
 
 
@@ -83,3 +85,15 @@ def combine_dicts_as_kwargs(*dicts):
         "testcase_name": name,
         **cfg
     }
+
+
+def make_env(env_name: str) -> gym.Env:
+  """Wrapper on gym.make, skipping test if simulator not installed."""
+  try:
+    env = gym.make(env_name)
+  except gym.error.DependencyNotInstalled as e:  # pragma: no cover
+    if e.args[0].find("mujoco_py") != -1:
+      raise absltest.SkipTest("Requires `mujoco_py`, which isn't installed.")
+    else:
+      raise
+  return env

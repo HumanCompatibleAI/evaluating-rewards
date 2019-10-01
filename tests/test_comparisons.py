@@ -69,17 +69,17 @@ class RewardTest(common.TensorFlowTestCase):
       loss_ub: The maximum loss of the model at the end of training.
       rel_loss_lb: The minimum relative improvement to the initial loss.
     """
-    env = gym.make("evaluating_rewards/PointMassLineFixedHorizon-v0")
-    venv = vec_env.DummyVecEnv([lambda: env])
+    env_name = "evaluating_rewards/PointMassLine-v0"
+    venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
 
-    dataset_generator = datasets.random_generator(env)
+    dataset_generator = datasets.random_transition_generator(env_name)
     dataset = dataset_generator(1e5, 512)
 
     with self.graph.as_default():
       with self.sess.as_default():
         with tf.variable_scope("source") as source_scope:
-          source = rewards.MLPRewardModel(env.observation_space,
-                                          env.action_space)
+          source = rewards.MLPRewardModel(venv.observation_space,
+                                          venv.action_space)
 
         with tf.variable_scope("target"):
           target_model = serialize.load_reward(target, "dummy", venv)

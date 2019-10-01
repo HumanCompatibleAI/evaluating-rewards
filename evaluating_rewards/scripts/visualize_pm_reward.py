@@ -38,7 +38,7 @@ visualize_pm_reward_ex = sacred.Experiment("visualize_pm_reward")
 @visualize_pm_reward_ex.config
 def default_config():
   """Default configuration values."""
-  env_name = "evaluating_rewards/PointMassLineFixedHorizon-v0"
+  env_name = "evaluating_rewards/PointMassLine-v0"
   reward_type = "evaluating_rewards/PointMassSparse-v0"
   reward_path = "dummy"
   density = 11  # number of points along each axis to sample

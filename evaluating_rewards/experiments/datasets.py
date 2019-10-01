@@ -25,11 +25,13 @@ from typing import Callable, Iterator, Union
 from evaluating_rewards import rewards
 from evaluating_rewards.envs import point_mass
 import gym
-from imitation.envs import resettable_env
+from imitation.policies import base
 from imitation.util import rollout
+from imitation.util import util
 import numpy as np
 from stable_baselines.common import base_class
 from stable_baselines.common import policies
+from stable_baselines.common import vec_env
 
 
 def dummy_env_and_dataset(dims: int = 5):
@@ -57,9 +59,14 @@ def dummy_env_and_dataset(dims: int = 5):
 
 
 BatchCallable = Callable[[int, int], Iterator[rewards.Batch]]
+# Expect DatasetFactory to accept a str specifying env_name as first argument,
+# int specifying seed as second argument and factory-specific keyword arguments
+# after this. There is no way to specify this in Python type annotations yet :(
+# See https://github.com/python/mypy/issues/5876
+DatasetFactory = Callable[..., BatchCallable]
 
 
-def rollout_generator(env: gym.Env,
+def rollout_generator(venv: vec_env.VecEnv,
                       policy: Union[base_class.BaseRLModel,
                                     policies.BasePolicy],
                      ) -> BatchCallable:
@@ -67,7 +74,7 @@ def rollout_generator(env: gym.Env,
   def f(total_timesteps: int, batch_size: int) -> Iterator[rewards.Batch]:
     nbatch = math.ceil(total_timesteps / batch_size)
     for _ in range(nbatch):
-      transitions = rollout.generate_transitions(policy, env,
+      transitions = rollout.generate_transitions(policy, venv,
                                                  n_timesteps=batch_size)
       # TODO(): can we switch to rollout.Transition?
       yield rewards.Batch(obs=transitions.obs,
@@ -76,7 +83,7 @@ def rollout_generator(env: gym.Env,
   return f
 
 
-def random_generator(env: resettable_env.ResettableEnv) -> BatchCallable:
+def random_transition_generator(env_name: str, seed: int = 0) -> BatchCallable:
   """Randomly samples state and action and computes next state from dynamics.
 
   This is one of the weakest possible priors, with broad support. It is similar
@@ -87,12 +94,17 @@ def random_generator(env: resettable_env.ResettableEnv) -> BatchCallable:
   states, if there is no path from a feasible initial state to a sampled state.
 
   Args:
-    env: A model-based environment.
+    env_name: The name of a Gym environment. It must be a ResettableEnv.
+    seed: Used to seed the dynamics.
 
   Returns:
     A function that, when called with timesteps and batch size, will perform
     the sampling process described above.
   """
+  env = gym.make(env_name)
+  env.seed(seed)
+  # TODO(): why is total_timesteps specified here?
+  # Could instead make it endless, or specify nbatch directly.
   def f(total_timesteps: int, batch_size: int) -> Iterator[rewards.Batch]:
     """Helper function."""
     nbatch = math.ceil(total_timesteps / batch_size)
@@ -114,6 +126,25 @@ def random_generator(env: resettable_env.ResettableEnv) -> BatchCallable:
                           actions=np.array(acts),
                           next_obs=np.array(next_obses))
   return f
+
+
+def random_policy_generator(env_name: str, num_vec: int = 8, seed: int = 0,
+                           ) -> BatchCallable:
+  """Sample states and actions from trajectories from a random policy.
+
+  Args:
+    env_name: The name of a Gym environment.
+    num_vec: The number of environments to run concurrently. This will not
+        change the distribution, but may have a performance impact.
+    seed: The seed to initialise the environment with.
+
+  Returns:
+    A function that, when called with timesteps and batch size, will perform
+    the sampling process described above.
+  """
+  venv = util.make_vec_env(env_name, n_envs=num_vec, seed=seed)
+  policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+  return rollout_generator(venv, policy)
 
 
 def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):

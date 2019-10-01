@@ -20,11 +20,12 @@ from absl.testing import absltest
 from absl.testing import parameterized
 from evaluating_rewards import rewards
 from evaluating_rewards import serialize
+from evaluating_rewards.envs import mujoco
 from evaluating_rewards.envs import point_mass
 from evaluating_rewards.experiments import datasets
 from tests import common
-import gym
 from imitation.policies import base
+from imitation.util import rollout
 from imitation.util import serialize as util_serialize
 import numpy as np
 from stable_baselines.common import vec_env
@@ -60,12 +61,25 @@ POINT_MASS_MODELS = {
 }
 
 
-STANDALONE_REWARD_MODELS = {}
+STANDALONE_REWARD_MODELS = {
+    "halfcheetah_ground_truth": {
+        "env_id": "evaluating_rewards/HalfCheetah-v3",
+        "model_class": mujoco.HalfCheetahGroundTruthReward,
+    },
+    "hopper_ground_truth": {
+        "env_id": "evaluating_rewards/Hopper-v3",
+        "model_class": mujoco.HopperGroundTruthReward,
+    },
+    "hopper_backflip": {
+        "env_id": "evaluating_rewards/Hopper-v3",
+        "model_class": mujoco.HopperBackflipReward,
+    },
+}
 STANDALONE_REWARD_MODELS.update(common.combine_dicts(
     ENVS, GENERAL_REWARD_MODELS
 ))
 STANDALONE_REWARD_MODELS.update(common.combine_dicts(
-    {"pm": {"env_id": "evaluating_rewards/PointMassLineFixedHorizon-v0"}},
+    {"pm": {"env_id": "evaluating_rewards/PointMassLine-v0"}},
     POINT_MASS_MODELS,
 ))
 
@@ -77,12 +91,24 @@ REWARD_WRAPPERS = {
 }
 
 
+GROUND_TRUTH = {
+    "half_cheetah": {
+        "env_id": "evaluating_rewards/HalfCheetah-v3",
+        "reward_cls": mujoco.HalfCheetahGroundTruthReward,
+    },
+    "hopper": {
+        "env_id": "evaluating_rewards/Hopper-v3",
+        "reward_cls": mujoco.HopperGroundTruthReward,
+    }
+}
+
+
 class RewardTest(common.TensorFlowTestCase):
   """Unit tests for evaluating_rewards.rewards."""
 
   def _test_serialize_identity(self, env_id, make_model):
     """Creates reward model, saves it, reloads it, and checks for equality."""
-    venv = vec_env.DummyVecEnv([lambda: gym.make(env_id)])
+    venv = vec_env.DummyVecEnv([lambda: common.make_env(env_id)])
     policy = base.RandomPolicy(venv.observation_space, venv.action_space)
     dataset_callable = datasets.rollout_generator(venv, policy)
     batch = next(dataset_callable(1024, 1024))
@@ -152,6 +178,26 @@ class RewardTest(common.TensorFlowTestCase):
       return wrapper_cls(mlp)
 
     return self._test_serialize_identity(env_id, make_model)
+
+  @parameterized.named_parameters(common.combine_dicts_as_kwargs(GROUND_TRUTH))
+  def test_ground_truth_similar_to_gym(self, env_id, reward_cls):
+    """Checks that reward models predictions match those of Gym reward."""
+    # Generate rollouts, recording Gym reward
+    venv = vec_env.DummyVecEnv([lambda: common.make_env(env_id)])
+    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    transitions = rollout.generate_transitions(policy, venv, n_timesteps=1024)
+    batch = rewards.Batch(obs=transitions.obs,
+                          actions=transitions.act,
+                          next_obs=transitions.next_obs)
+    gym_reward = transitions.rew
+
+    # Make predictions using reward model
+    with self.graph.as_default(), self.sess.as_default():
+      reward_model = reward_cls(venv.observation_space, venv.action_space)
+      pred_reward = rewards.evaluate_models({"m": reward_model}, batch)["m"]
+
+    # Are the predictions close to true Gym reward?
+    np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=1e-5)
 
 
 if __name__ == "__main__":

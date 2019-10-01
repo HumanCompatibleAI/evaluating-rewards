@@ -1,11 +1,12 @@
 absl-py
 gym
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git
-numpy
 matplotlib
+mujoco_py
+numpy
 pandas
-setuptools
 seaborn
+setuptools
 scipy
 stable-baselines @ git+https://github.com/hill-a/stable-baselines.git
 tensorflow>=1.13,<1.14

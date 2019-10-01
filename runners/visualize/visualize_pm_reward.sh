@@ -23,7 +23,7 @@ echo "Visualizing models:"
 echo ${MODELS}
 
 parallel --header : --results ${OUTPUT_ROOT}/parallel/visualize_pm_reward/ \
-    ${VISUALIZE_CMD} env_name=evaluating_rewards/PointMassLineFixedHorizon-v0 \
+    ${VISUALIZE_CMD} env_name=evaluating_rewards/PointMassLine-v0 \
     reward_type=evaluating_rewards/RewardModel-v0 \
     reward_path=${LEARNT_MODEL_DIR}/{reward_path}/model \
     save_path=${LEARNT_MODEL_DIR}/{reward_path}/visualize.pdf \

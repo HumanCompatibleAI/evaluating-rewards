@@ -15,7 +15,7 @@
 """CLI script to regress a model onto another, pre-loaded model."""
 
 import functools
-from typing import Any, Callable, Mapping
+from typing import Any, Dict, Mapping
 
 from absl import app
 from evaluating_rewards import comparisons
@@ -23,9 +23,7 @@ from evaluating_rewards import rewards
 from evaluating_rewards.experiments import datasets
 from evaluating_rewards.scripts import regress_utils
 from evaluating_rewards.scripts import script_utils
-import gym
 import sacred
-from stable_baselines.common import vec_env
 
 train_regress_ex = sacred.Experiment("train_regress")
 
@@ -35,8 +33,8 @@ train_regress_ex = sacred.Experiment("train_regress")
 def default_config():
   """Default configuration values."""
   locals().update(**regress_utils.DEFAULT_CONFIG)
-  # TODO(): make these configurable outside of Python?
-  dataset_factory = datasets.random_generator
+  dataset_factory = datasets.random_policy_generator
+  dataset_factory_kwargs = {}
 
   # Model to train and hyperparameters
   model_reward_type = rewards.MLPRewardModel
@@ -49,6 +47,12 @@ def default_config():
 def fast():
   """Small number of epochs, finish quickly, intended for tests / debugging."""
   total_timesteps = 8192
+
+
+@train_regress_ex.named_config
+def dataset_random_transition():
+  """Randomly samples state and action and computes next state from dynamics."""
+  dataset_factory = datasets.random_transition_generator
 # pylint:enable=unused-variable
 
 
@@ -59,7 +63,8 @@ script_utils.add_logging_config(train_regress_ex, "train_regress")
 def train_regress(_seed: int,  # pylint:disable=invalid-name
                   # Dataset
                   env_name: str,
-                  dataset_factory: Callable[[gym.Env], datasets.BatchCallable],
+                  dataset_factory: datasets.DatasetFactory,
+                  dataset_factory_kwargs: Dict[str, Any],
                   # Target specification
                   target_reward_type: str,
                   target_reward_path: str,
@@ -72,9 +77,8 @@ def train_regress(_seed: int,  # pylint:disable=invalid-name
                   log_dir: str,
                  ) -> Mapping[str, Any]:
   """Entry-point into script to regress source onto target reward model."""
-  env = gym.make(env_name)
-  venv = vec_env.DummyVecEnv([lambda: env])
-  dataset_callable = dataset_factory(env)
+  dataset_callable = dataset_factory(env_name, seed=_seed,
+                                     **dataset_factory_kwargs)
   dataset = dataset_callable(total_timesteps, batch_size)
 
   make_source = functools.partial(regress_utils.make_model, model_reward_type)
@@ -88,7 +92,7 @@ def train_regress(_seed: int,  # pylint:disable=invalid-name
     return trainer.fit(dataset)
 
   return regress_utils.regress(seed=_seed,
-                               venv=venv,
+                               env_name=env_name,
                                make_source=make_source,
                                source_init=True,
                                make_trainer=make_trainer,
