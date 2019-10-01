@@ -46,6 +46,8 @@ def default_config():
   # Model to train and hyperparameters
   model_wrapper_fn = comparisons.equivalence_model_wrapper  # equivalence class
   model_wrapper_kwargs = dict()
+  pretrain = True  # set initial scale and constant to match target
+  pretrain_size = 16386  # number of timesteps to use in pretraining
   total_timesteps = 1e6
   batch_size = 4096
   learning_rate = 1e-2
@@ -73,11 +75,13 @@ def shaping_only():
   """Equivalence class consists of just potential shaping."""
   model_wrapper_fn = comparisons.equivalence_model_wrapper
   model_wrapper_kwargs = dict(affine=False)
+  pretrain = False
 
 
 @model_comparison_ex.named_config
 def fast():
   """Small number of epochs, finish quickly, intended for tests / debugging."""
+  pretrain_size = 512
   total_timesteps = 8192
 # pylint:enable=unused-variable
 
@@ -100,6 +104,8 @@ def model_comparison(_seed: int,  # pylint:disable=invalid-name
                      # Model parameters
                      model_wrapper_fn: comparisons.ModelWrapperFn,
                      model_wrapper_kwargs: Dict[str, Any],
+                     pretrain: bool,
+                     pretrain_size: int,
                      total_timesteps: int,
                      batch_size: int,
                      learning_rate: float,
@@ -124,7 +130,10 @@ def model_comparison(_seed: int,  # pylint:disable=invalid-name
 
   def do_training(target, trainer):
     del target
-    return trainer.fit(dataset)
+    pretrain_set = None
+    if pretrain:
+      pretrain_set = next(dataset_callable(pretrain_size, pretrain_size))
+    return trainer.fit(dataset, pretrain=pretrain_set)
 
   return regress_utils.regress(seed=_seed,
                                venv=venv,

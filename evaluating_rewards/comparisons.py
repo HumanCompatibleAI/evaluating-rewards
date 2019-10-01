@@ -21,6 +21,9 @@ import numpy as np
 import tensorflow as tf
 
 
+FitStats = Mapping[str, List[Mapping[str, Any]]]
+
+
 class RegressModel:
   """Regress source model onto target."""
 
@@ -68,8 +71,16 @@ class RegressModel:
     return rewards.make_feed_dict(models, batch)
 
   def fit(self, dataset: Iterator[rewards.Batch],
-          log_interval: int = 10) -> Mapping[str, List[Mapping[str, Any]]]:
-    """Fits shaping to target."""
+          log_interval: int = 10) -> FitStats:
+    """Fits shaping to target.
+
+    Args:
+      dataset: iterator of batches of data to fit to.
+      log_interval: reports statistics every log_interval batches.
+
+    Returns:
+      Training statistics.
+    """
     return fit_models({"singleton": self},
                       dataset=dataset,
                       log_interval=log_interval)
@@ -112,6 +123,32 @@ class RegressWrappedModel(RegressModel):
     self.metrics["unwrapped_loss"] = loss_fn(self.target.reward,
                                              self.unwrapped_source.reward)
     self.metrics.update(metrics)
+
+  def pretrain(self, batch: rewards.Batch):
+    affine_model = self.model_extra["affine"]
+    return affine_model.pretrain(batch,
+                                 target=self.target,
+                                 original=self.unwrapped_source)
+
+  def fit(self,
+          dataset: Iterator[rewards.Batch],
+          pretrain: Optional[rewards.Batch],
+          **kwargs) -> FitStats:
+    """Fits shaping to target.
+
+    Args:
+      dataset: iterator of batches of data to fit to.
+      pretrain: if provided, warm-start affine parameters from estimates
+          computed from this batch. (Requires that model_wrapper adds
+          affine parameters.)
+      **kwargs: passed through to super().fit.
+
+    Returns:
+      Training statistics.
+    """
+    if pretrain:
+      self.pretrain(pretrain)
+    return super().fit(dataset, **kwargs)
 
 
 def _scaled_norm(x):

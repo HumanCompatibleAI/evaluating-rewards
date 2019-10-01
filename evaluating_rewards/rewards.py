@@ -543,7 +543,8 @@ class AffineTransform(LinearCombinationModelWrapper):
   def pretrain(self,
                batch: Batch,
                target: RewardModel,
-               original: Optional[RewardModel] = None) -> AffineParameters:
+               original: Optional[RewardModel] = None,
+               eps=1e-8) -> AffineParameters:
     """Initializes the shift and scale parameter to try to match target.
 
     Computes the mean and standard deviation of the wrapped reward model
@@ -563,6 +564,7 @@ class AffineTransform(LinearCombinationModelWrapper):
           This can be undesirable if `self.wrapped` includes some randomly
           initialized model elements, such as potential shaping, that would
           be better to treat as mean-zero.
+      eps: Minimum standard deviation (for numerical stability).
 
     Returns:
       The initial shift and scale parameters.
@@ -574,7 +576,7 @@ class AffineTransform(LinearCombinationModelWrapper):
     sess = tf.get_default_session()
     preds = sess.run([original.reward, target.reward], feed_dict=feed_dict)
     original_mean, target_mean = np.mean(preds, axis=-1)
-    original_std, target_std = np.std(preds, axis=-1)
+    original_std, target_std = np.clip(np.std(preds, axis=-1), eps, None)
 
     log_scale = 0.0
     if self._log_scale_layer is not None:

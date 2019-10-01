@@ -176,6 +176,7 @@ def compare_synthetic(observation_space: gym.Space,
               hid_sizes=model_potential_hids,
               activation=model_activation,
               discount=discount)
+          pretrain = model_affine and pretrain
           matched = comparisons.RegressWrappedModel(noised_ground_shaped,
                                                     ground_truth,
                                                     model_wrapper=model_wrapper,
@@ -198,18 +199,11 @@ def compare_synthetic(observation_space: gym.Space,
   for key, matched in matchings.items():
     if model_affine and pretrain:
       logging.info(f"Pretraining {key}")
-      # Try to rescale the original model to match target.
-      # This ignores the (randomly initialized) potential shaping,
-      # which will make our estimated statistics less accurate.
-      original = matched.model_extra["original"]
-      initial = matched.model_extra["affine"].pretrain(pretrain_set,
-                                                       target=ground_truth,
-                                                       original=original)
-      initial_constants[key] = initial.constant
-      initial_scales[key] = initial.scale
+      initial = matched.pretrain(pretrain_set)
     else:
-      initial_constants[key] = 0
-      initial_scales[key] = 1
+      initial = rewards.AffineParameters(constant=0, scale=1)
+    initial_constants[key] = initial.constant
+    initial_scales[key] = initial.scale
 
   # Train potential shaping and other parameters
   metrics = comparisons.fit_models(matchings, training_generator)

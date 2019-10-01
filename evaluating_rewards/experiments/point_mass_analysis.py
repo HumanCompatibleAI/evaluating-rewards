@@ -19,11 +19,10 @@ See Colab notebooks for use cases.
 
 import itertools
 import math
-from typing import Any, Dict, Optional, List, Mapping, Tuple
+from typing import Any, Dict, Optional, List, Tuple
 
 from evaluating_rewards import rewards
 from evaluating_rewards.envs import point_mass
-from evaluating_rewards.experiments import comparisons
 from evaluating_rewards.experiments import datasets
 import matplotlib.pyplot as plt
 import numpy as np
@@ -204,45 +203,3 @@ def plot_state_density(dataset_generator: datasets.BatchCallable,
                 xlim=(-1, 1), ylim=(-1, 1), **kwargs)
   plt.xlabel("Velocity")
   plt.ylabel("Position")
-
-
-def evaluate_multiple_reward_models(env: point_mass.PointMassEnv,
-                                    models: Mapping[str, rewards.RewardModel],
-                                    goal: np.ndarray = None,
-                                    **kwargs):
-  """Wrapper around `evaluate_reward_model`."""
-  preds = {name: evaluate_reward_model(env, model, goal=goal, **kwargs)
-           for name, model in models.items()}
-  return preds, goal
-
-
-def plot_multiple_rewards(preds, goal, **kwargs):
-  """Plot each of the rewards in `preds`."""
-  figs = {}
-  for model_name, rew in preds.items():
-    figs[model_name] = plot_reward(rew, goal, **kwargs)
-    figs[model_name].suptitle(model_name)
-  return figs
-
-
-def match_pipeline(env: point_mass.PointMassEnv,
-                   original: rewards.RewardModel,
-                   target: rewards.RewardModel,
-                   dataset: datasets.BatchCallable,
-                   goal: Optional[np.ndarray] = None,
-                   eval_kwargs: Optional[Dict[str, Any]] = None,
-                   **kwargs):
-  """Wrapper for comparisons.match_pipeline that evaluates and plots reward."""
-  res = comparisons.match_pipeline(original, target, dataset, **kwargs)
-
-  if goal is None:
-    goal = np.array([0.0])
-
-  eval_kwargs = eval_kwargs or {}
-  reward = evaluate_reward_model(env, res["match"].source,
-                                 goal=goal, density=11, **eval_kwargs)
-  fig = plot_reward(reward, goal, zaxis="position")
-
-  res["reward"] = reward
-  res["fig"] = fig
-  return res
