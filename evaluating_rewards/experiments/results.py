@@ -393,21 +393,8 @@ def compact_heatmaps(loss: pd.Series,
   Returns:
     A mapping from strings to figures.
   """
-  names = loss.index.names
-  if "source_reward_path" in names:
-    loss = loss.reset_index(level="source_reward_path")
-    components = loss["source_reward_path"].str.split("/")
-    loss["comparison_seed"] = components.str[-2]
-    paths = components.str[0:-2].str.join("/")
-    paths = visualize.path_rewrite(paths)
-    paths = paths.str.replace("evaluating_rewards_", "evaluating_rewards/")
-    paths = paths.str.replace("imitation_", "imitation/")
-    loss = loss.drop(columns="source_reward_path")
-    loss["source_reward_type"] = paths
-    loss = loss.set_index("source_reward_type", append=True)
-    loss = loss.set_index("comparison_seed", append=True)
-    loss = loss[0]  # DataFrame->Series
-
+  loss = loss.copy()
+  loss = visualize.rewrite_index(loss)
   loss = compact(loss)
 
   source_order = list(order)

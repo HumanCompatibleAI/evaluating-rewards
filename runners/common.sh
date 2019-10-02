@@ -20,6 +20,28 @@ function call_script {
   echo "python -m evaluating_rewards.scripts.${script_name} $@"
 }
 
+function learnt_model {
+  if [[ $# -ne 1 ]]; then
+    echo "usage: $0 <model prefix>"
+    echo "model prefix must be relative to ${OUTPUT_ROOT}"
+    exit 1
+  fi
+
+  model_prefix=$1
+  learnt_model_dir=${OUTPUT_ROOT}/${model_prefix}
+
+  case ${model_prefix} in
+  train_adversarial)
+    source_reward_type="imitation/RewardNet_unshaped-v0"
+    model_name="checkpoints/final/discrim/reward_net"
+    ;;
+  *)
+    source_reward_type="evaluating_rewards/RewardModel-v0"
+    model_name="model"
+    ;;
+  esac
+}
+
 PM_ENVS="evaluating_rewards/PointMassLine-v0 \
          evaluating_rewards/PointMassLineVariableHorizon-v0 \
          evaluating_rewards/PointMassGrid-v0"

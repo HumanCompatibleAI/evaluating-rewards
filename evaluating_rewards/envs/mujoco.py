@@ -311,7 +311,7 @@ def _register_point_maze():
   for k, cfg in control.items():
     fn = registry.build_loader_fn_require_env(PointMazeReward.from_venv, **cfg)
     reward_serialize.reward_registry.register(
-        key=f"imitation/PointMazeGroundTruth{k}-v0",
+        key=f"evaluating_rewards/PointMazeGroundTruth{k}-v0",
         value=fn
     )
 

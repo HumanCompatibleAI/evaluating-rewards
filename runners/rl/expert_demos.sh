@@ -18,7 +18,11 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 EXPERT_DEMOS_CMD=$(call_script "expert_demos" "with")
 
-parallel --header : --results $HOME/output/parallel/train_experts \
-         ${EXPERT_DEMOS_CMD} env_name={env} seed={seed} \
-         ::: env ${ENVS} \
-         ::: seed 0 1 2
+for env_name in ${ENVS}; do
+  types=${REWARDS_BY_ENV[$env_name]}
+  parallel --header : --results $HOME/output/parallel/expert_demos \
+           ${EXPERT_DEMOS_CMD} env_name=${env_name} \
+           reward_type={type} seed={seed} \
+           ::: type ${types} \
+           ::: seed 0 1 2
+done

@@ -29,10 +29,10 @@ REWARDS_BY_ENV = {
         "evaluating_rewards/PointMass.*-v0"
     ],
     "imitation/PointMazeLeft-v0": [
-        "imitation/PointMaze.*-v0",
+        "evaluating_rewards/PointMaze.*-v0",
     ],
     "imitation/PointMazeRight-v0": [
-        "imitation/PointMaze.*-v0",
+        "evaluating_rewards/PointMaze.*-v0",
     ],
 }
 GENERIC_REWARDS = ["evaluating_rewards/Zero-v0"]

@@ -14,9 +14,10 @@
 
 """Methods to generate plots and visualize data."""
 
+import json
 import os
 import re
-from typing import Callable, Iterable, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
 
 from absl import logging
 import matplotlib.pyplot as plt
@@ -109,12 +110,92 @@ def save_figs(root_dir: str,
     save_fig(path, fig, **kwargs)
 
 
-def path_rewrite(index: pd.Index) -> pd.Index:
-  prefix = os.path.commonprefix(list(index))
-  # We only want to strip common path components.
-  # e.g. [a/b/cat, a/b/cod] -> [cat, cod] not [at, od].
-  prefix = os.path.dirname(prefix)
-  return index.str.extract(f"{prefix}/(.*?)(?:/model|)$", expand=False)
+def _find_sacred_parent(path: str,
+                        seen: Dict[str, str],
+                       ) -> Tuple[Dict[str, Any], Dict[str, Any], str]:
+  """Finds first Sacred directory that is in path or a parent.
+
+  Args:
+    path: Path to a directory to start searching from.
+    seen: A dictionary from parent paths to children.
+
+  Returns:
+    A tuple of the config found and the parent path it is located at.
+    As a side-effect, adds path to seen.
+
+  Raises:
+    ValueError: if the parent path was already in seen for a different child.
+    ValueError: no parent path containing a Sacred directory exists.
+  """
+  parent = path
+  while (parent and
+         not os.path.exists(os.path.join(parent, "sacred", "config.json"))):
+    parent = os.path.dirname(parent)
+  if not parent:
+    raise ValueError(f"No parent of '{path}' contains a Sacred directory.")
+
+  if parent in seen and seen[parent] != path:
+    raise ValueError(f"index contains two paths '{path}' and '{seen[parent]}' "
+                     f"with common Sacred parent 'f{parent}'.")
+  seen[parent] = path
+
+  config_path = os.path.join(parent, "sacred", "config.json")
+  with open(config_path, "r") as f:
+    config = json.load(f)
+  run_path = os.path.join(parent, "sacred", "run.json")
+  with open(run_path, "r") as f:
+    run = json.load(f)
+
+  return config, run, parent
+
+
+def path_to_config(index: Iterable[str]) -> pd.DataFrame:
+  """Extracts relevant config parameters from paths in index.
+
+  Args:
+    index: An index of paths.
+
+  Returns:
+    A MultiIndex consisting of original reward type and seed(s).
+  """
+  seen = {}
+  res = []
+  for path in index:
+    config, run, path = _find_sacred_parent(path, seen)
+
+    if "target_reward_type" in config:
+      # Learning directly from a reward: e.g. train_{regress,preferences}
+      pretty_type = {"train_regress": "regress",
+                     "train_preferences": "preferences"}
+      model_type = pretty_type[run["command"]]
+      res.append((config["target_reward_type"], model_type,
+                  config["seed"], 0))
+    elif "rollout_path" in config:
+      # Learning from demos: e.g. train_adversarial
+      rollout_config, _, _ = _find_sacred_parent(config["rollout_path"], seen)
+      reward_type = rollout_config["reward_type"] or "EnvReward"
+      reward_args = config["init_trainer_kwargs"]["reward_kwargs"]
+      state_only = reward_args.get("state_only", False)
+      model_type = "IRL" + ("-SO" if state_only else "-SA")
+      res.append((reward_type, model_type,
+                  config["seed"], rollout_config["seed"]))
+    else:
+      raise ValueError(f"Unexpected config at '{path}': does not contain "
+                       "'source_reward_type' or 'rollout_path'")
+
+  names = ["source_reward_type", "model_type", "model_seed", "data_seed"]
+  return pd.DataFrame(res, columns=names)
+
+
+def rewrite_index(series: pd.Series) -> pd.Series:
+  if "source_reward_path" in series.index.names:
+    new_index = series.index.to_frame(index=False)
+    source_reward = path_to_config(new_index["source_reward_path"])
+    new_index = new_index.drop(columns="source_reward_path")
+    new_index = pd.concat([source_reward, new_index], axis=1)
+    new_index = pd.MultiIndex.from_frame(new_index)
+    series.index = new_index
+  return series
 
 
 def short_e(x: float, precision: int = 2) -> str:
@@ -170,10 +251,7 @@ def comparison_heatmap(vals: pd.Series,
   def to_df(series):
     """Helper to reformat labels for ease of interpretability."""
     series = series.copy()
-    for i, level in enumerate(series.index.levels):
-      if "path" in level.name:
-        new_level = path_rewrite(level)
-        series.index = series.index.set_levels(new_level, level=i)
+    series = rewrite_index(series)
     series.index.names = [LEVEL_NAMES.get(name, name)
                           for name in series.index.names]
     series = series.rename(index=pretty_rewrite)
@@ -189,6 +267,8 @@ def comparison_heatmap(vals: pd.Series,
         if level != "Target":
           df = df.reindex(index=series.index.get_level_values(level).unique(),
                           **kwargs)
+    else:
+      df = df.sort_index()
     return df
 
   vals = to_df(vals)

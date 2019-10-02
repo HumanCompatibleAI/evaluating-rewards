@@ -43,9 +43,6 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
   def register(self, key, *, value=None, indirect=None):
     super().register(key, value=value, indirect=indirect)
 
-    if key.startswith("imitation/"):
-      return  # do not re-insert models from imitation
-
     @contextlib.contextmanager
     def reward_fn_loader(path: str,
                          venv: vec_env.VecEnv,
