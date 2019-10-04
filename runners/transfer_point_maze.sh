@@ -43,9 +43,11 @@ wait
 # Direct Methods: Preference Comparison and Reward Regression
 # These can learn directly from the reward model
 $(call_script "train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
-    target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/preferences&
+    target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/preferences \
+    policy_type=ppo2 policy_path=${PM_OUTPUT}/expert/train/policies/final&
 $(call_script "train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
-    target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress&
+    target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
+    policy_type=ppo2 policy_path=${PM_OUTPUT}/expert/train/policies/final&
 
 # IRL: uses demonstrations from previous part
 for state_only in True False; do
@@ -62,24 +64,33 @@ done
 
 wait
 
-# Step 2) Compare Reward Models
+# Step 2a) Compare Reward Models
 
-parallel --header : --results ${PM_OUTPUT}/parallel/comparison \
-  $(call_script "model_comparison" "with") env_name=${ENV_TRAIN} seed={seed} \
-  source_reward_type={source_reward_type} \
-  source_reward_path=${PM_OUTPUT}/reward/{source_reward_path}/{source_reward_suffix} \
-  target_reward_type=${TARGET_REWARD_TYPE} \
-  log_dir=${PM_OUTPUT}/comparison/{source_reward_path}/{seed} \
-  ::: source_reward_type evaluating_rewards/RewardModel-v0 evaluating_rewards/RewardModel-v0 \
-                         imitation/RewardNet_unshaped-v0 imitation/RewardNet_unshaped-v0 \
-  :::+ source_reward_path preferences regress irl_state_only irl_state_action \
-  :::+ source_reward_suffix model model checkpoints/final/discrim/reward_net \
-                            checkpoints/final/discrim/reward_net \
-  ::: seed 0 1 2
+for name in comparison_expert comparison_random; do
+  extra_flags=""
+  if [[ ${name} == "comparison_expert" ]]; then
+    extra_flags="dataset_factory_kwargs.policy_type=ppo2 \
+                 dataset_factory_kwargs.policy_path=${PM_OUTPUT}/expert/train/policies/final"
+  fi
+  parallel --header : --results ${PM_OUTPUT}/parallel/${name} \
+    $(call_script "model_comparison" "with") \
+    env_name=${ENV_TRAIN} ${extra_flags} \
+    seed={seed} source_reward_type={source_reward_type} \
+    source_reward_path=${PM_OUTPUT}/reward/{source_reward_path}/{source_reward_suffix} \
+    target_reward_type=${TARGET_REWARD_TYPE} \
+    log_dir=${PM_OUTPUT}/${name}/{source_reward_path}/{seed} \
+    ::: source_reward_type evaluating_rewards/Zero-v0 \
+        evaluating_rewards/RewardModel-v0 evaluating_rewards/RewardModel-v0 \
+        imitation/RewardNet_unshaped-v0 imitation/RewardNet_unshaped-v0 \
+    :::+ source_reward_path zero preferences regress irl_state_only irl_state_action \
+    :::+ source_reward_suffix dummy model model checkpoints/final/discrim/reward_net \
+                              checkpoints/final/discrim/reward_net \
+    ::: seed 0 1 2&
+done
 
-# Step 3) Train Policies on Learnt Reward Models
+# Step 2b) Train Policies on Learnt Reward Models
 
-parallel --header : --results ${PM_OUTPUT}/parallel/comparison \
+parallel --header : --results ${PM_OUTPUT}/parallel/transfer \
   $(call_script "expert_demos" "with") total_timesteps=${RL_TIMESTEPS} \
   env_name={env} seed={seed} reward_type={reward_type} \
   reward_path=${PM_OUTPUT}/reward/{reward_path}/{reward_suffix} \
@@ -90,9 +101,11 @@ parallel --header : --results ${PM_OUTPUT}/parallel/comparison \
   :::+ reward_path preferences regress irl_state_only irl_state_action \
   :::+ reward_suffix model model checkpoints/final/discrim/reward_net \
                      checkpoints/final/discrim/reward_net \
-  ::: seed 0 1 2
+  ::: seed 0 1 2&
 
-# Step 4) Evaluate Policies
+wait
+
+# Step 3) Evaluate Policies
 
 for env in ${ENVS}; do
   env_sanitized=$(echo ${env} | sed -e 's/\//_/g')

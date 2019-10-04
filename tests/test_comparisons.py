@@ -18,6 +18,8 @@ from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
 from evaluating_rewards import comparisons
+# Environments registered as a side-effect of importing
+from evaluating_rewards import envs  # pylint:disable=unused-import
 from evaluating_rewards import rewards
 from evaluating_rewards import serialize
 from evaluating_rewards.experiments import datasets
@@ -72,36 +74,36 @@ class RewardTest(common.TensorFlowTestCase):
     env_name = "evaluating_rewards/PointMassLine-v0"
     venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
 
-    dataset_generator = datasets.random_transition_generator(env_name)
-    dataset = dataset_generator(1e5, 512)
+    with datasets.random_transition_generator(env_name) as dataset_generator:
+      dataset = dataset_generator(1e5, 512)
 
-    with self.graph.as_default():
-      with self.sess.as_default():
-        with tf.variable_scope("source") as source_scope:
-          source = rewards.MLPRewardModel(venv.observation_space,
-                                          venv.action_space)
+      with self.graph.as_default():
+        with self.sess.as_default():
+          with tf.variable_scope("source") as source_scope:
+            source = rewards.MLPRewardModel(venv.observation_space,
+                                            venv.action_space)
 
-        with tf.variable_scope("target"):
-          target_model = serialize.load_reward(target, "dummy", venv)
+          with tf.variable_scope("target"):
+            target_model = serialize.load_reward(target, "dummy", venv)
 
-        with tf.variable_scope("match") as match_scope:
-          match = comparisons.RegressModel(source, target_model)
+          with tf.variable_scope("match") as match_scope:
+            match = comparisons.RegressModel(source, target_model)
 
-        init_vars = (source_scope.global_variables()
-                     + match_scope.global_variables())
-        self.sess.run(tf.initializers.variables(init_vars))
+          init_vars = (source_scope.global_variables()
+                       + match_scope.global_variables())
+          self.sess.run(tf.initializers.variables(init_vars))
 
-        stats = match.fit(dataset)
+          stats = match.fit(dataset)
 
-    loss = pd.DataFrame(stats["loss"])["singleton"]
-    logging.info(f"Loss: {loss.iloc[::10]}")
-    initial_loss = loss.iloc[0]
-    logging.info(f"Initial loss: {initial_loss}")
-    final_loss = loss.iloc[-10:].mean()
-    logging.info(f"Final loss: {final_loss}")
+      loss = pd.DataFrame(stats["loss"])["singleton"]
+      logging.info(f"Loss: {loss.iloc[::10]}")
+      initial_loss = loss.iloc[0]
+      logging.info(f"Initial loss: {initial_loss}")
+      final_loss = loss.iloc[-10:].mean()
+      logging.info(f"Final loss: {final_loss}")
 
-    assert initial_loss / final_loss > rel_loss_lb
-    assert final_loss < loss_ub
+      assert initial_loss / final_loss > rel_loss_lb
+      assert final_loss < loss_ub
 
 
 if __name__ == "__main__":

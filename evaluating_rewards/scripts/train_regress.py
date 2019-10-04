@@ -33,14 +33,21 @@ train_regress_ex = sacred.Experiment("train_regress")
 def default_config():
   """Default configuration values."""
   locals().update(**regress_utils.DEFAULT_CONFIG)
-  dataset_factory = datasets.random_policy_generator
-  dataset_factory_kwargs = {}
+  dataset_factory = datasets.rollout_serialized_policy_generator
+  dataset_factory_kwargs = dict()
 
   # Model to train and hyperparameters
   model_reward_type = rewards.MLPRewardModel
   total_timesteps = 1e6
   batch_size = 4096
   learning_rate = 1e-2
+
+
+@train_regress_ex.config
+def default_kwargs(dataset_factory, dataset_factory_kwargs):
+  # TODO(): remove this function when Sacred issue #238 is fixed
+  if dataset_factory == datasets.rollout_serialized_policy_generator and not dataset_factory_kwargs:
+    dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
 
 
 @train_regress_ex.named_config
@@ -77,29 +84,30 @@ def train_regress(_seed: int,  # pylint:disable=invalid-name
                   log_dir: str,
                  ) -> Mapping[str, Any]:
   """Entry-point into script to regress source onto target reward model."""
-  dataset_callable = dataset_factory(env_name, seed=_seed,
-                                     **dataset_factory_kwargs)
-  dataset = dataset_callable(total_timesteps, batch_size)
+  with dataset_factory(env_name, seed=_seed,
+                       **dataset_factory_kwargs) as dataset_callable:
+    dataset = dataset_callable(total_timesteps, batch_size)
 
-  make_source = functools.partial(regress_utils.make_model, model_reward_type)
+    make_source = functools.partial(regress_utils.make_model, model_reward_type)
 
-  def make_trainer(model, model_scope, target):
-    del model_scope
-    return comparisons.RegressModel(model, target, learning_rate=learning_rate)
+    def make_trainer(model, model_scope, target):
+      del model_scope
+      return comparisons.RegressModel(model, target,
+                                      learning_rate=learning_rate)
 
-  def do_training(target, trainer):
-    del target
-    return trainer.fit(dataset)
+    def do_training(target, trainer):
+      del target
+      return trainer.fit(dataset)
 
-  return regress_utils.regress(seed=_seed,
-                               env_name=env_name,
-                               make_source=make_source,
-                               source_init=True,
-                               make_trainer=make_trainer,
-                               do_training=do_training,
-                               target_reward_type=target_reward_type,
-                               target_reward_path=target_reward_path,
-                               log_dir=log_dir)
+    return regress_utils.regress(seed=_seed,
+                                 env_name=env_name,
+                                 make_source=make_source,
+                                 source_init=True,
+                                 make_trainer=make_trainer,
+                                 do_training=do_training,
+                                 target_reward_type=target_reward_type,
+                                 target_reward_path=target_reward_path,
+                                 log_dir=log_dir)
 
 
 if __name__ == "__main__":

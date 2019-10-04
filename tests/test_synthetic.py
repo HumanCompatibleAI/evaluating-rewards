@@ -18,20 +18,68 @@ Also indirectly tests evaluating_rewards.deep, evaluating_rewards.datasets and
 evaluating_rewards.util.
 """
 
+import math
+
 from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
-
+from evaluating_rewards import rewards
+from evaluating_rewards.envs import point_mass
 from evaluating_rewards.experiments import datasets
 from evaluating_rewards.experiments import synthetic
 from tests import common
+import gym
+from imitation import util
 import numpy as np
 import pandas as pd
 
+
+def dummy_env_and_dataset(dims: int = 5):
+  """Make a simple fake environment with rollouts."""
+  obs_space = gym.spaces.Box(low=np.repeat(0.0, dims),
+                             high=np.repeat(1.0, dims))
+  act_space = gym.spaces.Box(low=np.repeat(0.0, dims),
+                             high=np.repeat(1.0, dims))
+
+  def dataset_generator(total_timesteps, batch_size):
+    nbatches = math.ceil(total_timesteps / batch_size)
+    for _ in range(nbatches):
+      obs = np.array([obs_space.sample() for _ in range(batch_size)])
+      actions = np.array([act_space.sample() for _ in range(batch_size)])
+      next_obs = (obs + actions).clip(0.0, 1.0)
+      yield rewards.Batch(obs=obs,
+                          actions=actions,
+                          next_obs=next_obs)
+
+  return {
+      "observation_space": obs_space,
+      "action_space": act_space,
+      "dataset_generator": dataset_generator,
+  }
+
+
+def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
+  """Make Point Mass environment and dataset generator."""
+  venv = util.make_vec_env(env_name)
+  obs_space = venv.observation_space
+  act_space = venv.action_space
+
+  pm = point_mass.PointMassPolicy(obs_space, act_space)
+  with datasets.rollout_policy_generator(venv, pm) as dataset_generator:
+    # It's OK to return dataset_generator outside the with context:
+    # rollout_policy_generator doesn't actually have any internal resources
+    # (some other datasets do).
+    return {
+        "observation_space": obs_space,
+        "action_space": act_space,
+        "dataset_generator": dataset_generator,
+    }
+
+
 ENVIRONMENTS = {
-    "Uniform5D": datasets.dummy_env_and_dataset(dims=5),
-    "PointLine": datasets.make_pm("evaluating_rewards/PointMassLine-v0"),
-    "PointGrid": datasets.make_pm("evaluating_rewards/PointMassGrid-v0"),
+    "Uniform5D": dummy_env_and_dataset(dims=5),
+    "PointLine": make_pm("evaluating_rewards/PointMassLine-v0"),
+    "PointGrid": make_pm("evaluating_rewards/PointMassGrid-v0"),
 }
 
 ARCHITECTURES = {

@@ -36,8 +36,8 @@ model_comparison_ex = sacred.Experiment("model_comparison")
 def default_config():
   """Default configuration values."""
   locals().update(**regress_utils.DEFAULT_CONFIG)
-  dataset_factory = datasets.random_policy_generator
-  dataset_factory_kwargs = {}
+  dataset_factory = datasets.rollout_serialized_policy_generator
+  dataset_factory_kwargs = dict()
 
   # Model to fit to target
   source_reward_type = "evaluating_rewards/PointMassSparse-v0"
@@ -55,6 +55,13 @@ def default_config():
 
   # Logging
   log_root = os.path.join("output", "train_regress")  # output directory
+
+
+@model_comparison_ex.config
+def default_kwargs(dataset_factory, dataset_factory_kwargs):
+  # TODO(): remove this function when Sacred issue #238 is fixed
+  if dataset_factory == datasets.rollout_serialized_policy_generator and not dataset_factory_kwargs:
+    dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
 
 
 @model_comparison_ex.named_config
@@ -102,6 +109,7 @@ def fast():
 def dataset_random_transition():
   """Randomly samples state and action and computes next state from dynamics."""
   dataset_factory = datasets.random_transition_generator
+  dataset_factory_kwargs = {}
 # pylint:enable=unused-variable
 
 
@@ -132,36 +140,37 @@ def model_comparison(_seed: int,  # pylint:disable=invalid-name
                      log_dir: str,
                     ) -> Mapping[str, Any]:
   """Entry-point into script to regress source onto target reward model."""
-  dataset_callable = dataset_factory(env_name, seed=_seed,
-                                     **dataset_factory_kwargs)
-  dataset = dataset_callable(total_timesteps, batch_size)
+  with dataset_factory(env_name, seed=_seed,
+                       **dataset_factory_kwargs) as dataset_callable:
+    dataset = dataset_callable(total_timesteps, batch_size)
 
-  def make_source(venv):
-    return serialize.load_reward(source_reward_type, source_reward_path, venv)
+    def make_source(venv):
+      return serialize.load_reward(source_reward_type, source_reward_path, venv)
 
-  def make_trainer(model, model_scope, target):
-    del model_scope
-    model_wrapper = functools.partial(model_wrapper_fn, **model_wrapper_kwargs)
-    return comparisons.RegressWrappedModel(model, target,
-                                           model_wrapper=model_wrapper,
-                                           learning_rate=learning_rate)
+    def make_trainer(model, model_scope, target):
+      del model_scope
+      model_wrapper = functools.partial(model_wrapper_fn,
+                                        **model_wrapper_kwargs)
+      return comparisons.RegressWrappedModel(model, target,
+                                             model_wrapper=model_wrapper,
+                                             learning_rate=learning_rate)
 
-  def do_training(target, trainer):
-    del target
-    pretrain_set = None
-    if pretrain:
-      pretrain_set = next(dataset_callable(pretrain_size, pretrain_size))
-    return trainer.fit(dataset, pretrain=pretrain_set)
+    def do_training(target, trainer):
+      del target
+      pretrain_set = None
+      if pretrain:
+        pretrain_set = next(dataset_callable(pretrain_size, pretrain_size))
+      return trainer.fit(dataset, pretrain=pretrain_set)
 
-  return regress_utils.regress(seed=_seed,
-                               env_name=env_name,
-                               make_source=make_source,
-                               source_init=False,
-                               make_trainer=make_trainer,
-                               do_training=do_training,
-                               target_reward_type=target_reward_type,
-                               target_reward_path=target_reward_path,
-                               log_dir=log_dir)
+    return regress_utils.regress(seed=_seed,
+                                 env_name=env_name,
+                                 make_source=make_source,
+                                 source_init=False,
+                                 make_trainer=make_trainer,
+                                 do_training=do_training,
+                                 target_reward_type=target_reward_type,
+                                 target_reward_path=target_reward_path,
+                                 log_dir=log_dir)
 
 
 if __name__ == "__main__":

@@ -127,32 +127,32 @@ class RewardTest(common.TensorFlowTestCase):
     """Creates reward model, saves it, reloads it, and checks for equality."""
     venv = vec_env.DummyVecEnv([lambda: common.make_env(env_id)])
     policy = base.RandomPolicy(venv.observation_space, venv.action_space)
-    dataset_callable = datasets.rollout_generator(venv, policy)
-    batch = next(dataset_callable(1024, 1024))
+    with datasets.rollout_policy_generator(venv, policy) as dataset_callable:
+      batch = next(dataset_callable(1024, 1024))
 
-    with self.graph.as_default(), self.sess.as_default():
-      original = make_model(venv)
-      self.sess.run(tf.global_variables_initializer())
+      with self.graph.as_default(), self.sess.as_default():
+        original = make_model(venv)
+        self.sess.run(tf.global_variables_initializer())
 
-      with tempfile.TemporaryDirectory(prefix="eval-rew-serialize") as tmpdir:
-        original.save(tmpdir)
+        with tempfile.TemporaryDirectory(prefix="eval-rew-serialize") as tmpdir:
+          original.save(tmpdir)
 
-        with tf.variable_scope("loaded_direct"):
-          loaded_direct = util_serialize.Serializable.load(tmpdir)
+          with tf.variable_scope("loaded_direct"):
+            loaded_direct = util_serialize.Serializable.load(tmpdir)
 
-        model_name = "evaluating_rewards/RewardModel-v0"
-        loaded_indirect = serialize.load_reward(model_name, tmpdir, venv)
+          model_name = "evaluating_rewards/RewardModel-v0"
+          loaded_indirect = serialize.load_reward(model_name, tmpdir, venv)
 
-      models = {"o": original, "ld": loaded_direct, "li": loaded_indirect}
-      preds = rewards.evaluate_models(models, batch)
+        models = {"o": original, "ld": loaded_direct, "li": loaded_indirect}
+        preds = rewards.evaluate_models(models, batch)
 
-    for model in models.values():
-      assert original.observation_space == model.observation_space
-      assert original.action_space == model.action_space
+      for model in models.values():
+        assert original.observation_space == model.observation_space
+        assert original.action_space == model.action_space
 
-    assert len(preds) == len(models)
-    for pred in preds.values():
-      assert np.allclose(preds["o"], pred)
+      assert len(preds) == len(models)
+      for pred in preds.values():
+        assert np.allclose(preds["o"], pred)
 
   @parameterized.named_parameters(common.combine_dicts_as_kwargs(
       STANDALONE_REWARD_MODELS

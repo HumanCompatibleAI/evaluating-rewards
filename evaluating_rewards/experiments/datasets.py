@@ -19,13 +19,13 @@ triples, implicitly used to define a distribution which distance metrics
 can be taken with respect to.
 """
 
+import contextlib
 import math
-from typing import Callable, Iterator, Union
+from typing import Callable, ContextManager, Iterator, Union
 
 from evaluating_rewards import rewards
-from evaluating_rewards.envs import point_mass
 import gym
-from imitation.policies import base
+from imitation.policies import serialize
 from imitation.util import rollout
 from imitation.util import util
 import numpy as np
@@ -34,42 +34,19 @@ from stable_baselines.common import policies
 from stable_baselines.common import vec_env
 
 
-def dummy_env_and_dataset(dims: int = 5):
-  """Make a simple fake environment with rollouts."""
-  obs_space = gym.spaces.Box(low=np.repeat(0.0, dims),
-                             high=np.repeat(1.0, dims))
-  act_space = gym.spaces.Box(low=np.repeat(0.0, dims),
-                             high=np.repeat(1.0, dims))
-
-  def dataset_generator(total_timesteps, batch_size):
-    nbatches = math.ceil(total_timesteps / batch_size)
-    for _ in range(nbatches):
-      obs = np.array([obs_space.sample() for _ in range(batch_size)])
-      actions = np.array([act_space.sample() for _ in range(batch_size)])
-      next_obs = (obs + actions).clip(0.0, 1.0)
-      yield rewards.Batch(obs=obs,
-                          actions=actions,
-                          next_obs=next_obs)
-
-  return {
-      "observation_space": obs_space,
-      "action_space": act_space,
-      "dataset_generator": dataset_generator,
-  }
-
-
 BatchCallable = Callable[[int, int], Iterator[rewards.Batch]]
 # Expect DatasetFactory to accept a str specifying env_name as first argument,
 # int specifying seed as second argument and factory-specific keyword arguments
 # after this. There is no way to specify this in Python type annotations yet :(
 # See https://github.com/python/mypy/issues/5876
-DatasetFactory = Callable[..., BatchCallable]
+DatasetFactory = Callable[..., ContextManager[BatchCallable]]
 
 
-def rollout_generator(venv: vec_env.VecEnv,
-                      policy: Union[base_class.BaseRLModel,
-                                    policies.BasePolicy],
-                     ) -> BatchCallable:
+@contextlib.contextmanager
+def rollout_policy_generator(venv: vec_env.VecEnv,
+                             policy: Union[base_class.BaseRLModel,
+                                           policies.BasePolicy],
+                            ) -> Iterator[BatchCallable]:
   """Generator returning rollouts from a policy in a given environment."""
   def f(total_timesteps: int, batch_size: int) -> Iterator[rewards.Batch]:
     nbatch = math.ceil(total_timesteps / batch_size)
@@ -80,10 +57,22 @@ def rollout_generator(venv: vec_env.VecEnv,
       yield rewards.Batch(obs=transitions.obs,
                           actions=transitions.acts,
                           next_obs=transitions.next_obs)
-  return f
+  yield f
 
 
-def random_transition_generator(env_name: str, seed: int = 0) -> BatchCallable:
+@contextlib.contextmanager
+def rollout_serialized_policy_generator(
+    env_name: str, policy_type: str, policy_path: str,
+    num_vec: int = 8, seed: int = 0) -> Iterator[BatchCallable]:
+  venv = util.make_vec_env(env_name, n_envs=num_vec, seed=seed)
+  with serialize.load_policy(policy_type, policy_path, venv) as policy:
+    with rollout_policy_generator(venv, policy) as generator:
+      yield generator
+
+
+@contextlib.contextmanager
+def random_transition_generator(env_name: str, seed: int = 0,
+                               ) -> Iterator[BatchCallable]:
   """Randomly samples state and action and computes next state from dynamics.
 
   This is one of the weakest possible priors, with broad support. It is similar
@@ -97,7 +86,7 @@ def random_transition_generator(env_name: str, seed: int = 0) -> BatchCallable:
     env_name: The name of a Gym environment. It must be a ResettableEnv.
     seed: Used to seed the dynamics.
 
-  Returns:
+  Yields:
     A function that, when called with timesteps and batch size, will perform
     the sampling process described above.
   """
@@ -125,39 +114,4 @@ def random_transition_generator(env_name: str, seed: int = 0) -> BatchCallable:
       yield rewards.Batch(obs=np.array(obses),
                           actions=np.array(acts),
                           next_obs=np.array(next_obses))
-  return f
-
-
-def random_policy_generator(env_name: str, num_vec: int = 8, seed: int = 0,
-                           ) -> BatchCallable:
-  """Sample states and actions from trajectories from a random policy.
-
-  Args:
-    env_name: The name of a Gym environment.
-    num_vec: The number of environments to run concurrently. This will not
-        change the distribution, but may have a performance impact.
-    seed: The seed to initialise the environment with.
-
-  Returns:
-    A function that, when called with timesteps and batch size, will perform
-    the sampling process described above.
-  """
-  venv = util.make_vec_env(env_name, n_envs=num_vec, seed=seed)
-  policy = base.RandomPolicy(venv.observation_space, venv.action_space)
-  return rollout_generator(venv, policy)
-
-
-def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
-  """Make Point Mass environment and dataset generator."""
-  venv = util.make_vec_env(env_name)
-  obs_space = venv.observation_space
-  act_space = venv.action_space
-
-  pm = point_mass.PointMassPolicy(obs_space, act_space)
-  dataset_generator = rollout_generator(venv, pm)
-
-  return {
-      "observation_space": obs_space,
-      "action_space": act_space,
-      "dataset_generator": dataset_generator,
-  }
+  yield f
