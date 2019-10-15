@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019 DeepMind Technologies Limited and Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,4 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pytest -n=auto -vv tests/
+"""Configuration settings and fixtures for tests."""
+
+import pytest
+import tensorflow as tf
+
+
+@pytest.fixture
+def graph():
+  graph = tf.Graph()
+  yield graph
+
+
+@pytest.fixture
+def session(graph):
+  with tf.Session(graph=graph) as sess:
+    yield sess

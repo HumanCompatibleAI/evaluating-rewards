@@ -1,4 +1,4 @@
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019 DeepMind Technologies Limited and Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,52 +14,33 @@
 
 """Smoke tests for CLI scripts."""
 
+import pandas as pd
+import xarray as xr
 import tempfile
+import pytest
 
-from absl.testing import absltest
-from absl.testing import parameterized
 from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
 from evaluating_rewards.scripts.train_regress import train_regress_ex
 from evaluating_rewards.scripts.visualize_pm_reward import visualize_pm_reward_ex
 from tests import common
-import pandas as pd
-import xarray as xr
 
 
 EXPERIMENTS = {
-    "comparison": {
-        "experiment": model_comparison_ex,
-        "expected_type": dict,
-    },
-    "regress": {
-        "experiment": train_regress_ex,
-        "expected_type": dict,
-    },
-    "preferences": {
-        "experiment": train_preferences_ex,
-        "expected_type": pd.DataFrame,
-    },
-    "visualize_pm_reward": {
-        "experiment": visualize_pm_reward_ex,
-        "expected_type": xr.DataArray,
-    }
+  # experiment, expected_type
+  "comparison": (model_comparison_ex, dict),
+  "regress": (train_regress_ex, dict),
+  "preferences": (train_preferences_ex, pd.DataFrame),
+  "visualize": (visualize_pm_reward_ex, xr.DataArray),
 }
 
 
-class ScriptTest(parameterized.TestCase):
-  """Smoke tests for CLI scripts."""
-
-  @parameterized.named_parameters(common.combine_dicts_as_kwargs(EXPERIMENTS))
-  def test_experiment(self, experiment, expected_type):
-    with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
-      run = experiment.run(
-          named_configs=["fast"],
-          config_updates=dict(log_root=tmpdir),
-      )
-    assert run.status == "COMPLETED"
-    assert isinstance(run.result, expected_type)
-
-
-if __name__ == "__main__":
-  absltest.main()
+@common.mark_parametrize_dict("experiment,expected_type", EXPERIMENTS)
+def test_experiment(experiment, expected_type):
+  with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
+    run = experiment.run(
+        named_configs=["fast"],
+        config_updates=dict(log_root=tmpdir),
+    )
+  assert run.status == "COMPLETED"
+  assert isinstance(run.result, expected_type)

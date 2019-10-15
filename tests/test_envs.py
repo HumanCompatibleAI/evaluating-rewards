@@ -1,4 +1,4 @@
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019 DeepMind Technologies Limited and Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,40 +18,35 @@ Runs simple smoke tests against any environments registered starting with
 "evaluating_rewards/".
 """
 
-from absl.testing import absltest
-from absl.testing import parameterized
-from evaluating_rewards import envs  # pylint:disable=unused-import
-from tests import common
 import gym
+import pytest
+
+from tests import common
 from imitation.testing import envs as test_envs
 
+from evaluating_rewards import envs  # pylint:disable=unused-import
 
-ENVS = [env_spec.id for env_spec in gym.envs.registration.registry.all()
-        if env_spec.id.startswith("evaluating_rewards/")]
+
+ENV_NAMES = [env_spec.id for env_spec in gym.envs.registration.registry.all()
+             if env_spec.id.startswith("evaluating_rewards/")]
 DETERMINISTIC_ENVS = []
 
 
-class EnvsTest(parameterized.TestCase):
+env = pytest.fixture(common.make_env)
+
+
+@pytest.mark.parametrize("env_name", ENV_NAMES)
+class TestEnvs:
   """Simple smoke tests for custom environments."""
 
-  @parameterized.parameters(ENVS)
-  def test_seed(self, env_name):
-    env = common.make_env(env_name)
+  def test_seed(self, env, env_name):
     test_envs.test_seed(env, env_name, DETERMINISTIC_ENVS)
 
-  @parameterized.parameters(ENVS)
-  def test_rollout(self, env_name):
-    env = common.make_env(env_name)
+  def test_rollout(self, env):
     test_envs.test_rollout(env)
 
-  @parameterized.parameters(ENVS)
-  def test_model_based(self, env_name):
+  def test_model_based(self, env):
     """Smoke test for each of the ModelBasedEnv methods with type checks."""
-    env = common.make_env(env_name)
     if not hasattr(env, "state_space"):  # pragma: no cover
-      self.skipTest("This test is only for subclasses of ModelBasedEnv.")
+      pytest.skip("This test is only for subclasses of ModelBasedEnv.")
     test_envs.test_model_based(env)
-
-
-if __name__ == "__main__":
-  absltest.main()

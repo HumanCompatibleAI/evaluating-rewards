@@ -1,4 +1,4 @@
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019 DeepMind Technologies Limited and Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,24 +16,29 @@
 import copy
 from typing import Dict, Iterator, Tuple, TypeVar
 
-from absl.testing import absltest
-from absl.testing import parameterized
-import gym
-import tensorflow as tf
+from imitation.testing import envs as test_envs
+import pytest
 
 
-class TensorFlowTestCase(parameterized.TestCase):
-  """Base class for parameterized tests involving TensorFlow."""
+def mark_parametrize_dict(argnames, args, **kwargs):
+  ids = list(args.keys())
+  argvals = args.values()
+  return pytest.mark.parametrize(argnames, argvals, ids=ids, **kwargs)
 
-  def setUp(self):
-    super().setUp()
-    self.graph = tf.Graph()
-    self.sess = tf.Session(graph=self.graph)
 
-  def tearDown(self):
-    super().tearDown()
-    self.sess.close()
-    self.graph = None
+def mark_parametrize_kwargs(args, **kwargs):
+  ids = []
+  argvals = []
+  argnames = sorted(list(next(iter(args.values())).keys()))
+  for key, test_cfg in args.items():
+    ids.append(key)
+    sorted_keys = sorted(test_cfg.keys())
+    if sorted_keys != argnames:
+      raise ValueError("Invalid test configuration: inconsistent argument"
+                       "names, f{test_cfg} != {argnames}.")
+    argvals.append([test_cfg[k] for k in argnames])
+
+  return pytest.mark.parametrize(argnames, argvals, ids=ids, **kwargs)
 
 
 K = TypeVar("K")
@@ -79,21 +84,4 @@ def combine_dicts(*dicts: Dict[str, Dict[K, V]],
         yield name, cfg
 
 
-def combine_dicts_as_kwargs(*dicts):
-  for name, cfg in combine_dicts(*dicts):
-    yield {
-        "testcase_name": name,
-        **cfg
-    }
-
-
-def make_env(env_name: str) -> gym.Env:
-  """Wrapper on gym.make, skipping test if simulator not installed."""
-  try:
-    env = gym.make(env_name)
-  except gym.error.DependencyNotInstalled as e:  # pragma: no cover
-    if e.args[0].find("mujoco_py") != -1:
-      raise absltest.SkipTest("Requires `mujoco_py`, which isn't installed.")
-    else:
-      raise
-  return env
+make_env = test_envs.make_env_fixture(skip_fn=pytest.skip)

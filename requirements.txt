@@ -1,4 +1,6 @@
 absl-py
+pytest
+pytest-xdist
 gym
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git
 matplotlib
