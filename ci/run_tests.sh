@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-parallel --header : python {test_module} ::: test_module tests/test_*.py
+parallel --header : python -m tests.test_{test_module} ::: test_module comparisons envs rewards scripts synthetic

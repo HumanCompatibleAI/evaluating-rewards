@@ -28,8 +28,7 @@ from imitation.testing import envs as test_envs
 
 ENVS = [env_spec.id for env_spec in gym.envs.registration.registry.all()
         if env_spec.id.startswith("evaluating_rewards/")]
-DETERMINISTIC_ENVS = [f"evaluating_rewards/{mujoco_env}"
-                      for mujoco_env in envs.GYM_MUJOCO_V3_ENVS]
+DETERMINISTIC_ENVS = []
 
 
 class EnvsTest(parameterized.TestCase):
