@@ -193,10 +193,11 @@ def test_identical(
             assert initial_loss / final_loss > 1e2
 
 
-@pytest.fixture
-def helper_affine(graph, session):
+@pytest.fixture(name="helper_affine")
+def fixture_affine(graph, session):
+    """Do we recover affine parameters correctly?"""
     def f(upperbound, **kwargs):
-        """Do we recover affine parameters correctly?"""
+        """Helper."""
         with graph.as_default():
             with session.as_default():
                 df, _ = synthetic.compare_synthetic(

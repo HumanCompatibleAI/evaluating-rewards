@@ -22,8 +22,7 @@ import gym
 from imitation.testing import envs as test_envs
 import pytest
 
-from evaluating_rewards import envs  # noqa: F401
-from tests import common
+from evaluating_rewards import envs  # noqa: F401 pylint:disable=unused-import
 
 ENV_NAMES = [
     env_spec.id
@@ -33,10 +32,8 @@ ENV_NAMES = [
 DETERMINISTIC_ENVS = []
 
 
-env = pytest.fixture(common.make_env)
-
-
 @pytest.mark.parametrize("env_name", ENV_NAMES)
+# pylint:disable=no-self-use
 class TestEnvs:
     """Simple smoke tests for custom environments."""
 
@@ -51,3 +48,4 @@ class TestEnvs:
         if not hasattr(env, "state_space"):  # pragma: no cover
             pytest.skip("This test is only for subclasses of ModelBasedEnv.")
         test_envs.test_model_based(env)
+# pylint:enable=no-self-use

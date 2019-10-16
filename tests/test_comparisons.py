@@ -23,7 +23,7 @@ import tensorflow as tf
 
 # Environments registered as a side-effect of importing
 from evaluating_rewards import comparisons, rewards, serialize
-from evaluating_rewards import envs  # noqa: F401
+from evaluating_rewards import envs  # noqa: F401 pylint:disable=unused-import
 from evaluating_rewards.experiments import datasets
 from tests import common
 

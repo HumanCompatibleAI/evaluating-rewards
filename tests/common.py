@@ -17,6 +17,7 @@ import copy
 from typing import Dict, Iterator, Tuple, TypeVar
 
 from imitation.testing import envs as test_envs
+from stable_baselines.common import vec_env
 import pytest
 
 
@@ -27,6 +28,15 @@ def mark_parametrize_dict(argnames, args, **kwargs):
 
 
 def mark_parametrize_kwargs(args, **kwargs):
+    """Like pytest.mark.parametrize, but taking a dictionary specifying keyword arguments.
+
+    Arguments:
+        args: A dict mapping from testcase names to a dictionary.
+            The inner dictionary maps from parameter names to values.
+
+    Raises:
+        ValueError if the inner dictionaries have different keys from each other.
+    """
     ids = []
     argvals = []
     argnames = sorted(list(next(iter(args.values())).keys()))
@@ -86,3 +96,6 @@ def combine_dicts(*dicts: Dict[str, Dict[K, V]],) -> Iterator[Tuple[str, Dict[K,
 
 
 make_env = test_envs.make_env_fixture(skip_fn=pytest.skip)
+
+def make_venv(env_name):
+    return vec_env.DummyVecEnv([lambda: make_env(env_name)])

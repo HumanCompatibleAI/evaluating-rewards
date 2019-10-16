@@ -16,15 +16,20 @@
 
 import pytest
 import tensorflow as tf
+from tests import common
 
 
-@pytest.fixture
-def graph():
+@pytest.fixture(name="graph")
+def fixture_graph():
     graph = tf.Graph()
     yield graph
 
 
-@pytest.fixture
-def session(graph):
-    with tf.Session(graph=graph) as sess:
-        yield sess
+@pytest.fixture(name="session")
+def fixture_session(graph):
+    with tf.Session(graph=graph) as session:
+        yield session
+
+
+env = pytest.fixture(common.make_env)
+venv = pytest.fixture(common.make_venv)

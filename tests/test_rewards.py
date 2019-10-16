@@ -22,7 +22,6 @@ from imitation.util import rollout
 from imitation.util import serialize as util_serialize
 import numpy as np
 import pytest
-from stable_baselines.common import vec_env
 import tensorflow as tf
 
 from evaluating_rewards import rewards, serialize
@@ -34,22 +33,22 @@ ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
 
 STANDALONE_REWARD_MODELS = {
     "halfcheetah_ground_truth": {
-        "env_id": "evaluating_rewards/HalfCheetah-v3",
+        "env_name": "evaluating_rewards/HalfCheetah-v3",
         "model_class": mujoco.HalfCheetahGroundTruthReward,
         "kwargs": {},
     },
     "hopper_ground_truth": {
-        "env_id": "evaluating_rewards/Hopper-v3",
+        "env_name": "evaluating_rewards/Hopper-v3",
         "model_class": mujoco.HopperGroundTruthReward,
         "kwargs": {},
     },
     "hopper_backflip": {
-        "env_id": "evaluating_rewards/Hopper-v3",
+        "env_name": "evaluating_rewards/Hopper-v3",
         "model_class": mujoco.HopperBackflipReward,
         "kwargs": {},
     },
     "point_maze_ground_truth": {
-        "env_id": "imitation/PointMazeLeft-v0",
+        "env_name": "imitation/PointMazeLeft-v0",
         "model_class": mujoco.PointMazeReward,
         "kwargs": {"target": np.array([0.3, 0.3, 0])},
     },
@@ -61,7 +60,7 @@ GENERAL_REWARD_MODELS = {
     "potential": {"model_class": rewards.PotentialShaping, "kwargs": {}},
     "constant": {"model_class": rewards.ConstantReward, "kwargs": {}},
 }
-ENVS_KWARGS = {env: {"env_id": env} for env in ENVS}
+ENVS_KWARGS = {env: {"env_name": env} for env in ENVS}
 STANDALONE_REWARD_MODELS.update(common.combine_dicts(ENVS_KWARGS, GENERAL_REWARD_MODELS))
 
 POINT_MASS_MODELS = {
@@ -72,7 +71,7 @@ POINT_MASS_MODELS = {
 }
 STANDALONE_REWARD_MODELS.update(
     common.combine_dicts(
-        {"pm": {"env_id": "evaluating_rewards/PointMassLine-v0", "kwargs": {}}}, POINT_MASS_MODELS
+        {"pm": {"env_name": "evaluating_rewards/PointMassLine-v0", "kwargs": {}}}, POINT_MASS_MODELS
     )
 )
 
@@ -86,7 +85,7 @@ REWARD_WRAPPERS = [
 GROUND_TRUTH = {
     "half_cheetah": (
         "evaluating_rewards/HalfCheetah-v3",
-        ("evaluating_rewards/HalfCheetahGroundTruth" "ForwardWithCtrl-v0"),
+        "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
     ),
     "hopper": (
         "evaluating_rewards/Hopper-v3",
@@ -99,12 +98,11 @@ GROUND_TRUTH = {
 }
 
 
-@pytest.fixture
-def helper_serialize_identity(graph, session):
+@pytest.fixture(name="helper_serialize_identity")
+def fixture_serialize_identity(graph, session, venv):
     """Creates reward model, saves it, reloads it, and checks for equality."""
 
-    def f(env_id, make_model):
-        venv = vec_env.DummyVecEnv([lambda: common.make_env(env_id)])
+    def f(make_model):
         policy = base.RandomPolicy(venv.observation_space, venv.action_space)
         with datasets.rollout_policy_generator(venv, policy) as dataset_callable:
             batch = next(dataset_callable(1024, 1024))
@@ -137,17 +135,17 @@ def helper_serialize_identity(graph, session):
 
 
 @common.mark_parametrize_kwargs(STANDALONE_REWARD_MODELS)
-def test_serialize_identity_standalone(helper_serialize_identity, env_id, model_class, kwargs):
+def test_serialize_identity_standalone(helper_serialize_identity, model_class, kwargs):
     """Creates reward model, saves it, reloads it, and checks for equality."""
 
     def make_model(venv):
         return model_class(venv.observation_space, venv.action_space, **kwargs)
 
-    return helper_serialize_identity(env_id, make_model)
+    return helper_serialize_identity(make_model)
 
 
-@pytest.mark.parametrize("env_id", ENVS)
-def test_serialize_identity_linear_combination(helper_serialize_identity, env_id):
+@pytest.mark.parametrize("env_name", ENVS)
+def test_serialize_identity_linear_combination(helper_serialize_identity):
     """Checks for equality between original and reloaded LC of reward models."""
 
     def make_model(env):
@@ -159,36 +157,35 @@ def test_serialize_identity_linear_combination(helper_serialize_identity, env_id
             {"constant": (constant_a, weight_a), "zero": (constant_b, weight_b)}
         )
 
-    return helper_serialize_identity(env_id, make_model)
+    return helper_serialize_identity(make_model)
 
 
 @pytest.mark.parametrize("wrapper_cls", REWARD_WRAPPERS)
-@pytest.mark.parametrize("env_id", ENVS)
-def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls, env_id):
+@pytest.mark.parametrize("env_name", ENVS)
+def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls):
     """Checks for equality between original and loaded wrapped reward."""
 
     def make_model(env):
         mlp = rewards.MLPRewardModel(env.observation_space, env.action_space)
         return wrapper_cls(mlp)
 
-    return helper_serialize_identity(env_id, make_model)
+    return helper_serialize_identity(make_model)
 
 
-@pytest.mark.parametrize("env_id", ENVS)
+@pytest.mark.parametrize("env_name", ENVS)
 @pytest.mark.parametrize("use_test", [True, False])
-def test_serialize_identity_reward_net(helper_serialize_identity, env_id, use_test):
+def test_serialize_identity_reward_net(helper_serialize_identity, use_test):
     def make_model(env):
         net = reward_net.BasicRewardNet(env.observation_space, env.action_space)
         return rewards.RewardNetToRewardModel(net, use_test=use_test)
 
-    return helper_serialize_identity(env_id, make_model)
+    return helper_serialize_identity(make_model)
 
 
-@pytest.mark.parametrize("env_id,reward_id", GROUND_TRUTH.values(), ids=list(GROUND_TRUTH.keys()))
-def test_ground_truth_similar_to_gym(helper_serialize_identity, graph, session, env_id, reward_id):
+@pytest.mark.parametrize("env_name,reward_id", GROUND_TRUTH.values(), ids=list(GROUND_TRUTH.keys()))
+def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
     """Checks that reward models predictions match those of Gym reward."""
     # Generate rollouts, recording Gym reward
-    venv = vec_env.DummyVecEnv([lambda: common.make_env(env_id)])
     policy = base.RandomPolicy(venv.observation_space, venv.action_space)
     transitions = rollout.generate_transitions(policy, venv, n_timesteps=1024)
     batch = rewards.Batch(
