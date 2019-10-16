@@ -26,13 +26,13 @@ import math
 from typing import Any, Dict, Iterable, List, NamedTuple, Sequence, Type
 
 from absl import logging
-from evaluating_rewards import rewards
 from imitation.util import rollout
 import numpy as np
 import pandas as pd
-from stable_baselines.common import policies
-from stable_baselines.common import vec_env
+from stable_baselines.common import policies, vec_env
 import tensorflow as tf
+
+from evaluating_rewards import rewards
 
 
 class TrajectoryPreference(NamedTuple):

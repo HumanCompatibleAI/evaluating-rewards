@@ -19,10 +19,10 @@ See Colab notebook for use cases.
 
 from typing import Any, Dict
 
-from evaluating_rewards import comparisons
-from evaluating_rewards import rewards
-from evaluating_rewards.experiments import datasets
 import numpy as np
+
+from evaluating_rewards import comparisons, rewards
+from evaluating_rewards.experiments import datasets
 
 
 def norm_diff(predicted: np.ndarray,

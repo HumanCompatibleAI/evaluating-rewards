@@ -14,12 +14,13 @@
 
 """Methods to compare reward models."""
 import logging
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, Type, TypeVar
+from typing import (Any, Callable, Dict, Iterator, List, Mapping, Optional,
+                    Tuple, Type, TypeVar)
 
-from evaluating_rewards import rewards
 import numpy as np
 import tensorflow as tf
 
+from evaluating_rewards import rewards
 
 FitStats = Mapping[str, List[Mapping[str, Any]]]
 

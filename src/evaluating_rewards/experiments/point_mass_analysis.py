@@ -20,13 +20,14 @@ See Colab notebooks for use cases.
 import itertools
 from typing import List, Tuple
 
-from evaluating_rewards import rewards
-from evaluating_rewards.envs import point_mass
-from evaluating_rewards.experiments import datasets
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import xarray
+
+from evaluating_rewards import rewards
+from evaluating_rewards.envs import point_mass
+from evaluating_rewards.experiments import datasets
 
 
 def plot_reward(rew: xarray.DataArray,

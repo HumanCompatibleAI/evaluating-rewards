@@ -18,17 +18,16 @@ import abc
 import itertools
 import os
 import pickle
-from typing import Dict, Iterable, NamedTuple, Mapping, Optional, Sequence, Tuple, Type, TypeVar
+from typing import (Dict, Iterable, Mapping, NamedTuple, Optional, Sequence,
+                    Tuple, Type, TypeVar)
 
 from absl import logging
 import gym
 from imitation.rewards import reward_net
-from imitation.util import rollout
-from imitation.util import serialize
+from imitation.util import rollout, serialize
 import numpy as np
 from stable_baselines.common import input as env_in  # avoid name clash
 import tensorflow as tf
-
 
 K = TypeVar("K")
 

@@ -21,16 +21,16 @@ import os
 from typing import Any, Mapping, Sequence, Tuple
 
 from absl import app
-from evaluating_rewards import serialize
-from evaluating_rewards.experiments import point_mass_analysis
-from evaluating_rewards.experiments import visualize
-from evaluating_rewards.scripts import script_utils
 import gym
 from imitation import util
 import numpy as np
 import sacred
 from stable_baselines.common import vec_env
 import xarray as xr
+
+from evaluating_rewards import serialize
+from evaluating_rewards.experiments import point_mass_analysis, visualize
+from evaluating_rewards.scripts import script_utils
 
 visualize_pm_reward_ex = sacred.Experiment("visualize_pm_reward")
 

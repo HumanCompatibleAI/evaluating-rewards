@@ -1,6 +1,7 @@
 absl-py
 pytest
 pytest-xdist
+isort
 gym
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git
 matplotlib

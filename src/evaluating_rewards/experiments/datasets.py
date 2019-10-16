@@ -23,16 +23,13 @@ import contextlib
 import math
 from typing import Callable, ContextManager, Iterator, Union
 
-from evaluating_rewards import rewards
 import gym
 from imitation.policies import serialize
-from imitation.util import rollout
-from imitation.util import util
+from imitation.util import rollout, util
 import numpy as np
-from stable_baselines.common import base_class
-from stable_baselines.common import policies
-from stable_baselines.common import vec_env
+from stable_baselines.common import base_class, policies, vec_env
 
+from evaluating_rewards import rewards
 
 BatchCallable = Callable[[int, int], Iterator[rewards.Batch]]
 # Expect DatasetFactory to accept a str specifying env_name as first argument,

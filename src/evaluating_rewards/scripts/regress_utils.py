@@ -18,13 +18,12 @@ import os
 import pickle
 from typing import Callable, TypeVar
 
-from evaluating_rewards import rewards
-from evaluating_rewards import serialize
 import gym
 from imitation import util
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
+from evaluating_rewards import rewards, serialize
 
 T = TypeVar("T")
 V = TypeVar("V")

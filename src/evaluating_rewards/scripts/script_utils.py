@@ -16,10 +16,11 @@
 
 import os
 
-# Imported for side-effects (registers with Gym)
-from evaluating_rewards import envs  # pylint:disable=unused-import
 from imitation.util import util
 from sacred import observers
+
+# Imported for side-effects (registers with Gym)
+from evaluating_rewards import envs  # pylint:disable=unused-import
 
 
 def get_output_dir():

@@ -16,14 +16,13 @@
 
 import warnings
 
-from evaluating_rewards import rewards
-from evaluating_rewards import serialize
 from imitation.policies import serialize as policy_serialize
 from imitation.util import registry
 import numpy as np
-from stable_baselines.common import policies
-from stable_baselines.common import vec_env
+from stable_baselines.common import policies, vec_env
 import tensorflow as tf
+
+from evaluating_rewards import rewards, serialize
 
 
 class MonteCarloGreedyPolicy(policies.BasePolicy):

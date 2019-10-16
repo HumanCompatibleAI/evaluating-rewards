@@ -16,14 +16,14 @@
 
 import abc
 
-from evaluating_rewards import rewards
-from evaluating_rewards import serialize as reward_serialize
 import gym
-from imitation.util import registry
-from imitation.util import serialize
+from imitation.util import registry, serialize
 import numpy as np
 from stable_baselines.common import vec_env
 import tensorflow as tf
+
+from evaluating_rewards import rewards
+from evaluating_rewards import serialize as reward_serialize
 
 
 class MujocoHardcodedReward(rewards.BasicRewardModel,

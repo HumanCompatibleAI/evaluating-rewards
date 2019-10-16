@@ -15,8 +15,9 @@
 """Thin wrapper around imitation.scripts.expert_demos."""
 
 from absl import app
-from evaluating_rewards.scripts import script_utils
 from imitation.scripts import expert_demos
+
+from evaluating_rewards.scripts import script_utils
 
 if __name__ == "__main__":
   script_utils.add_logging_config(expert_demos.expert_demos_ex, "expert_demos")

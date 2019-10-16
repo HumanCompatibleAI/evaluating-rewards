@@ -19,15 +19,15 @@ from typing import Callable, Iterator
 import uuid
 
 from absl import logging
-from evaluating_rewards import rewards
-from imitation.rewards import reward_net
-from imitation.rewards import serialize
+from imitation.rewards import reward_net, serialize
 from imitation.util import registry
 from imitation.util import serialize as util_serialize
 from imitation.util import util
 import numpy as np
 from stable_baselines.common import vec_env
 import tensorflow as tf
+
+from evaluating_rewards import rewards
 
 RewardLoaderFn = Callable[[str, vec_env.VecEnv], rewards.RewardModel]
 

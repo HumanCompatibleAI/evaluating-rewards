@@ -19,14 +19,12 @@ import os
 from typing import Any, Dict, Mapping
 
 from absl import app
-from evaluating_rewards import comparisons
-from evaluating_rewards import serialize
-from evaluating_rewards.experiments import datasets
-from evaluating_rewards.scripts import regress_utils
-from evaluating_rewards.scripts import script_utils
 import sacred
 import tensorflow as tf
 
+from evaluating_rewards import comparisons, serialize
+from evaluating_rewards.experiments import datasets
+from evaluating_rewards.scripts import regress_utils, script_utils
 
 model_comparison_ex = sacred.Experiment("model_comparison")
 

@@ -18,14 +18,12 @@ import functools
 from typing import Any, Mapping
 
 from absl import app
-from evaluating_rewards import preferences
-from evaluating_rewards import rewards
-from evaluating_rewards.scripts import regress_utils
-from evaluating_rewards.scripts import script_utils
 from imitation.policies import serialize as policies_serialize
 from imitation.util import util
 import sacred
 
+from evaluating_rewards import preferences, rewards
+from evaluating_rewards.scripts import regress_utils, script_utils
 
 train_preferences_ex = sacred.Experiment("train_preferences")
 

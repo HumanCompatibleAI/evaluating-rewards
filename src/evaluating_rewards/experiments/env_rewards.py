@@ -19,7 +19,6 @@ from typing import Iterable, Set
 
 from evaluating_rewards import serialize
 
-
 REWARDS_BY_ENV = {
     "evaluating_rewards/HalfCheetah-v3": [
         "evaluating_rewards/HalfCheetahGroundTruth.*-v0",

@@ -23,8 +23,6 @@ import pickle
 import re
 from typing import Any, Callable, Iterable, Mapping, Optional, Tuple
 
-from evaluating_rewards import serialize
-from evaluating_rewards.experiments import visualize
 import gym
 from imitation import util as imitation_util
 from matplotlib import pyplot as plt
@@ -32,6 +30,8 @@ import numpy as np
 import pandas as pd
 from stable_baselines.common import vec_env
 
+from evaluating_rewards import serialize
+from evaluating_rewards.experiments import visualize
 
 Config = Tuple[Any, ...]
 Stats = Mapping[str, Any]

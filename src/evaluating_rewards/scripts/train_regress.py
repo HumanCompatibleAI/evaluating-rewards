@@ -18,12 +18,11 @@ import functools
 from typing import Any, Dict, Mapping
 
 from absl import app
-from evaluating_rewards import comparisons
-from evaluating_rewards import rewards
-from evaluating_rewards.experiments import datasets
-from evaluating_rewards.scripts import regress_utils
-from evaluating_rewards.scripts import script_utils
 import sacred
+
+from evaluating_rewards import comparisons, rewards
+from evaluating_rewards.experiments import datasets
+from evaluating_rewards.scripts import regress_utils, script_utils
 
 train_regress_ex = sacred.Experiment("train_regress")
 

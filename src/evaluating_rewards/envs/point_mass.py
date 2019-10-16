@@ -16,16 +16,16 @@
 
 from typing import Optional
 
-from evaluating_rewards import rewards
-from evaluating_rewards import serialize as reward_serialize
 import gym
 from imitation.envs import resettable_env
 from imitation.policies import serialize as policy_serialize
-from imitation.util import registry
-from imitation.util import serialize
+from imitation.util import registry, serialize
 import numpy as np
 from stable_baselines.common import policies
 import tensorflow as tf
+
+from evaluating_rewards import rewards
+from evaluating_rewards import serialize as reward_serialize
 
 
 class PointMassEnv(resettable_env.ResettableEnv):

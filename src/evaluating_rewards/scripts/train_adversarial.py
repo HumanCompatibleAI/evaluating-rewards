@@ -15,9 +15,9 @@
 """Thin wrapper around imitation.scripts.train_adversarial."""
 
 from absl import app
-from evaluating_rewards.scripts import script_utils
 from imitation.scripts import train_adversarial
 
+from evaluating_rewards.scripts import script_utils
 
 if __name__ == "__main__":
   script_utils.add_logging_config(train_adversarial.train_ex,

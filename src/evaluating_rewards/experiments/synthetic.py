@@ -21,15 +21,14 @@ import functools
 from typing import Callable, Iterable, Optional, Type
 
 from absl import logging
-from evaluating_rewards import comparisons
-from evaluating_rewards import rewards
-from evaluating_rewards.experiments import datasets
 import gym
 import numpy as np
 import pandas as pd
 import scipy as sp
 import tensorflow as tf
 
+from evaluating_rewards import comparisons, rewards
+from evaluating_rewards.experiments import datasets
 
 TensorCallable = Callable[..., tf.Tensor]
 
