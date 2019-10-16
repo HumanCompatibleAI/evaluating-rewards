@@ -82,6 +82,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
         }
 
     def reward(self, old_state, action, new_state):
+        del old_state
         dist = np.linalg.norm(new_state["pos"] - new_state["goal"])
         ctrl_penalty = np.dot(action, action)
         return -dist - self.ctrl_coef * ctrl_penalty
@@ -102,7 +103,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
 
     def render(self, mode="human"):
         if self.viewer is None:
-            from gym.envs.classic_control import rendering  # pylint:disable=g-import-not-at-top
+            from gym.envs.classic_control import rendering
 
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-5, 5, -5, 5)
@@ -269,13 +270,14 @@ class PointMassPolicy(policies.BasePolicy):
     def __init__(
         self, observation_space: gym.Space, action_space: gym.Space, magnitude: float = 1.0
     ):
-        self.ob_space = observation_space
-        self.ac_space = action_space
+        super().__init__(sess=None, ob_space=observation_space, ac_space=action_space,
+                         n_env=1, n_steps=1, n_batch=1)
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
         self.magnitude = magnitude
 
     def step(self, obs, state=None, mask=None, deterministic=False):
+        del deterministic
         pos = obs[:, 0 : self.ndim]
         vel = obs[:, self.ndim : 2 * self.ndim]
         goal = obs[:, 2 * self.ndim : 3 * self.ndim]

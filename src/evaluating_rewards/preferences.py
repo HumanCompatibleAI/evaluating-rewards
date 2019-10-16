@@ -128,7 +128,7 @@ def generate_trajectories(
     return trajectories
 
 
-class PreferenceComparisonTrainer(object):
+class PreferenceComparisonTrainer:
     """Fits a reward model based on binary comparisons between trajectories."""
 
     def __init__(
@@ -200,7 +200,9 @@ class PreferenceComparisonTrainer(object):
 
         return returns
 
-    def _get_labeling_loss(self, returns: tf.Tensor, preference_labels: tf.Tensor) -> tf.Tensor:
+    def _get_labeling_loss(  # pylint:disable=no-self-use
+        self, returns: tf.Tensor, preference_labels: tf.Tensor
+    ) -> tf.Tensor:
         """Builds the cross-entropy labeling loss.
 
         Args:

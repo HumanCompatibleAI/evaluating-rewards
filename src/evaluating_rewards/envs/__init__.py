@@ -15,9 +15,9 @@
 """Module for Gym environments. __init__ registers environments."""
 
 import gym
-import imitation.envs.examples  # noqa: F401
+import imitation.envs.examples  # noqa: F401  pylint:disable=unused-import
 
-from evaluating_rewards.envs import mujoco, point_mass  # noqa: F401
+from evaluating_rewards.envs import mujoco, point_mass  # noqa: F401  pylint:disable=unused-import
 
 PROJECT_ROOT = "evaluating_rewards.envs"
 PM_ROOT = f"{PROJECT_ROOT}.point_mass"

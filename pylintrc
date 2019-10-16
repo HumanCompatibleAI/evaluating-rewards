@@ -1,0 +1,30 @@
+[MESSAGES CONTROL]
+
+# disable these warnings
+disable=
+        # we often have large numbers of locals and arguments due to Sacred configs
+        too-many-arguments,
+        too-many-instance-attributes,
+	too-many-locals,
+	# we intentionally use locals() in Sacred config to suppress linting errors
+	possibly-unused-variable,
+	# disagree with the rule: it's only sometimes clearer
+	no-else-return,
+	# too many false positives
+	arguments-differ,
+	duplicate-code,
+	# Python formatting cleaner, we don't care about minor performance overhead
+	logging-format-interpolation,
+	# snake_case naming style: spurious errors for short variable names
+	C0103,
+	# hanging indent, see black GH issue #48 
+	C0330,
+	# We intend to leave TODO comments in place
+	fixme,
+
+
+[BASIC]
+
+# Minimum line length for functions/classes that require docstrings, shorter
+# # ones are exempt.
+docstring-min-length=10

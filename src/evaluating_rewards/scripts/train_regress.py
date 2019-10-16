@@ -47,7 +47,7 @@ def default_config():
 def default_kwargs(dataset_factory, dataset_factory_kwargs):
     # TODO(): remove this function when Sacred issue #238 is fixed
     if (
-        dataset_factory == datasets.rollout_serialized_policy_generator
+        dataset_factory == datasets.rollout_serialized_policy_generator  # pylint:disable=comparison-with-callable
         and not dataset_factory_kwargs
     ):
         dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
@@ -58,13 +58,13 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs):
 @train_regress_ex.named_config
 def fast():
     """Small number of epochs, finish quickly, intended for tests / debugging."""
-    total_timesteps = 8192  # noqa: F841
+    total_timesteps = 8192  # noqa: F841  pylint:disable=unused-variable
 
 
 @train_regress_ex.named_config
 def dataset_random_transition():
     """Randomly samples state and action and computes next state from dynamics."""
-    dataset_factory = datasets.random_transition_generator  # noqa: F841
+    dataset_factory = datasets.random_transition_generator  # noqa: F841  pylint:disable=unused-variable
 
 
 script_utils.add_logging_config(train_regress_ex, "train_regress")

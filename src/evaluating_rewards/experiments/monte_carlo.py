@@ -67,6 +67,7 @@ class MonteCarloGreedyPolicy(policies.BasePolicy):
         self.ac_space.seed(seed)
 
     def step(self, obs, state=None, mask=None, deterministic=False):
+        del deterministic
         # actions: (n_samples, ) + ac_space, obs: (batch_size, ) + ob_space
         actions = np.array([self.ac_space.sample() for _ in range(self.n_samples)])
         # dup_actions: (1, n_samples) + ac_space

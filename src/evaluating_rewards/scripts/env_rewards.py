@@ -20,7 +20,7 @@ Outputs a bash-style dictionary suitable for experiment scripts.
 from absl import app
 
 # Imported for side-effect of registering custom environments with Gym
-from evaluating_rewards import envs  # noqa: F401
+from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
 from evaluating_rewards.experiments import env_rewards
 
 

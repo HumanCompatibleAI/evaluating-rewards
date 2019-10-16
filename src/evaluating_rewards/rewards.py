@@ -97,6 +97,8 @@ class RewardModel(serialize.Serializable):
         """Gets the next observation placeholder(s)."""
 
 
+# pylint:disable=abstract-method
+# This class is abstract but PyLint doesn't understand it; see pylint GH #179
 class BasicRewardModel(RewardModel):
     """Abstract reward model class with basic default implementations."""
 
@@ -127,6 +129,7 @@ class BasicRewardModel(RewardModel):
     @property
     def act_ph(self):
         return (self._act_ph,)
+# pylint:enable=abstract-method
 
 
 class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
@@ -228,6 +231,8 @@ class ConstantLayer(tf.keras.layers.Layer):
             initializer = tf.zeros_initializer()
         self.initializer = initializer
 
+        self._constant = None
+
         super().__init__(trainable=True, name=name, dtype=dtype)
 
     def build(self, input_shape):
@@ -317,10 +322,8 @@ class RewardNetToRewardModel(RewardModel):
 
     @property
     def reward(self):
-        if self.use_test:
-            return self.reward_net.reward_output_test
-        else:
-            return self.reward_net.reward_output_train
+        net = self.reward_net
+        return net.reward_output_test if self.use_test else net.reward_output_train
 
     @property
     def observation_space(self):

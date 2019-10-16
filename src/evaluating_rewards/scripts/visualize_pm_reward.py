@@ -93,11 +93,12 @@ STRIP_CONFIG = dict(pos_density=7, ncols=7, width=9.5, height=1.5)
 @visualize_pm_reward_ex.named_config
 def strip():
     locals().update(**STRIP_CONFIG)
-    cbar_kwargs = {"aspect": 3, "pad": 0.03}  # noqa: F841
+    cbar_kwargs = {"aspect": 3, "pad": 0.03}  # noqa: F841  pylint:disable=unused-variable
 
 
 @visualize_pm_reward_ex.named_config
 def dense_no_ctrl_sparsified():
+    """PointMassDenseNoCtrl along with sparsified and ground-truth sparse reward."""
     locals().update(**STRIP_CONFIG)
     height = 4.5
     pos_lim = 0.15
@@ -124,7 +125,7 @@ def dense_no_ctrl_sparsified():
 @visualize_pm_reward_ex.named_config
 def fast():
     """Small config, intended for tests / debugging."""
-    density = 5  # noqa: F841
+    density = 5  # noqa: F841  pylint:disable=unused-variable
 
 
 @visualize_pm_reward_ex.main

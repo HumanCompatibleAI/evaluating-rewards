@@ -60,7 +60,7 @@ def default_config():
 def default_kwargs(dataset_factory, dataset_factory_kwargs):
     # TODO(): remove this function when Sacred issue #238 is fixed
     if (
-        dataset_factory == datasets.rollout_serialized_policy_generator
+        dataset_factory == datasets.rollout_serialized_policy_generator  # pylint:disable=comparison-with-callable
         and not dataset_factory_kwargs
     ):
         dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
