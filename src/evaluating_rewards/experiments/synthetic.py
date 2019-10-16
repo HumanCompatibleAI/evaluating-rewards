@@ -18,7 +18,7 @@ See Colab notebook for use cases.
 """
 
 import functools
-from typing import Callable, Iterable, Optional, Type
+from typing import Any, Callable, Iterable, List, Mapping, Optional, Type
 
 from absl import logging
 import gym
@@ -83,23 +83,15 @@ def _compare_synthetic_build_comparison_graph(
     model_affine: bool,
     model_potential: bool,
     discount: float,
-    scale_fn: Callable[[], float] = lambda: 1,
-    constant_fn: Callable[[float], float] = lambda _: 0,
-    model_potential_hids: Optional[Iterable[int]] = None,
-    model_activation: Optional[TensorCallable] = tf.nn.tanh,
-    reward_noise: Optional[np.ndarray] = None,
-    potential_noise: Optional[np.ndarray] = None,
-    optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
-    learning_rate: float = 1e-2,
+    reward_noise: np.ndarray,
+    potential_noise: np.ndarray,
+    gt_constant: float,
+    gt_scale: float,
+    model_potential_hids: Optional[Iterable[int]],
+    model_activation: Optional[TensorCallable],
+    optimizer: Type[tf.train.Optimizer],
+    learning_rate: float,
 ):
-    if reward_noise is None:
-        reward_noise = np.arange(0.0, 1.0, 0.2)
-    if potential_noise is None:
-        potential_noise = np.arange(0.0, 10.0, 2.0)
-
-    gt_scale = scale_fn()
-    gt_constant = constant_fn(gt_scale)
-
     originals = {}
     matchings = {}
     # TODO(): graph construction is quite slow -- investigate speed-ups?
@@ -135,7 +127,81 @@ def _compare_synthetic_build_comparison_graph(
                     )
                     matchings[(rew_nm, pot_nm)] = matched
 
-    return originals, matchings, gt_constant, gt_scale
+    return originals, matchings
+
+
+def _compare_synthetic_eval(
+    metrics: Mapping[str, List[Mapping[str, Any]]],
+    originals,
+    matchings,
+    test_set: rewards.Batch,
+    initial_constants: Mapping[str, float],
+    initial_scales: Mapping[str, float],
+    gt_constant: float,
+    gt_scale: float,
+    model_affine: bool,
+    model_potential: bool,
+    ground_truth: rewards.RewardModel,
+    noise_reward: rewards.RewardModel,
+    reward_noise: np.ndarray,
+    potential_noise: np.ndarray,
+):
+    intrinsics = {}
+    shapings = {}
+    extrinsics = {}
+    ub_intrinsic = rewards.evaluate_models({"n": noise_reward}, test_set)["n"]
+    ub_intrinsic = np.linalg.norm(ub_intrinsic) / np.sqrt(len(ub_intrinsic))
+    ub_intrinsics = {}
+    final_constants = {}
+    final_scales = {}
+    # TODO(): this is a sequential bottleneck
+    for rew_nm in reward_noise:
+        for pot_nm in potential_noise:
+            original = originals[(rew_nm, pot_nm)]
+            matched = matchings[(rew_nm, pot_nm)]
+            shaping_model = None
+            if model_potential:
+                shaping_model = matched.model_extra["shaping"].models["shaping"][0]
+
+            res = comparisons.summary_comparison(
+                original=original,
+                matched=matched.model,
+                target=ground_truth,
+                shaping=shaping_model,
+                test_set=test_set,
+            )
+            intrinsic, shaping, extrinsic = res
+            intrinsics[(rew_nm, pot_nm)] = intrinsic
+            shapings[(rew_nm, pot_nm)] = shaping
+            extrinsics[(rew_nm, pot_nm)] = extrinsic
+            ub_intrinsics[(rew_nm, pot_nm)] = rew_nm * ub_intrinsic
+
+            if model_affine:
+                final = matched.model_extra["affine"].get_weights()
+            else:
+                final = rewards.AffineParameters(constant=0, scale=1.0)
+            final_constants[(rew_nm, pot_nm)] = final.constant
+            final_scales[(rew_nm, pot_nm)] = final.scale
+
+    res = {
+        "Intrinsic": intrinsics,
+        "Intrinsic Upper Bound": ub_intrinsics,
+        "Shaping": shapings,
+        "Extrinsic": extrinsics,
+        # Report scale from the perspective of the transformation needed to
+        # map the generated reward model back to the target. So we need to
+        # invert the gt_scale and gt_constant parameters, but can report the
+        # parameters from the AffineTransform verbatim.
+        "Real Scale": 1 / gt_scale,
+        "Real Constant": -gt_constant / gt_scale,
+        "Initial Scale": initial_scales,
+        "Initial Constant": initial_constants,
+        "Inferred Scale": final_scales,
+        "Inferred Constant": final_constants,
+    }
+    df = pd.DataFrame(res)
+    df.index.names = ["Reward Noise", "Potential Noise"]
+    return df, metrics
 
 
 def compare_synthetic(
@@ -161,7 +227,7 @@ def compare_synthetic(
     test_size: int = 4096,
     pretrain: bool = True,
     pretrain_size: int = 4096,
-    learning_rate: float = 1e2,
+    learning_rate: float = 1e-2,
 ) -> pd.DataFrame:
     r"""Compares rewards with varying noise to a ground-truth reward.
 
@@ -220,6 +286,11 @@ def compare_synthetic(
         A pandas DataFrame with intrinsic and shaping distance returned by
         `summary_comparison`, for each noised output reward model $r_o$ generated.
     """
+    if reward_noise is None:
+        reward_noise = np.arange(0.0, 1.0, 0.2)
+    if potential_noise is None:
+        potential_noise = np.arange(0.0, 10.0, 2.0)
+
     models = _compare_synthetic_build_base_models(
         observation_space,
         action_space,
@@ -230,7 +301,10 @@ def compare_synthetic(
         discount=discount,
     )
     ground_truth, noise_reward, noise_potential, constant_one_model = models
-    originals, matchings, gt_constant, gt_scale = _compare_synthetic_build_comparison_graph(
+
+    gt_scale = scale_fn()
+    gt_constant = constant_fn(gt_scale)
+    originals, matchings = _compare_synthetic_build_comparison_graph(
         ground_truth=ground_truth,
         noise_reward=noise_reward,
         noise_potential=noise_potential,
@@ -238,12 +312,12 @@ def compare_synthetic(
         model_affine=model_affine,
         model_potential=model_potential,
         discount=discount,
-        scale_fn=scale_fn,
-        constant_fn=constant_fn,
-        model_potential_hids=model_potential_hids,
-        model_activation=model_activation,
         reward_noise=reward_noise,
         potential_noise=potential_noise,
+        gt_constant=gt_constant,
+        gt_scale=gt_scale,
+        model_potential_hids=model_potential_hids,
+        model_activation=model_activation,
         optimizer=optimizer,
         learning_rate=learning_rate,
     )
@@ -272,63 +346,22 @@ def compare_synthetic(
     # Train potential shaping and other parameters
     metrics = comparisons.fit_models(matchings, training_generator)
 
-    # Evaluation
-    intrinsics = {}
-    shapings = {}
-    extrinsics = {}
-    ub_intrinsic = rewards.evaluate_models({"n": noise_reward}, test_set)["n"]
-    ub_intrinsic = np.linalg.norm(ub_intrinsic) / np.sqrt(len(ub_intrinsic))
-    ub_intrinsics = {}
-    final_constants = {}
-    final_scales = {}
-    # TODO(): this is a sequential bottleneck
-    for rew_nm in reward_noise:
-        for pot_nm in potential_noise:
-            original = originals[(rew_nm, pot_nm)]
-            matched = matchings[(rew_nm, pot_nm)]
-            shaping_model = None
-            if model_potential:
-                shaping_model = matched.model_extra["shaping"].models["shaping"][0]
-
-            res = comparisons.summary_comparison(
-                original=original,
-                matched=matched.model,
-                target=ground_truth,
-                shaping=shaping_model,
-                test_set=test_set,
-            )
-            intrinsic, shaping, extrinsic = res
-            intrinsics[(rew_nm, pot_nm)] = intrinsic
-            shapings[(rew_nm, pot_nm)] = shaping
-            extrinsics[(rew_nm, pot_nm)] = extrinsic
-            ub_intrinsics[(rew_nm, pot_nm)] = rew_nm * ub_intrinsic
-
-            if model_affine:
-                final = matched.model_extra["affine"].get_weights()
-            else:
-                final = rewards.AffineParameters(constant=0, scale=1.0)
-            final_constants[(rew_nm, pot_nm)] = final.constant
-            final_scales[(rew_nm, pot_nm)] = final.scale
-
-    res = {
-        "Intrinsic": intrinsics,
-        "Intrinsic Upper Bound": ub_intrinsics,
-        "Shaping": shapings,
-        "Extrinsic": extrinsics,
-        # Report scale from the perspective of the transformation needed to
-        # map the generated reward model back to the target. So we need to
-        # invert the gt_scale and gt_constant parameters, but can report the
-        # parameters from the AffineTransform verbatim.
-        "Real Scale": 1 / gt_scale,
-        "Real Constant": -gt_constant / gt_scale,
-        "Initial Scale": initial_scales,
-        "Initial Constant": initial_constants,
-        "Inferred Scale": final_scales,
-        "Inferred Constant": final_constants,
-    }
-    df = pd.DataFrame(res)
-    df.index.names = ["Reward Noise", "Potential Noise"]
-    return df, metrics
+    return _compare_synthetic_eval(
+        metrics=metrics,
+        originals=originals,
+        matchings=matchings,
+        test_set=test_set,
+        initial_constants=initial_constants,
+        initial_scales=initial_scales,
+        gt_constant=gt_constant,
+        gt_scale=gt_scale,
+        model_affine=model_affine,
+        model_potential=model_potential,
+        ground_truth=ground_truth,
+        noise_reward=noise_reward,
+        reward_noise=reward_noise,
+        potential_noise=potential_noise,
+    )
 
 
 def summary_stats(
