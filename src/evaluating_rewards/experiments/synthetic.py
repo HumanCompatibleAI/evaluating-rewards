@@ -35,30 +35,133 @@ TensorCallable = Callable[..., tf.Tensor]
 log_normal = functools.partial(np.random.lognormal, mean=0.0, sigma=np.log(10))
 
 
-def compare_synthetic(
-    observation_space: gym.Space,
-    action_space: gym.Space,
-    dataset_generator: datasets.BatchCallable,
-    reward_noise: Optional[np.ndarray] = None,
-    potential_noise: Optional[np.ndarray] = None,
-    reward_hids: Optional[Iterable[int]] = None,
-    dataset_potential_hids: Optional[Iterable[int]] = None,
-    model_potential_hids: Optional[Iterable[int]] = None,
-    dataset_activation: Optional[TensorCallable] = tf.nn.tanh,
-    model_activation: Optional[TensorCallable] = tf.nn.tanh,
-    state_only: bool = True,
-    scale_fn: Callable[[], float] = lambda: 1,
-    constant_fn: Callable[[float], float] = lambda _: 0,
-    model_affine: bool = True,
-    model_potential: bool = True,
-    discount: float = 0.99,
-    optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
-    total_timesteps: int = 2 ** 16,
-    batch_size: int = 128,
-    test_size: int = 4096,
-    pretrain: bool = True,
-    pretrain_size: int = 4096,
-    learning_rate: float = 1e-2,
+def _compare_synthetic_build_base_models(
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        reward_hids: Optional[Iterable[int]],
+        dataset_potential_hids: Optional[Iterable[int]],
+        dataset_activation: Optional[TensorCallable],
+        state_only: bool,
+        discount: float,
+):
+    # Graph construction
+    noise_kwargs = {}
+    if state_only:
+        noise_kwargs = {"use_act": False, "use_next_obs": False}
+
+    with tf.variable_scope("ground_truth"):
+        ground_truth = rewards.MLPRewardModel(
+            observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
+        )
+
+    with tf.variable_scope("noise"):
+        noise_reward = rewards.MLPRewardModel(
+            observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
+        )
+        noise_potential = rewards.PotentialShaping(
+            observation_space,
+            action_space,
+            hid_sizes=dataset_potential_hids,
+            activation=dataset_activation,
+            discount=discount,
+        )
+
+        # Additive constant and scaling of ground truth
+        initializer = tf.initializers.ones
+        constant_one_model = rewards.ConstantReward(
+            observation_space, action_space, initializer=initializer
+        )
+
+    return ground_truth, noise_reward, noise_potential, constant_one_model
+
+
+def _compare_synthetic_build_comparison_graph(
+        ground_truth: rewards.RewardModel,
+        noise_reward: rewards.RewardModel,
+        noise_potential: rewards.RewardModel,
+        constant_one_model: rewards.RewardModel,
+        model_affine: bool,
+        model_potential: bool,
+        discount: float,
+        scale_fn: Callable[[], float] = lambda: 1,
+        constant_fn: Callable[[float], float] = lambda _: 0,
+        model_potential_hids: Optional[Iterable[int]] = None,
+        model_activation: Optional[TensorCallable] = tf.nn.tanh,
+        reward_noise: Optional[np.ndarray] = None,
+        potential_noise: Optional[np.ndarray] = None,
+        optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
+        learning_rate: float = 1e-2,
+):
+    if reward_noise is None:
+        reward_noise = np.arange(0.0, 1.0, 0.2)
+    if potential_noise is None:
+        potential_noise = np.arange(0.0, 10.0, 2.0)
+
+    gt_scale = scale_fn()
+    gt_constant = constant_fn(gt_scale)
+
+    originals = {}
+    matchings = {}
+    # TODO(): graph construction is quite slow -- investigate speed-ups?
+    # (e.g. could re-use graph for different random seeds.)
+    for rew_nm in reward_noise:
+        for pot_nm in potential_noise:
+            with tf.variable_scope(f"rew{rew_nm}_pot{pot_nm}"):
+                models = {
+                    "ground_truth": (ground_truth, gt_scale),
+                    "noise_reward": (noise_reward, rew_nm * gt_scale),
+                    "noise_potential": (noise_potential, pot_nm * gt_scale),
+                    "constant": (constant_one_model, gt_constant),
+                }
+
+                noised_ground_shaped = rewards.LinearCombinationModelWrapper(models)
+                originals[(rew_nm, pot_nm)] = noised_ground_shaped
+
+                with tf.variable_scope("matching"):
+                    model_wrapper = functools.partial(
+                        comparisons.equivalence_model_wrapper,
+                        affine=model_affine,
+                        potential=model_potential,
+                        hid_sizes=model_potential_hids,
+                        activation=model_activation,
+                        discount=discount,
+                    )
+                    matched = comparisons.RegressWrappedModel(
+                        noised_ground_shaped,
+                        ground_truth,
+                        model_wrapper=model_wrapper,
+                        learning_rate=learning_rate,
+                        optimizer=optimizer,
+                    )
+                    matchings[(rew_nm, pot_nm)] = matched
+
+    return originals, matchings, gt_constant, gt_scale
+
+
+def compare_synthetic(observation_space: gym.Space,
+                      action_space: gym.Space,
+                      dataset_generator: datasets.BatchCallable,
+                      reward_noise: Optional[np.ndarray] = None,
+                      potential_noise: Optional[np.ndarray] = None,
+                      reward_hids: Optional[Iterable[int]] = None,
+                      dataset_potential_hids: Optional[Iterable[int]] = None,
+                      model_potential_hids: Optional[Iterable[int]] = None,
+                      dataset_activation: Optional[TensorCallable] = tf.nn.tanh,
+                      model_activation: Optional[TensorCallable] = tf.nn.tanh,
+                      state_only: bool = True,
+                      scale_fn: Callable[[], float] = lambda: 1,
+                      constant_fn: Callable[[float], float] = lambda _: 0,
+                      model_affine: bool = True,
+                      model_potential: bool = True,
+                      discount: float = 0.99,
+                      optimizer: Type[tf.train.Optimizer] =
+                      tf.train.AdamOptimizer,
+                      total_timesteps: int = 2 ** 16,
+                      batch_size: int = 128,
+                      test_size: int = 4096,
+                      pretrain: bool = True,
+                      pretrain_size: int = 4096,
+                      learning_rate: float = 1e2,
 ) -> pd.DataFrame:
     r"""Compares rewards with varying noise to a ground-truth reward.
 
@@ -117,76 +220,33 @@ def compare_synthetic(
         A pandas DataFrame with intrinsic and shaping distance returned by
         `summary_comparison`, for each noised output reward model $r_o$ generated.
     """
-    # Graph construction
-    if reward_noise is None:
-        reward_noise = np.arange(0.0, 1.0, 0.2)
-    if potential_noise is None:
-        potential_noise = np.arange(0.0, 10.0, 2.0)
-
-    noise_kwargs = {}
-    if state_only:
-        noise_kwargs = {"use_act": False, "use_next_obs": False}
-
-    with tf.variable_scope("ground_truth"):
-        ground_truth = rewards.MLPRewardModel(
-            observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
-        )
-
-    with tf.variable_scope("noise"):
-        noise_reward = rewards.MLPRewardModel(
-            observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
-        )
-        noise_potential = rewards.PotentialShaping(
-            observation_space,
-            action_space,
-            hid_sizes=dataset_potential_hids,
-            activation=dataset_activation,
-            discount=discount,
-        )
-
-        # Additive constant and scaling of ground truth
-        gt_scale = scale_fn()
-        initializer = tf.initializers.ones
-        constant_one_model = rewards.ConstantReward(
-            observation_space, action_space, initializer=initializer
-        )
-        gt_constant = constant_fn(gt_scale)
-
-    originals = {}
-    matchings = {}
-    # TODO(): graph construction is quite slow -- investigate speed-ups?
-    # (e.g. could re-use graph for different random seeds.)
-    for rew_nm in reward_noise:
-        for pot_nm in potential_noise:
-            with tf.variable_scope(f"rew{rew_nm}_pot{pot_nm}"):
-                models = {
-                    "ground_truth": (ground_truth, gt_scale),
-                    "noise_reward": (noise_reward, rew_nm * gt_scale),
-                    "noise_potential": (noise_potential, pot_nm * gt_scale),
-                    "constant": (constant_one_model, gt_constant),
-                }
-
-                noised_ground_shaped = rewards.LinearCombinationModelWrapper(models)
-                originals[(rew_nm, pot_nm)] = noised_ground_shaped
-
-                with tf.variable_scope("matching"):
-                    model_wrapper = functools.partial(
-                        comparisons.equivalence_model_wrapper,
-                        affine=model_affine,
-                        potential=model_potential,
-                        hid_sizes=model_potential_hids,
-                        activation=model_activation,
-                        discount=discount,
-                    )
-                    pretrain = model_affine and pretrain
-                    matched = comparisons.RegressWrappedModel(
-                        noised_ground_shaped,
-                        ground_truth,
-                        model_wrapper=model_wrapper,
-                        learning_rate=learning_rate,
-                        optimizer=optimizer,
-                    )
-                    matchings[(rew_nm, pot_nm)] = matched
+    models = _compare_synthetic_build_base_models(
+        observation_space,
+        action_space,
+        reward_hids=reward_hids,
+        dataset_potential_hids=dataset_potential_hids,
+        dataset_activation=dataset_activation,
+        state_only=state_only,
+        discount=discount,
+    )
+    ground_truth, noise_reward, noise_potential, constant_one_model = models
+    originals, matchings, gt_constant, gt_scale = _compare_synthetic_build_comparison_graph(
+        ground_truth=ground_truth,
+        noise_reward=noise_reward,
+        noise_potential=noise_potential,
+        constant_one_model=constant_one_model,
+        model_affine=model_affine,
+        model_potential=model_potential,
+        discount=discount,
+        scale_fn=scale_fn,
+        constant_fn=constant_fn,
+        model_potential_hids=model_potential_hids,
+        model_activation=model_activation,
+        reward_noise=reward_noise,
+        potential_noise=potential_noise,
+        optimizer=optimizer,
+        learning_rate=learning_rate,
+    )
 
     # Initialization
     sess = tf.get_default_session()
