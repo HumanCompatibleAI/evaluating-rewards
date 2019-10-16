@@ -14,33 +14,31 @@
 
 """Smoke tests for CLI scripts."""
 
+import tempfile
+
 import pandas as pd
 import xarray as xr
-import tempfile
-import pytest
 
 from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
 from evaluating_rewards.scripts.train_regress import train_regress_ex
-from evaluating_rewards.scripts.visualize_pm_reward import visualize_pm_reward_ex
+from evaluating_rewards.scripts.visualize_pm_reward import (
+    visualize_pm_reward_ex
+)
 from tests import common
 
-
 EXPERIMENTS = {
-  # experiment, expected_type
-  "comparison": (model_comparison_ex, dict),
-  "regress": (train_regress_ex, dict),
-  "preferences": (train_preferences_ex, pd.DataFrame),
-  "visualize": (visualize_pm_reward_ex, xr.DataArray),
+    # experiment, expected_type
+    "comparison": (model_comparison_ex, dict),
+    "regress": (train_regress_ex, dict),
+    "preferences": (train_preferences_ex, pd.DataFrame),
+    "visualize": (visualize_pm_reward_ex, xr.DataArray),
 }
 
 
 @common.mark_parametrize_dict("experiment,expected_type", EXPERIMENTS)
 def test_experiment(experiment, expected_type):
-  with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
-    run = experiment.run(
-        named_configs=["fast"],
-        config_updates=dict(log_root=tmpdir),
-    )
-  assert run.status == "COMPLETED"
-  assert isinstance(run.result, expected_type)
+    with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
+        run = experiment.run(named_configs=["fast"], config_updates=dict(log_root=tmpdir))
+    assert run.status == "COMPLETED"
+    assert isinstance(run.result, expected_type)

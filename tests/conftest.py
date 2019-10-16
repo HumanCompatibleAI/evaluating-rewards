@@ -20,11 +20,11 @@ import tensorflow as tf
 
 @pytest.fixture
 def graph():
-  graph = tf.Graph()
-  yield graph
+    graph = tf.Graph()
+    yield graph
 
 
 @pytest.fixture
 def session(graph):
-  with tf.Session(graph=graph) as sess:
-    yield sess
+    with tf.Session(graph=graph) as sess:
+        yield sess

@@ -21,35 +21,36 @@ import pytest
 
 
 def mark_parametrize_dict(argnames, args, **kwargs):
-  ids = list(args.keys())
-  argvals = args.values()
-  return pytest.mark.parametrize(argnames, argvals, ids=ids, **kwargs)
+    ids = list(args.keys())
+    argvals = args.values()
+    return pytest.mark.parametrize(argnames, argvals, ids=ids, **kwargs)
 
 
 def mark_parametrize_kwargs(args, **kwargs):
-  ids = []
-  argvals = []
-  argnames = sorted(list(next(iter(args.values())).keys()))
-  for key, test_cfg in args.items():
-    ids.append(key)
-    sorted_keys = sorted(test_cfg.keys())
-    if sorted_keys != argnames:
-      raise ValueError("Invalid test configuration: inconsistent argument"
-                       "names, f{test_cfg} != {argnames}.")
-    argvals.append([test_cfg[k] for k in argnames])
+    ids = []
+    argvals = []
+    argnames = sorted(list(next(iter(args.values())).keys()))
+    for key, test_cfg in args.items():
+        ids.append(key)
+        sorted_keys = sorted(test_cfg.keys())
+        if sorted_keys != argnames:
+            raise ValueError(
+                "Invalid test configuration: inconsistent argument"
+                "names, f{test_cfg} != {argnames}."
+            )
+        argvals.append([test_cfg[k] for k in argnames])
 
-  return pytest.mark.parametrize(argnames, argvals, ids=ids, **kwargs)
+    return pytest.mark.parametrize(argnames, argvals, ids=ids, **kwargs)
 
 
 K = TypeVar("K")
 V = TypeVar("V")
 
 
-def combine_dicts(*dicts: Dict[str, Dict[K, V]],
-                 ) -> Iterator[Tuple[str, Dict[K, V]]]:
-  """Return a generator merging together the dictionary arguments.
+def combine_dicts(*dicts: Dict[str, Dict[K, V]],) -> Iterator[Tuple[str, Dict[K, V]]]:
+    """Return a generator merging together the dictionary arguments.
 
-  Usage example:
+    Usage example:
 
     > list(combine_dicts({'a': {'x': 1}, 'b': {'x': 2}},
                          {'c': {'y': 2}, 'd': {'x': 4, 'z': 3}}))
@@ -59,29 +60,29 @@ def combine_dicts(*dicts: Dict[str, Dict[K, V]],
      ('b_d', {'x': 4, 'z': 3})]
 
 
-  Arguments:
-    *dicts: A list of dictionaries, mapping from strings to inner dictionaries.
+    Arguments:
+        *dicts: A list of dictionaries, mapping from strings to inner dictionaries.
 
-  Yields:
-    Pairs (key, merged) computed from the cartesian product over the inner
-    dictionaries. Specifically, if *dicts is an n-length list of dictionaries,
-    then for each n-wise combination of inner dictionaries it yields
-    (key, merged) where key is the keys of each of the inner dictionaries
-    joined with "_" and merged is a dictionary containing key-value pairs from
-    each of the inner dictionaries. (If a key occurs multiple times, the
-    right-most occurrence takes precedence.)
-  """
-  head, *tail = dicts
-  if not tail:
-    for name, cfg in head.items():
-      yield name, cfg
-  else:
-    for head_name, head_cfg in head.items():
-      for tail_name, tail_cfg in combine_dicts(*tail):
-        name = head_name + "_" + tail_name
-        cfg = copy.deepcopy(head_cfg)
-        cfg.update(tail_cfg)
-        yield name, cfg
+    Yields:
+        Pairs (key, merged) computed from the cartesian product over the inner
+        dictionaries. Specifically, if *dicts is an n-length list of dictionaries,
+        then for each n-wise combination of inner dictionaries it yields
+        (key, merged) where key is the keys of each of the inner dictionaries
+        joined with "_" and merged is a dictionary containing key-value pairs from
+        each of the inner dictionaries. (If a key occurs multiple times, the
+        right-most occurrence takes precedence.)
+    """
+    head, *tail = dicts
+    if not tail:
+        for name, cfg in head.items():
+            yield name, cfg
+    else:
+        for head_name, head_cfg in head.items():
+            for tail_name, tail_cfg in combine_dicts(*tail):
+                name = head_name + "_" + tail_name
+                cfg = copy.deepcopy(head_cfg)
+                cfg.update(tail_cfg)
+                yield name, cfg
 
 
 make_env = test_envs.make_env_fixture(skip_fn=pytest.skip)

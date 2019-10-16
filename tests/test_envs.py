@@ -19,16 +19,17 @@ Runs simple smoke tests against any environments registered starting with
 """
 
 import gym
+from imitation.testing import envs as test_envs
 import pytest
 
+from evaluating_rewards import envs  # noqa: F401
 from tests import common
-from imitation.testing import envs as test_envs
 
-from evaluating_rewards import envs  # pylint:disable=unused-import
-
-
-ENV_NAMES = [env_spec.id for env_spec in gym.envs.registration.registry.all()
-             if env_spec.id.startswith("evaluating_rewards/")]
+ENV_NAMES = [
+    env_spec.id
+    for env_spec in gym.envs.registration.registry.all()
+    if env_spec.id.startswith("evaluating_rewards/")
+]
 DETERMINISTIC_ENVS = []
 
 
@@ -37,16 +38,16 @@ env = pytest.fixture(common.make_env)
 
 @pytest.mark.parametrize("env_name", ENV_NAMES)
 class TestEnvs:
-  """Simple smoke tests for custom environments."""
+    """Simple smoke tests for custom environments."""
 
-  def test_seed(self, env, env_name):
-    test_envs.test_seed(env, env_name, DETERMINISTIC_ENVS)
+    def test_seed(self, env, env_name):
+        test_envs.test_seed(env, env_name, DETERMINISTIC_ENVS)
 
-  def test_rollout(self, env):
-    test_envs.test_rollout(env)
+    def test_rollout(self, env):
+        test_envs.test_rollout(env)
 
-  def test_model_based(self, env):
-    """Smoke test for each of the ModelBasedEnv methods with type checks."""
-    if not hasattr(env, "state_space"):  # pragma: no cover
-      pytest.skip("This test is only for subclasses of ModelBasedEnv.")
-    test_envs.test_model_based(env)
+    def test_model_based(self, env):
+        """Smoke test for each of the ModelBasedEnv methods with type checks."""
+        if not hasattr(env, "state_space"):  # pragma: no cover
+            pytest.skip("This test is only for subclasses of ModelBasedEnv.")
+        test_envs.test_model_based(env)
