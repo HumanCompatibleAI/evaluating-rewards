@@ -16,6 +16,7 @@
 
 import pytest
 import tensorflow as tf
+
 from tests import common
 
 

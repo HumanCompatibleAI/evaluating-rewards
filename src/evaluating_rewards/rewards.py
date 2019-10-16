@@ -129,6 +129,8 @@ class BasicRewardModel(RewardModel):
     @property
     def act_ph(self):
         return (self._act_ph,)
+
+
 # pylint:enable=abstract-method
 
 

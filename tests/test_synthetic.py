@@ -196,6 +196,7 @@ def test_identical(
 @pytest.fixture(name="helper_affine")
 def fixture_affine(graph, session):
     """Do we recover affine parameters correctly?"""
+
     def f(upperbound, **kwargs):
         """Helper."""
         with graph.as_default():

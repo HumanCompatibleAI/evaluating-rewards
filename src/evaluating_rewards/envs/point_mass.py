@@ -270,8 +270,14 @@ class PointMassPolicy(policies.BasePolicy):
     def __init__(
         self, observation_space: gym.Space, action_space: gym.Space, magnitude: float = 1.0
     ):
-        super().__init__(sess=None, ob_space=observation_space, ac_space=action_space,
-                         n_env=1, n_steps=1, n_batch=1)
+        super().__init__(
+            sess=None,
+            ob_space=observation_space,
+            ac_space=action_space,
+            n_env=1,
+            n_steps=1,
+            n_batch=1,
+        )
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
         self.magnitude = magnitude

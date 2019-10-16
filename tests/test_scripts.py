@@ -22,9 +22,7 @@ import xarray as xr
 from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
 from evaluating_rewards.scripts.train_regress import train_regress_ex
-from evaluating_rewards.scripts.visualize_pm_reward import (
-    visualize_pm_reward_ex
-)
+from evaluating_rewards.scripts.visualize_pm_reward import visualize_pm_reward_ex
 from tests import common
 
 EXPERIMENTS = {

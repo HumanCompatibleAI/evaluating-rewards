@@ -48,4 +48,6 @@ class TestEnvs:
         if not hasattr(env, "state_space"):  # pragma: no cover
             pytest.skip("This test is only for subclasses of ModelBasedEnv.")
         test_envs.test_model_based(env)
+
+
 # pylint:enable=no-self-use

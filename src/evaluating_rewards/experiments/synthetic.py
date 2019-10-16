@@ -36,13 +36,13 @@ log_normal = functools.partial(np.random.lognormal, mean=0.0, sigma=np.log(10))
 
 
 def _compare_synthetic_build_base_models(
-        observation_space: gym.Space,
-        action_space: gym.Space,
-        reward_hids: Optional[Iterable[int]],
-        dataset_potential_hids: Optional[Iterable[int]],
-        dataset_activation: Optional[TensorCallable],
-        state_only: bool,
-        discount: float,
+    observation_space: gym.Space,
+    action_space: gym.Space,
+    reward_hids: Optional[Iterable[int]],
+    dataset_potential_hids: Optional[Iterable[int]],
+    dataset_activation: Optional[TensorCallable],
+    state_only: bool,
+    discount: float,
 ):
     # Graph construction
     noise_kwargs = {}
@@ -76,21 +76,21 @@ def _compare_synthetic_build_base_models(
 
 
 def _compare_synthetic_build_comparison_graph(
-        ground_truth: rewards.RewardModel,
-        noise_reward: rewards.RewardModel,
-        noise_potential: rewards.RewardModel,
-        constant_one_model: rewards.RewardModel,
-        model_affine: bool,
-        model_potential: bool,
-        discount: float,
-        scale_fn: Callable[[], float] = lambda: 1,
-        constant_fn: Callable[[float], float] = lambda _: 0,
-        model_potential_hids: Optional[Iterable[int]] = None,
-        model_activation: Optional[TensorCallable] = tf.nn.tanh,
-        reward_noise: Optional[np.ndarray] = None,
-        potential_noise: Optional[np.ndarray] = None,
-        optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
-        learning_rate: float = 1e-2,
+    ground_truth: rewards.RewardModel,
+    noise_reward: rewards.RewardModel,
+    noise_potential: rewards.RewardModel,
+    constant_one_model: rewards.RewardModel,
+    model_affine: bool,
+    model_potential: bool,
+    discount: float,
+    scale_fn: Callable[[], float] = lambda: 1,
+    constant_fn: Callable[[float], float] = lambda _: 0,
+    model_potential_hids: Optional[Iterable[int]] = None,
+    model_activation: Optional[TensorCallable] = tf.nn.tanh,
+    reward_noise: Optional[np.ndarray] = None,
+    potential_noise: Optional[np.ndarray] = None,
+    optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
+    learning_rate: float = 1e-2,
 ):
     if reward_noise is None:
         reward_noise = np.arange(0.0, 1.0, 0.2)
@@ -138,30 +138,30 @@ def _compare_synthetic_build_comparison_graph(
     return originals, matchings, gt_constant, gt_scale
 
 
-def compare_synthetic(observation_space: gym.Space,
-                      action_space: gym.Space,
-                      dataset_generator: datasets.BatchCallable,
-                      reward_noise: Optional[np.ndarray] = None,
-                      potential_noise: Optional[np.ndarray] = None,
-                      reward_hids: Optional[Iterable[int]] = None,
-                      dataset_potential_hids: Optional[Iterable[int]] = None,
-                      model_potential_hids: Optional[Iterable[int]] = None,
-                      dataset_activation: Optional[TensorCallable] = tf.nn.tanh,
-                      model_activation: Optional[TensorCallable] = tf.nn.tanh,
-                      state_only: bool = True,
-                      scale_fn: Callable[[], float] = lambda: 1,
-                      constant_fn: Callable[[float], float] = lambda _: 0,
-                      model_affine: bool = True,
-                      model_potential: bool = True,
-                      discount: float = 0.99,
-                      optimizer: Type[tf.train.Optimizer] =
-                      tf.train.AdamOptimizer,
-                      total_timesteps: int = 2 ** 16,
-                      batch_size: int = 128,
-                      test_size: int = 4096,
-                      pretrain: bool = True,
-                      pretrain_size: int = 4096,
-                      learning_rate: float = 1e2,
+def compare_synthetic(
+    observation_space: gym.Space,
+    action_space: gym.Space,
+    dataset_generator: datasets.BatchCallable,
+    reward_noise: Optional[np.ndarray] = None,
+    potential_noise: Optional[np.ndarray] = None,
+    reward_hids: Optional[Iterable[int]] = None,
+    dataset_potential_hids: Optional[Iterable[int]] = None,
+    model_potential_hids: Optional[Iterable[int]] = None,
+    dataset_activation: Optional[TensorCallable] = tf.nn.tanh,
+    model_activation: Optional[TensorCallable] = tf.nn.tanh,
+    state_only: bool = True,
+    scale_fn: Callable[[], float] = lambda: 1,
+    constant_fn: Callable[[float], float] = lambda _: 0,
+    model_affine: bool = True,
+    model_potential: bool = True,
+    discount: float = 0.99,
+    optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
+    total_timesteps: int = 2 ** 16,
+    batch_size: int = 128,
+    test_size: int = 4096,
+    pretrain: bool = True,
+    pretrain_size: int = 4096,
+    learning_rate: float = 1e2,
 ) -> pd.DataFrame:
     r"""Compares rewards with varying noise to a ground-truth reward.
 

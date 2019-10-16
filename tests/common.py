@@ -17,8 +17,8 @@ import copy
 from typing import Dict, Iterator, Tuple, TypeVar
 
 from imitation.testing import envs as test_envs
-from stable_baselines.common import vec_env
 import pytest
+from stable_baselines.common import vec_env
 
 
 def mark_parametrize_dict(argnames, args, **kwargs):
@@ -96,6 +96,7 @@ def combine_dicts(*dicts: Dict[str, Dict[K, V]],) -> Iterator[Tuple[str, Dict[K,
 
 
 make_env = test_envs.make_env_fixture(skip_fn=pytest.skip)
+
 
 def make_venv(env_name):
     return vec_env.DummyVecEnv([lambda: make_env(env_name)])

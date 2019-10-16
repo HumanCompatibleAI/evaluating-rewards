@@ -45,9 +45,11 @@ def default_config():
 
 @train_regress_ex.config
 def default_kwargs(dataset_factory, dataset_factory_kwargs):
+    """Sets dataset_factory_kwargs to defaults when dataset_factory not overridden."""
     # TODO(): remove this function when Sacred issue #238 is fixed
-    if (
-        dataset_factory == datasets.rollout_serialized_policy_generator  # pylint:disable=comparison-with-callable
+    if (  # pylint:disable=comparison-with-callable
+        dataset_factory
+        == datasets.rollout_serialized_policy_generator
         and not dataset_factory_kwargs
     ):
         dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
@@ -64,7 +66,9 @@ def fast():
 @train_regress_ex.named_config
 def dataset_random_transition():
     """Randomly samples state and action and computes next state from dynamics."""
-    dataset_factory = datasets.random_transition_generator  # noqa: F841  pylint:disable=unused-variable
+    dataset_factory = (  # noqa: F841  pylint:disable=unused-variable
+        datasets.random_transition_generator
+    )
 
 
 script_utils.add_logging_config(train_regress_ex, "train_regress")
