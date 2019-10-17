@@ -31,6 +31,9 @@ setuptools.setup(
     python_requires=">=3.6.0",
     packages=setuptools.find_packages("src"),
     package_dir={"": "src"},
+    package_data = {
+        "evaluating_rewards": ["py.typed"],
+    },
     install_requires=install_requires,
     url="https://github.com/AdamGleave/evaluating_rewards",
     license="Apache License, Version 2.0",
