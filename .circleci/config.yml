@@ -2,23 +2,27 @@
 #
 # Check https://circleci.com/docs/2.0/language-python/ for more details
 #
-version: 2
-jobs:
-  unit-test:
-    # TODO: make sure Docker image is actually up to date?
+version: 2.1
+
+executors:
+  my-executor:
     docker:
       - image: humancompatibleai/evaluating_rewards:latest
-
     working_directory: /evaluating-rewards
+    environment:
+      SRC_DIRS: src/ tests/
+      TYPECHECK_DIRS: src/  # tests often do weird things with types, exclude
 
-    parallelism: 4
-
+commands:
+  dependencies:
+    # You must still manually update the Docker image if any
+    # binary (non-Python) dependencies change.
+    description: "Check out and update Python dependencies."
     steps:
       - checkout
-
       # Download and cache dependencies
-      # Note you will need to manually update the Docker image if any binary
-      # (non-Python) dependencies change.
+      # Note you will still need to manually update the Docker image if any
+      # binary (non-Python) dependencies change.
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "requirements.txt" }}
@@ -41,8 +45,34 @@ jobs:
             - ./venv
           key: v1-dependencies-{{ checksum "requirements.txt" }}
 
+jobs:
+  lintandtype:
+    executor: my-executor
+
+    steps:
+      - dependencies
+      - run:
+          name: flake8
+          command: flake8 ${SRC_FILES}
+
+      - run:
+          name: black
+          command: black --diff ${SRC_FILES}
+
+      - run:
+          name: pylint
+          command: pylint ${SRC_FILES}
+
+      - run:
+          name: pytype
+          command: pytype ${TYPECHECK_FILES}
+
+  unit-test:
+    executor: my-executor
+    parallelism: 4
+    steps:
+      - dependencies
       # TODO: test coverage
-      # TODO: linting
       # TODO: test output
       - run:
           name: run tests
@@ -59,5 +89,9 @@ workflows:
   version: 2
   test:
     jobs:
+      # TODO: consider adding a dependencies job just to ensure cache hit?
+      # probably not worth it as requirements.txt changes very rarely...
+      - lintandtype:
+          context: MuJoCo
       - unit-test:
           context: MuJoCo

@@ -14,26 +14,22 @@
 
 """Install script for setuptools."""
 
-import src.evaluating_rewards
 import setuptools
-
+import src.evaluating_rewards
 
 with open("requirements.txt") as f:
-  install_requires = f.read().strip().split("\n")
+    install_requires = f.read().strip().split("\n")
 
 
 setuptools.setup(
     name="evaluating_rewards",
     version=src.evaluating_rewards.__version__,
-    description=(
-        "Evaluating and comparing reward models."),
-    author="DeepMind Technologies Limited",
+    description="Evaluating and comparing reward models.",
+    author="DeepMind Technologies Limited and Adam Gleave",
     python_requires=">=3.6.0",
     packages=setuptools.find_packages("src"),
     package_dir={"": "src"},
-    package_data = {
-        "evaluating_rewards": ["py.typed"],
-    },
+    package_data={"evaluating_rewards": ["py.typed"]},
     install_requires=install_requires,
     url="https://github.com/AdamGleave/evaluating_rewards",
     license="Apache License, Version 2.0",
