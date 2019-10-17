@@ -78,4 +78,7 @@ environments or with new comparison methods as a regression test.
 This library is licensed under the terms of the Apache license. See
 [LICENSE](LICENSE) for more information.
 
-Disclaimer: This is not an officially supported Google product.
+DeepMind holds the copyright to all work prior to October 4th, during the
+lead author's (Adam Gleave) internship at DeepMind. Subsequent modifications
+conducted at UC Berkeley are copyright of the author.
+Disclaimer: This is not an officially supported Google or DeepMind product.
