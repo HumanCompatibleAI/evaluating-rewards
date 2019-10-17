@@ -18,7 +18,7 @@ See Colab notebook for use cases.
 """
 
 import functools
-from typing import Any, Callable, Iterable, List, Mapping, Optional, Type
+from typing import Any, Callable, Iterable, List, Mapping, Optional, Tuple, Type
 
 from absl import logging
 import gym
@@ -131,12 +131,12 @@ def _compare_synthetic_build_comparison_graph(
 
 
 def _compare_synthetic_eval(
-    metrics: Mapping[str, List[Mapping[str, Any]]],
+    metrics: Mapping[str, List[Mapping[Tuple[float, float], Any]]],
     originals,
     matchings,
     test_set: rewards.Batch,
-    initial_constants: Mapping[str, float],
-    initial_scales: Mapping[str, float],
+    initial_constants: Mapping[Tuple[float, float], float],
+    initial_scales: Mapping[Tuple[float, float], float],
     gt_constant: float,
     gt_scale: float,
     model_affine: bool,

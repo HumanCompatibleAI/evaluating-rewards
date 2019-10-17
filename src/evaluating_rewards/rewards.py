@@ -58,7 +58,9 @@ class Batch(NamedTuple):
     next_obs: np.ndarray
 
 
-class RewardModel(serialize.Serializable):
+# abc.ABC inheritance is strictly unnecessary as serialize.Serializable is
+# abstract, but pytype gets confused without this.
+class RewardModel(serialize.Serializable, abc.ABC):
     """Abstract reward model."""
 
     @property
