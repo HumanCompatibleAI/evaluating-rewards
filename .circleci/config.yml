@@ -60,7 +60,7 @@ commands:
           key: v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
 
 jobs:
-  debugtestsplit:
+  unit-test:
     executor: my-executor
 
     steps:
@@ -116,7 +116,9 @@ jobs:
             circleci tests split --split-by=timings --timings-type=testname || true
       - run:
           name: Test reports
-          command: cat /tmp/test-reports/junit.xml
+          command: |
+            ls -la ~/.circleci-task-data
+            cat ~/.circleci-task-data/*
 
   lintandtype:
     executor: my-executor
@@ -143,36 +145,11 @@ jobs:
           name: pytype
           command: pytype ${TYPECHECK_FILES}
 
-  unit-test:
-    executor: my-executor
-    parallelism: 4
-    steps:
-      - dependencies
-
-      - run:
-          name: run tests
-          command: |
-            pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
-                   --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
-                   -n ${NUM_CPUS} --circleci-parallelize -vv tests/
-            mv .coverage .coverage.eval
-            coverage combine  # rewrite paths from virtualenv to src/
-      - codecov/upload
-
-      - store_artifacts:
-          path: /tmp/test-reports
-          destination: test-reports
-      - store_test_results:
-          path: /tmp/test-reports
-          unit-test:
-
 workflows:
   version: 2
   test:
     jobs:
-      - debugtestsplit:
+      - unit-test:
           context: MuJoCo
       - lintandtype:
-          context: MuJoCo
-      - unit-test:
           context: MuJoCo
