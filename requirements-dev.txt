@@ -1,5 +1,6 @@
 black
 codecov
+codespell
 flake8
 flake8-blind-except
 flake8-builtins

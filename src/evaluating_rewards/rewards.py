@@ -365,9 +365,9 @@ class RewardNetToRewardModel(RewardModel):
 
 
 class RewardModelWrapper(RewardModel):
-    """Wraper for RewardModel objects.
+    """Wrapper for RewardModel objects.
 
-    This wraper is the identity; it is intended to be subclassed.
+    This wrapper is the identity; it is intended to be subclassed.
     """
 
     def __init__(self, model: RewardModel):

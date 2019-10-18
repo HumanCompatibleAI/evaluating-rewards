@@ -73,6 +73,10 @@ jobs:
           command: black --check ${SRC_FILES}
 
       - run:
+          name: codespell
+          command: codespell -I .codespell.skip --skip='*.pyc' ${SRC_FILES}
+
+      - run:
           name: pylint
           command: pylint -j 0 ${SRC_FILES}
 

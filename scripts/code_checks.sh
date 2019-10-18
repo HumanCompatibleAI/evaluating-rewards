@@ -22,6 +22,7 @@ set -e  # quit immediately on error
 
 flake8 ${SRC_FILES}
 black --check ${SRC_FILES}
+codespell -I .codespell.skip --skip='*.pyc' ${SRC_FILES}
 
 if [ "$skipexpensive" != "true" ]; then
   pytype ${TYPECHECK_FILES}
