@@ -177,6 +177,7 @@ SYNTHETIC_TEST = {
 @pytest.mark.flaky(max_runs=3)
 class TestSynthetic:
     """Unit tests for evaluating_rewards.synthetic."""
+
     # pylint:disable=no-self-use
     # (Test class so can apply flaky with common config to all methods.)
     @common.mark_parametrize_dict("env_kwargs", ENVIRONMENTS)
@@ -319,4 +320,6 @@ class TestSynthetic:
                 some_noise = df.loc[df.index.get_level_values("Reward Noise") > 0.0]
                 rel = some_noise["Intrinsic"] / some_noise["Intrinsic Upper Bound"]
                 assert rel.max(axis=None) < (1 + 0.1 * fudge_factor)
+
+
 # pylint: enable=no-self-use

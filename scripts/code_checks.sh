@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019 Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,4 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pytest -n=auto -vv tests/
+# If you change these, also change .circle/config.yml.
+SRC_FILES="src/ tests/ setup.py"
+TYPECHECK_FILES="src/"  # tests often do weird things with types, exclude
+
+set -x  # echo commands
+set -e  # quit immediately on error
+
+flake8 ${SRC_FILES}
+black --check ${SRC_FILES}
+
+if [ "$skipexpensive" != "true" ]; then
+  pytype ${TYPECHECK_FILES}
+  pylint -j 0 ${SRC_FILES}
+fi
