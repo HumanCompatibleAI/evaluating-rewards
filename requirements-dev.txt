@@ -6,6 +6,7 @@ flake8-debugger
 flake8-isort
 isort
 pylint
+pytype
 pytest
 pytest-xdist
-pytype
+flaky

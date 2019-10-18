@@ -61,7 +61,7 @@ WORKDIR /evaluating-rewards
 # This minimizes how often this layer needs to be rebuilt.
 COPY ./ci /evaluating-rewards/ci
 COPY ./requirements.txt /evaluating-rewards
-COPY ./requirements-test.txt /evaluating-rewards
+COPY ./requirements-dev.txt /evaluating-rewards
 
 ENV VIRTUAL_ENV=/evaluating-rewards/venv
 # mjkey.txt needs to exist for build, but doesn't need to be a real key

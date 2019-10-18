@@ -199,4 +199,4 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
         pred_reward = rewards.evaluate_models({"m": reward_model}, batch)["m"]
 
     # Are the predictions close to true Gym reward?
-    np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=1e-5)
+    np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)

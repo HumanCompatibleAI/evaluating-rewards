@@ -17,4 +17,4 @@ PATH_TO_VENV=$1
 
 virtualenv -p python3.7 ${PATH_TO_VENV}
 source ${PATH_TO_VENV}/bin/activate
-pip install --no-cache-dir -r requirements.txt requirements-test.txt
+pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt

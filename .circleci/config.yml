@@ -10,8 +10,8 @@ executors:
       - image: humancompatibleai/evaluating_rewards:latest
     working_directory: /evaluating-rewards
     environment:
-      SRC_DIRS: src/ tests/
-      TYPECHECK_DIRS: src/  # tests often do weird things with types, exclude
+      SRC_FILES: src/ tests/ setup.py
+      TYPECHECK_FILES: src/  # tests often do weird things with types, exclude
 
 commands:
   dependencies:
@@ -25,7 +25,7 @@ commands:
       # binary (non-Python) dependencies change.
       - restore_cache:
           keys:
-            - v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-test.txt" }}
+            - v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
             # fallback to using the latest cache if no exact match is found
             - v1-dependencies-
 
@@ -34,7 +34,7 @@ commands:
           # MUJOCO_KEY is defined in a CircleCI context
           # Do some sanity checks to make sure key works
           command: |
-            pip install -r requirements.txt requirements-test.txt
+            pip install -r requirements.txt -r requirements-dev.txt
             pip install pytest-circleci-parallelized
             curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
             md5sum /root/.mujoco/mjkey.txt
@@ -43,7 +43,7 @@ commands:
       - save_cache:
           paths:
             - ./venv
-          key: v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-test.txt" }}
+          key: v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
 
 jobs:
   lintandtype:

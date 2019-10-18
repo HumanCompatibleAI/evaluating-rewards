@@ -34,7 +34,7 @@ setuptools.setup(
     package_data={"evaluating_rewards": ["py.typed"]},
     install_requires=load_requirements("requirements.txt"),
     extras_require={
-        "test": load_requirements("requirements-test.txt"),
+        "test": load_requirements("requirements-dev.txt"),
     },
     url="https://github.com/AdamGleave/evaluating_rewards",
     license="Apache License, Version 2.0",

@@ -30,7 +30,7 @@ from tests import common
 PM_REWARD_TYPES = {
     "ground_truth": {
         "target": "evaluating_rewards/PointMassGroundTruth-v0",
-        "loss_ub": 5e-3,
+        "loss_ub": 6.5e-3,
         "rel_loss_lb": 10,
     },
     "dense": {"target": "evaluating_rewards/PointMassDense-v0", "loss_ub": 4e-2, "rel_loss_lb": 10},
