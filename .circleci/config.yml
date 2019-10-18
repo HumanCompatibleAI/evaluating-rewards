@@ -69,7 +69,7 @@ jobs:
           name: Full test split
           command: pytest --collect-only --quiet | grep '::' | circleci tests split --split-by=timings --timings-type=testname
       - run:
-          name: Partial test split
+          name: Test split, colon separated
           command: |
             echo "tests/test_synthetic.py::TestSynthetic::test_identical[Linear-identity-Uniform5D]
             tests/test_synthetic.py::TestSynthetic::test_identical[Linear-identity-PointLine]
@@ -77,7 +77,34 @@ jobs:
             tests/test_synthetic.py::TestSynthetic::test_identical[Linear-random-Uniform5D]
             tests/test_synthetic.py::TestSynthetic::test_identical[Linear-random-PointLine]
             tests/test_synthetic.py::TestSynthetic::test_identical[Linear-random-PointGrid]" | \
-            circleci tests split --split-by=timings --timings-type=tsetname
+            circleci tests split --split-by=timings --timings-type=testname || true
+      - run:
+          name: Test split, classname colon separated
+          command: |
+            echo "tests.test_synthetic.TestSynthetic::test_identical[Linear-identity-Uniform5D]
+            tests.test_synthetic.TestSynthetic::test_identical[Linear-identity-PointLine]
+            tests.test_synthetic.TestSynthetic::test_identical[Linear-identity-PointGrid]
+            tests.test_synthetic.TestSynthetic::test_identical[Linear-random-Uniform5D]
+            tests.test_synthetic.TestSynthetic::test_identical[Linear-random-PointLine]
+            tests.test_synthetic.TestSynthetic::test_identical[Linear-random-PointGrid]" | \
+            circleci tests split --split-by=timings --timings-type=testname || true
+      - run:
+          name: Test split, classname dot separated
+          command: |
+            echo "tests.test_synthetic.TestSynthetic.test_identical[Linear-identity-Uniform5D]
+            tests.test_synthetic.TestSynthetic.test_identical[Linear-identity-PointLine]
+            tests.test_synthetic.TestSynthetic.test_identical[Linear-identity-PointGrid]
+            tests.test_synthetic.TestSynthetic.test_identical[Linear-random-Uniform5D]
+            tests.test_synthetic.TestSynthetic.test_identical[Linear-random-PointLine]
+            tests.test_synthetic.TestSynthetic.test_identical[Linear-random-PointGrid]" | \
+            circleci tests split --split-by=timings --timings-type=testname || true
+      - run:
+          name: Test split, testname only
+          command: |
+            echo "test_seed[evaluating_rewards/PointMassLine-v0]
+            test_rollout[evaluating_rewards/PointMassLine-v0]
+            test_regress[zero]" | \
+            circleci tests split --split-by=timings --timings-type=testname || true
       - run:
           name: Test reports
           command: cat /tmp/test-reports/junit.xml
