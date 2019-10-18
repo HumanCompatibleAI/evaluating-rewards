@@ -69,6 +69,15 @@ jobs:
           name: Full test split
           command: pytest --collect-only --quiet | grep '::' | circleci tests split --split-by=timings --timings-type=testname
       - run:
+          name: Classname test split
+          command: |
+            echo "tests.test_comparisons
+            tests.test_envs.TestEnvs
+            tests.test_rewards
+            tests.test_scripts
+            tests.test_synthetic.TestSynthetic" | \
+            circleci tests split --split-by=timings --timings-type=classname || true
+      - run:
           name: Test split, colon separated
           command: |
             echo "tests/test_synthetic.py::TestSynthetic::test_identical[Linear-identity-Uniform5D]
