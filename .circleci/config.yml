@@ -94,7 +94,7 @@ jobs:
       - run:
           name: run tests
           command: |
-            pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards \
+            pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
                    -n ${NUM_CPUS} --circleci-parallelize -vv tests/
             mv .coverage .coverage.eval
