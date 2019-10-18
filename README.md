@@ -1,3 +1,6 @@
+[![CircleCI](https://circleci.com/gh/HumanCompatibleAI/evaluating_rewards.svg?style=svg)](https://circleci.com/gh/HumanCompatibleAI/evaluating_rewards)
+[![codecov](https://codecov.io/gh/HumanCompatibleAI/evaluating_rewards/branch/master/graph/badge.svg)](https://codecov.io/gh/HumanCompatibleAI/evaluating_rewards)
+
 # Evaluating Rewards
 
 `evaluating_rewards` is a library implementing novel ways to evaluate and
