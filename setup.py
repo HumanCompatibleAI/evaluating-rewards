@@ -17,8 +17,10 @@
 import setuptools
 import src.evaluating_rewards
 
-with open("requirements.txt") as f:
-    install_requires = f.read().strip().split("\n")
+
+def load_requirements(fname):
+    with open(fname) as f:
+        return f.read().strip().split("\n")
 
 
 setuptools.setup(
@@ -30,7 +32,10 @@ setuptools.setup(
     packages=setuptools.find_packages("src"),
     package_dir={"": "src"},
     package_data={"evaluating_rewards": ["py.typed"]},
-    install_requires=install_requires,
+    install_requires=load_requirements("requirements.txt"),
+    extras_require={
+        "test": load_requirements("requirements-test.txt"),
+    },
     url="https://github.com/AdamGleave/evaluating_rewards",
     license="Apache License, Version 2.0",
     classifiers=[

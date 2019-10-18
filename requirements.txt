@@ -1,15 +1,4 @@
 absl-py
-pytest
-pytest-xdist
-isort
-black
-flake8
-flake8-blind-except
-flake8-builtins
-flake8-debugger
-flake8-isort
-pylint
-pytype
 gym
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git
 matplotlib
