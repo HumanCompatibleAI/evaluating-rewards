@@ -96,6 +96,7 @@ jobs:
           name: run tests
           command: |
             pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards \
+                   --junitxml=/tmp/test-reports/junit.xml \
                    --no-success-flaky-report -n 2 --circleci-parallelize -vv tests/
             mv .coverage .coverage.eval
             coverage combine  # rewrite paths from virtualenv to src/
