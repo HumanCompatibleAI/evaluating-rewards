@@ -60,6 +60,28 @@ commands:
           key: v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
 
 jobs:
+  debugtestsplit:
+    executor: my-executor
+
+    steps:
+      - dependencies
+      - run:
+          name: Full test split
+          command: pytest --collect-only --quiet | grep '::' | circleci tests split --split-by=timings --timings-type=testname
+      - run:
+          name: Partial test split
+          command: |
+            echo "tests/test_synthetic.py::TestSynthetic::test_identical[Linear-identity-Uniform5D]
+            tests/test_synthetic.py::TestSynthetic::test_identical[Linear-identity-PointLine]
+            tests/test_synthetic.py::TestSynthetic::test_identical[Linear-identity-PointGrid]
+            tests/test_synthetic.py::TestSynthetic::test_identical[Linear-random-Uniform5D]
+            tests/test_synthetic.py::TestSynthetic::test_identical[Linear-random-PointLine]
+            tests/test_synthetic.py::TestSynthetic::test_identical[Linear-random-PointGrid]" | \
+            circleci tests split --split-by=timings --timings-type=tsetname
+      - run:
+          name: Test reports
+          command: cat /tmp/test-reports/junit.xml
+
   lintandtype:
     executor: my-executor
 
@@ -112,6 +134,8 @@ workflows:
   version: 2
   test:
     jobs:
+      - debugtestsplit
+          context: MuJoCo
       - lintandtype:
           context: MuJoCo
       - unit-test:
