@@ -24,7 +24,11 @@ flake8 ${SRC_FILES}
 black --check ${SRC_FILES}
 codespell -I .codespell.skip --skip='*.pyc' ${SRC_FILES}
 
+if [ -x `which circleci` ]; then
+    circleci config validate
+fi
+
 if [ "$skipexpensive" != "true" ]; then
-  pytype ${TYPECHECK_FILES}
-  pylint -j 0 ${SRC_FILES}
+    pytype ${TYPECHECK_FILES}
+    pylint -j 0 ${SRC_FILES}
 fi
