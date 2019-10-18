@@ -25,6 +25,7 @@ executors:
       # If you change these, also change scripts/code_checks.sh
       SRC_FILES: src/ tests/ setup.py
       TYPECHECK_FILES: src/  # tests often do weird things with types, exclude
+      NUM_CPUS: 2  # more CPUs visible but we're throttled to 2, which breaks auto-detect
 
 commands:
   dependencies:
@@ -78,7 +79,7 @@ jobs:
 
       - run:
           name: pylint
-          command: pylint -j 0 ${SRC_FILES}
+          command: pylint -j ${NUM_CPUS} ${SRC_FILES}
 
       - run:
           name: pytype
@@ -90,14 +91,12 @@ jobs:
     steps:
       - dependencies
 
-      # TODO: test coverage
-      # TODO: test output
       - run:
           name: run tests
           command: |
             pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards \
-                   --junitxml=/tmp/test-reports/junit.xml \
-                   --no-success-flaky-report -n 2 --circleci-parallelize -vv tests/
+                   --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
+                   -n ${NUM_CPUS} --circleci-parallelize -vv tests/
             mv .coverage .coverage.eval
             coverage combine  # rewrite paths from virtualenv to src/
       - codecov/upload
@@ -113,8 +112,6 @@ workflows:
   version: 2
   test:
     jobs:
-      # TODO: consider adding a dependencies job just to ensure cache hit?
-      # probably not worth it as requirements.txt changes very rarely...
       - lintandtype:
           context: MuJoCo
       - unit-test:
