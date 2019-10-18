@@ -43,7 +43,7 @@ def mark_parametrize_kwargs(args, **kwargs):
     for key, test_cfg in args.items():
         ids.append(key)
         sorted_keys = sorted(test_cfg.keys())
-        if sorted_keys != argnames:
+        if sorted_keys != argnames:  # pragma: no cover
             raise ValueError(
                 "Invalid test configuration: inconsistent argument"
                 "names, f{test_cfg} != {argnames}."
