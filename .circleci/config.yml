@@ -13,6 +13,9 @@
 # limitations under the License.
 version: 2.1
 
+orbs:
+  codecov: codecov/codecov@1.0.5
+
 executors:
   my-executor:
     docker:
@@ -82,11 +85,17 @@ jobs:
     parallelism: 4
     steps:
       - dependencies
+
       # TODO: test coverage
       # TODO: test output
       - run:
           name: run tests
-          command: pytest -n 2 --circleci-parallelize -vv tests/
+          command: |
+            pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards \
+                   --no-success-flaky-report -n 2 --circleci-parallelize -vv tests/
+            mv .coverage .coverage.eval
+            coverage combine  # rewrite paths from virtualenv to src/
+      - codecov/upload
 
       - store_artifacts:
           path: /tmp/test-reports

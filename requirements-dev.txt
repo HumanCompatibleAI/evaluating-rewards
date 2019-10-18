@@ -1,4 +1,5 @@
 black
+codecov
 flake8
 flake8-blind-except
 flake8-builtins
@@ -8,5 +9,6 @@ isort
 pylint
 pytype
 pytest
+pytest-cov
 pytest-xdist
 flaky
