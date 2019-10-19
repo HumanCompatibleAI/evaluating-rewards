@@ -11,5 +11,6 @@ pylint
 pytype
 pytest
 pytest-cov
+pytest-shard
 pytest-xdist
 flaky

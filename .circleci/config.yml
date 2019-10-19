@@ -49,7 +49,6 @@ commands:
           # Do some sanity checks to make sure key works
           command: |
             pip install -r requirements.txt -r requirements-dev.txt
-            pip install pytest-circleci-parallelized
             curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
             md5sum /root/.mujoco/mjkey.txt
             python -c "import mujoco_py"
@@ -96,7 +95,8 @@ jobs:
           command: |
             pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
-                   -n ${NUM_CPUS} --circleci-parallelize -vv tests/
+                   --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
+                    -n ${NUM_CPUS} -vv tests/
             mv .coverage .coverage.eval
             coverage combine  # rewrite paths from virtualenv to src/
       - codecov/upload

@@ -88,7 +88,7 @@ ARCHITECTURES = {
             "total_timesteps": 2 ** 18,
             "batch_size": 256,
         },
-        "rel_upperbound": 0.1,
+        "rel_upperbound": 0.2,
     },
     "OneLayer": {
         "kwargs": {
