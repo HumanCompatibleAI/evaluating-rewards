@@ -16,11 +16,11 @@
 
 import abc
 import itertools
+import logging
 import os
 import pickle
 from typing import Dict, Iterable, Mapping, NamedTuple, Optional, Sequence, Tuple, Type, TypeVar
 
-from absl import logging
 import gym
 from imitation.rewards import reward_net
 from imitation.util import rollout, serialize

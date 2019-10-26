@@ -17,7 +17,6 @@
 import functools
 from typing import Any, Mapping
 
-from absl import app
 from imitation.policies import serialize as policies_serialize
 from imitation.util import util
 import sacred
@@ -121,5 +120,4 @@ def train_preferences(
 
 
 if __name__ == "__main__":
-    main = script_utils.make_main(train_preferences_ex, "train_preferences")
-    app.run(main)
+    script_utils.experiment_main(train_preferences_ex, "train_preferences")

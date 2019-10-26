@@ -18,7 +18,6 @@ import functools
 import os
 from typing import Any, Dict, Mapping
 
-from absl import app
 import sacred
 import tensorflow as tf
 
@@ -192,5 +191,4 @@ def model_comparison(
 
 
 if __name__ == "__main__":
-    main = script_utils.make_main(model_comparison_ex, "model_comparison")
-    app.run(main)
+    script_utils.experiment_main(model_comparison_ex, "model_comparison")

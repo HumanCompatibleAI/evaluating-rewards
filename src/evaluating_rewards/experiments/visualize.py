@@ -15,11 +15,11 @@
 """Methods to generate plots and visualize data."""
 
 import json
+import logging
 import os
 import re
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
 
-from absl import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

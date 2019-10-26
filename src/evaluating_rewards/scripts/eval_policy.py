@@ -14,13 +14,10 @@
 
 """Thin wrapper around imitation.scripts.eval_policy."""
 
-# Imported for side-effect (registers policy with imitation)
-from absl import app
-from imitation.scripts import eval_policy  # pylint: disable=unused-import
+from imitation.scripts import eval_policy
 
 from evaluating_rewards.scripts import script_utils
 
 if __name__ == "__main__":
     script_utils.add_logging_config(eval_policy.eval_policy_ex, "eval_policy")
-    main = script_utils.make_main(eval_policy.eval_policy_ex, "eval_policy")
-    app.run(main)
+    script_utils.experiment_main(eval_policy.eval_policy_ex, "eval_policy")
