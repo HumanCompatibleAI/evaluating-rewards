@@ -21,8 +21,7 @@ from typing import Any, Dict
 
 import numpy as np
 
-from evaluating_rewards import comparisons, rewards
-from evaluating_rewards.experiments import datasets
+from evaluating_rewards import comparisons, datasets, rewards
 
 
 def norm_diff(predicted: np.ndarray, actual: np.ndarray, norm: int):

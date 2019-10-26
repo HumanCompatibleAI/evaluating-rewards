@@ -24,9 +24,8 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from evaluating_rewards import rewards, serialize
+from evaluating_rewards import datasets, rewards, serialize
 from evaluating_rewards.envs import mujoco, point_mass
-from evaluating_rewards.experiments import datasets
 from tests import common
 
 ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
