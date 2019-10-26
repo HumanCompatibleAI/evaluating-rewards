@@ -48,7 +48,7 @@ commands:
           # MUJOCO_KEY is defined in a CircleCI context
           # Do some sanity checks to make sure key works
           command: |
-            pip install -r requirements.txt -r requirements-dev.txt
+            pip install --upgrade -r requirements.txt -r requirements-dev.txt
             curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
             md5sum /root/.mujoco/mjkey.txt
             python -c "import mujoco_py"
