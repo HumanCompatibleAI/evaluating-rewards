@@ -290,7 +290,8 @@ class PointMazeReward(MujocoHardcodedReward):
         Returns:
             A tensor containing reward, shape (batch_size,).
         """
-        assert self.observation_space.shape == (6,)
+        # Two versions, one without velocity (3,) and one with velocity (6,)
+        assert self.observation_space.shape in [(3,), (6,)]
         particle_pos = self._proc_obs[:, 0:3]  # 3:6 is velocity
         reward_dist = tf.norm(particle_pos - self.target, axis=-1)
         reward_ctrl = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
