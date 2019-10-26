@@ -60,9 +60,10 @@ commands:
 
       - run:
           name: install evaluating_rewards
+          # Build a wheel then install to avoid copying whole directory (pip issue #2195)
           command: |
             python setup.py sdist bdist_wheel
-            pip install dist/evaluating_rewards-*.whl
+            pip install --upgrade dist/evaluating_rewards-*.whl
 
 jobs:
   lintandtype:

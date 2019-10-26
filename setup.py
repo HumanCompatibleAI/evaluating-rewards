@@ -28,6 +28,7 @@ setuptools.setup(
     version=src.evaluating_rewards.__version__,
     description="Evaluating and comparing reward models.",
     author="DeepMind Technologies Limited and Adam Gleave",
+    author_email="adam@gleave.me",
     python_requires=">=3.6.0",
     packages=setuptools.find_packages("src"),
     package_dir={"": "src"},
