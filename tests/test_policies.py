@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for evaluating_rewards.datasets."""
+"""Unit tests for evaluating_rewards.policies."""
 
 from typing import Sequence, Set, Tuple
 
@@ -21,7 +21,7 @@ from imitation.policies import base
 import numpy as np
 import pytest
 
-from evaluating_rewards import datasets
+from evaluating_rewards import policies
 
 
 class FixedPolicy(base.HardCodedPolicy):  # pylint:disable=abstract-method
@@ -40,14 +40,14 @@ class FixedPolicy(base.HardCodedPolicy):  # pylint:disable=abstract-method
 def test_policy_mixture_validation():
     """Test input validation."""
     with pytest.raises(ValueError):
-        datasets.PolicyMixture(pols=[])
+        policies.PolicyMixture(pols=[])
 
     space1 = gym.spaces.Box(low=0, high=1, shape=(2,))
     space2 = gym.spaces.Box(low=0, high=1, shape=(3,))
     space3 = gym.spaces.Box(low=0, high=0.5, shape=(2,))
 
     with pytest.raises(ValueError):
-        datasets.PolicyMixture(
+        policies.PolicyMixture(
             pols=[
                 FixedPolicy(space1, space1, [0.5, 0.5]),
                 FixedPolicy(space2, space2, [0.5, 0.5, 0.5]),
@@ -55,7 +55,7 @@ def test_policy_mixture_validation():
         )
 
     with pytest.raises(ValueError):
-        datasets.PolicyMixture(
+        policies.PolicyMixture(
             pols=[FixedPolicy(space1, space1, [0.5, 0.5]), FixedPolicy(space2, space3, [0.5, 0.5])]
         )
 
@@ -65,8 +65,8 @@ def _test_policy_mixture(
 ) -> Tuple[Sequence[np.ndarray], Set[np.ndarray]]:
     space = gym.spaces.Box(low=0, high=1, shape=(2,))
     fixed_vals = np.array([space.sample() for _ in range(n_policies)])
-    policies = [FixedPolicy(space, space, fixed_val) for fixed_val in fixed_vals]
-    mixture = datasets.PolicyMixture(pols=policies, transition_p=transition_p)
+    pols = [FixedPolicy(space, space, fixed_val) for fixed_val in fixed_vals]
+    mixture = policies.PolicyMixture(pols=pols, transition_p=transition_p)
 
     actions = []
     for _ in range(n_steps):
