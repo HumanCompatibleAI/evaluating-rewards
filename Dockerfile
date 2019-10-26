@@ -59,13 +59,13 @@ ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/root/.mujoco/mujoco200/bin
 WORKDIR /evaluating-rewards
 # Copy only necessary dependencies to build virtual environment.
 # This minimizes how often this layer needs to be rebuilt.
-COPY ./ci /evaluating-rewards/ci
+COPY ./scripts /evaluating-rewards/scripts
 COPY ./requirements.txt /evaluating-rewards
 COPY ./requirements-dev.txt /evaluating-rewards
 
 ENV VIRTUAL_ENV=/evaluating-rewards/venv
 # mjkey.txt needs to exist for build, but doesn't need to be a real key
-RUN touch /root/.mujoco/mjkey.txt && /evaluating-rewards/ci/build_venv.sh $VIRTUAL_ENV
+RUN touch /root/.mujoco/mjkey.txt && /evaluating-rewards/scripts/build_venv.sh $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Delay copying (and installing) the code until the very end
@@ -75,4 +75,4 @@ RUN python setup.py sdist bdist_wheel
 RUN pip install dist/evaluating_rewards-*.whl
 
 # Default entrypoints
-CMD ["ci/run_tests.sh"]
+CMD ["pytest -n auto -vv tests/"]
