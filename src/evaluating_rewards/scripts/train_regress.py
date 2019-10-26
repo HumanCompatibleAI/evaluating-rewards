@@ -19,8 +19,7 @@ from typing import Any, Dict, Mapping
 
 import sacred
 
-from evaluating_rewards import comparisons, rewards
-from evaluating_rewards.experiments import datasets
+from evaluating_rewards import comparisons, datasets, rewards
 from evaluating_rewards.scripts import regress_utils, script_utils
 
 train_regress_ex = sacred.Experiment("train_regress")

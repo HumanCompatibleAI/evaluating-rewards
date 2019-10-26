@@ -1,5 +1,5 @@
 gym
-imitation @ git+https://github.com/HumanCompatibleAI/imitation.git
+imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@a6faef8
 matplotlib
 mujoco_py
 numpy

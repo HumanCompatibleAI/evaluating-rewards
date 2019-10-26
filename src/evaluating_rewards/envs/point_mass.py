@@ -103,7 +103,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
 
     def render(self, mode="human"):
         if self.viewer is None:
-            from gym.envs.classic_control import rendering
+            from gym.envs.classic_control import rendering  # pylint:disable=import-outside-toplevel
 
             self.viewer = rendering.Viewer(500, 500)
             self.viewer.set_bounds(-5, 5, -5, 5)

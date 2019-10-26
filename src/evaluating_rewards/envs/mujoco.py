@@ -249,7 +249,7 @@ class HopperBackflipReward(MujocoHardcodedReward):
 
 
 class PointMazeReward(MujocoHardcodedReward):
-    """Reward for imitation/PointMaze{Left,Right}-v0.
+    """Reward for imitation/PointMaze{Left,Right}Vel-v0.
 
     This in turn is based on on Fu et al (2018)'s PointMaze environment:
     https://arxiv.org/pdf/1710.11248.pdf
@@ -290,9 +290,10 @@ class PointMazeReward(MujocoHardcodedReward):
         Returns:
             A tensor containing reward, shape (batch_size,).
         """
-        assert self.observation_space.shape == (3,)
-        particle = self._proc_obs[:, 0:3]
-        reward_dist = tf.norm(particle - self.target, axis=-1)
+        # Two versions, one without velocity (3,) and one with velocity (6,)
+        assert self.observation_space.shape in [(3,), (6,)]
+        particle_pos = self._proc_obs[:, 0:3]  # 3:6 is velocity
+        reward_dist = tf.norm(particle_pos - self.target, axis=-1)
         reward_ctrl = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
         reward = -reward_dist - self.ctrl_coef * reward_ctrl
         return reward
