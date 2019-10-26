@@ -25,9 +25,8 @@ import numpy as np
 import seaborn as sns
 import xarray
 
-from evaluating_rewards import rewards
+from evaluating_rewards import datasets, rewards
 from evaluating_rewards.envs import point_mass
-from evaluating_rewards.experiments import datasets
 
 
 def plot_reward(rew: xarray.DataArray, cmap: str = "RdBu", **kwargs) -> plt.Figure:

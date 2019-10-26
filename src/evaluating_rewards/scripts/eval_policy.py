@@ -14,10 +14,11 @@
 
 """Thin wrapper around imitation.scripts.eval_policy."""
 
-# Imported for side-effect (registers policy with imitation)
 from absl import app
-from imitation.scripts import eval_policy  # pylint: disable=unused-import
+from imitation.scripts import eval_policy
 
+# Imported for side-effect (registers policies we may want to use)
+from evaluating_rewards import policies  # pylint:disable=unused-import # noqa: F401
 from evaluating_rewards.scripts import script_utils
 
 if __name__ == "__main__":

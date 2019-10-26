@@ -23,8 +23,8 @@ REWARDS_BY_ENV = {
     "evaluating_rewards/HalfCheetah-v3": ["evaluating_rewards/HalfCheetahGroundTruth.*-v0"],
     "evaluating_rewards/Hopper-v3": ["evaluating_rewards/Hopper.*-v0"],
     "evaluating_rewards/PointMassLine-v0": ["evaluating_rewards/PointMass.*-v0"],
-    "imitation/PointMazeLeft-v0": ["evaluating_rewards/PointMaze.*-v0"],
-    "imitation/PointMazeRight-v0": ["evaluating_rewards/PointMaze.*-v0"],
+    "imitation/PointMazeLeftVel-v0": ["evaluating_rewards/PointMaze.*-v0"],
+    "imitation/PointMazeRightVel-v0": ["evaluating_rewards/PointMaze.*-v0"],
 }
 GENERIC_REWARDS = ["evaluating_rewards/Zero-v0"]
 for env_name in REWARDS_BY_ENV:

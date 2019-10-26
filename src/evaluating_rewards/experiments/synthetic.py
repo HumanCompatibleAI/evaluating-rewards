@@ -27,8 +27,7 @@ import pandas as pd
 import scipy as sp
 import tensorflow as tf
 
-from evaluating_rewards import comparisons, rewards
-from evaluating_rewards.experiments import datasets
+from evaluating_rewards import comparisons, datasets, rewards
 
 TensorCallable = Callable[..., tf.Tensor]
 

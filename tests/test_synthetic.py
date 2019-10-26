@@ -28,9 +28,9 @@ import pandas as pd
 import pytest
 import tensorflow as tf
 
-from evaluating_rewards import rewards
+from evaluating_rewards import datasets, rewards
 from evaluating_rewards.envs import point_mass
-from evaluating_rewards.experiments import datasets, synthetic
+from evaluating_rewards.experiments import synthetic
 from tests import common
 
 

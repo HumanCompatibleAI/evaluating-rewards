@@ -22,8 +22,7 @@ from absl import app
 import sacred
 import tensorflow as tf
 
-from evaluating_rewards import comparisons, serialize
-from evaluating_rewards.experiments import datasets
+from evaluating_rewards import comparisons, datasets, serialize
 from evaluating_rewards.scripts import regress_utils, script_utils
 
 model_comparison_ex = sacred.Experiment("model_comparison")

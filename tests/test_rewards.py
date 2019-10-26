@@ -24,9 +24,8 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from evaluating_rewards import rewards, serialize
+from evaluating_rewards import datasets, rewards, serialize
 from evaluating_rewards.envs import mujoco, point_mass
-from evaluating_rewards.experiments import datasets
 from tests import common
 
 ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
@@ -48,7 +47,7 @@ STANDALONE_REWARD_MODELS = {
         "kwargs": {},
     },
     "point_maze_ground_truth": {
-        "env_name": "imitation/PointMazeLeft-v0",
+        "env_name": "imitation/PointMazeLeftVel-v0",
         "model_class": mujoco.PointMazeReward,
         "kwargs": {"target": np.array([0.3, 0.3, 0])},
     },
@@ -92,7 +91,7 @@ GROUND_TRUTH = {
         "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
     ),
     "point_maze": (
-        "imitation/PointMazeLeft-v0",
+        "imitation/PointMazeLeftVel-v0",
         "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
     ),
 }
