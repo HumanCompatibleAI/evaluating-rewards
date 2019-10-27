@@ -18,8 +18,8 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${DIR}/common.sh
 
-ENV_TRAIN="imitation/PointMazeLeft-v0"
-ENV_TEST="imitation/PointMazeRight-v0"
+ENV_TRAIN="imitation/PointMazeLeftVel-v0"
+ENV_TEST="imitation/PointMazeRightVel-v0"
 ENVS="${ENV_TRAIN} ${ENV_TEST}"
 ENVS_SANITIZED=$(echo ${ENVS} | sed -e 's/\//_/g')
 TARGET_REWARD_TYPE="evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"
