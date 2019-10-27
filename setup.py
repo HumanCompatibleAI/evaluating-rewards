@@ -15,7 +15,6 @@
 """Install script for setuptools."""
 
 import setuptools
-import src.evaluating_rewards
 
 
 def load_requirements(fname):
@@ -25,7 +24,7 @@ def load_requirements(fname):
 
 setuptools.setup(
     name="evaluating_rewards",
-    version=src.evaluating_rewards.__version__,
+    version="0.1a",
     description="Evaluating and comparing reward models.",
     author="DeepMind Technologies Limited and Adam Gleave",
     author_email="adam@gleave.me",
