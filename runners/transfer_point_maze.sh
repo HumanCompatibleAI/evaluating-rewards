@@ -24,14 +24,18 @@ ENVS="${ENV_TRAIN} ${ENV_TEST}"
 ENVS_SANITIZED=$(echo ${ENVS} | sed -e 's/\//_/g')
 TARGET_REWARD_TYPE="evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"
 RL_TIMESTEPS=200000
+N_STEPS=2048
+NORMALIZE=False
 PM_OUTPUT=${OUTPUT_ROOT}/transfer_point_maze
 SEED=42
+TRANSITION_P=0.05
 
 
 # Step 0) Train Policies on Ground Truth
 # This acts as a baseline, and the demonstrations are needed for IRL.
 
 EXPERT_DEMO_CMD="$(call_script "expert_demos" "with") seed=${SEED} \
+    normalize=${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
     total_timesteps=${RL_TIMESTEPS} reward_type=${TARGET_REWARD_TYPE}"
 ${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train&
 ${EXPERT_DEMO_CMD} env_name=${ENV_TEST} log_dir=${PM_OUTPUT}/expert/test&
@@ -42,12 +46,14 @@ wait
 
 # Direct Methods: Preference Comparison and Reward Regression
 # These can learn directly from the reward model
+
+MIXED_POLICY_PATH=${TRANSITION_P}:random:dummy:ppo2:${PM_OUTPUT}/expert/train/policies/final
 $(call_script "train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/preferences \
-    policy_type=ppo2 policy_path=${PM_OUTPUT}/expert/train/policies/final&
+    policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 $(call_script "train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
-    policy_type=ppo2 policy_path=${PM_OUTPUT}/expert/train/policies/final&
+    policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 
 # IRL: uses demonstrations from previous part
 for state_only in True False; do
@@ -78,6 +84,7 @@ for name in comparison_expert comparison_random; do
     seed={seed} source_reward_type={source_reward_type} \
     source_reward_path=${PM_OUTPUT}/reward/{source_reward_path}/{source_reward_suffix} \
     target_reward_type=${TARGET_REWARD_TYPE} \
+    dataset_factory_kwargs.policy_type=mixture dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH} \
     log_dir=${PM_OUTPUT}/${name}/{source_reward_path}/{seed} \
     ::: source_reward_type evaluating_rewards/Zero-v0 \
         evaluating_rewards/RewardModel-v0 evaluating_rewards/RewardModel-v0 \
@@ -92,6 +99,7 @@ done
 
 parallel --header : --results ${PM_OUTPUT}/parallel/transfer \
   $(call_script "expert_demos" "with") total_timesteps=${RL_TIMESTEPS} \
+  normalize=${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
   env_name={env} seed={seed} reward_type={reward_type} \
   reward_path=${PM_OUTPUT}/reward/{reward_path}/{reward_suffix} \
   log_dir=${PM_OUTPUT}/policy/{env_sanitized}/{reward_path}/{seed} \
