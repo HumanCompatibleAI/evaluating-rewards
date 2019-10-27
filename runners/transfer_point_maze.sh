@@ -89,11 +89,18 @@ wait
 
 # Step 2a) Compare Reward Models
 
-for name in comparison_expert comparison_random; do
-  extra_flags=""
+for name in comparison_expert comparison_mixture comparison_random; do
   if [[ ${name} == "comparison_expert" ]]; then
     extra_flags="dataset_factory_kwargs.policy_type=ppo2 \
                  dataset_factory_kwargs.policy_path=${PM_OUTPUT}/expert/train/policies/final"
+  elif [[ ${name} == "comparison_mixture" ]]; then
+    extra_flags="dataset_factory_kwargs.policy_type=mixture \
+                 dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}"
+  elif [[ ${name} == "comparison_random" ]]; then
+    extra_flags=""
+  else
+    echo "BUG: unknown name ${name}"
+    exit 1
   fi
   parallel --header : --results ${PM_OUTPUT}/parallel/${name} \
     $(call_script "model_comparison" "with") \
@@ -101,7 +108,6 @@ for name in comparison_expert comparison_random; do
     seed={seed} source_reward_type={source_reward_type} \
     source_reward_path=${PM_OUTPUT}/reward/{source_reward_path}/{source_reward_suffix} \
     target_reward_type=${TARGET_REWARD_TYPE} \
-    dataset_factory_kwargs.policy_type=mixture dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH} \
     ${COMPARISON_TIMESTEPS} log_dir=${PM_OUTPUT}/${name}/{source_reward_path}/{seed} \
     ::: source_reward_type evaluating_rewards/Zero-v0 \
         evaluating_rewards/RewardModel-v0 evaluating_rewards/RewardModel-v0 \
