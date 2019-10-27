@@ -30,15 +30,15 @@ TRANSITION_P=0.05
 
 if [[ ${fast} == "true" ]]; then
   # intended for debugging
-  RL_TIMESTEPS=16384
-  IRL_EPOCHS="with n_epochs=5"
-  PREFERENCES_TIMESTEPS="with total_timesteps=16384"
-  REGRESS_TIMESTESP="with total_timesteps=16384"
-  COMPARISON_TIMESTEPS="with total_timesteps=16384"
+  RL_TIMESTEPS="total_timesteps=16384"
+  IRL_EPOCHS="n_epochs=5"
+  PREFERENCES_TIMESTEPS="fast"
+  REGRESS_TIMESTEPS="fast"
+  COMPARISON_TIMESTEPS="fast"
   EVAL_TIMESTEPS=4096
   PM_OUTPUT=${OUTPUT_ROOT}/transfer_point_maze_fast
 else
-  RL_TIMESTEPS=200000
+  RL_TIMESTEPS=""
   IRL_EPOCHS=""
   PREFERENCES_TIMESTEPS=""
   REGRESS_TIMESTEPS=""
@@ -53,7 +53,7 @@ fi
 
 EXPERT_DEMO_CMD="$(call_script "expert_demos" "with") seed=${SEED} \
     normalize=${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
-    total_timesteps=${RL_TIMESTEPS} reward_type=${TARGET_REWARD_TYPE}"
+    ${RL_TIMESTEPS} reward_type=${TARGET_REWARD_TYPE}"
 ${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train&
 ${EXPERT_DEMO_CMD} env_name=${ENV_TEST} log_dir=${PM_OUTPUT}/expert/test&
 
@@ -115,7 +115,7 @@ done
 # Step 2b) Train Policies on Learnt Reward Models
 
 parallel --header : --results ${PM_OUTPUT}/parallel/transfer \
-  $(call_script "expert_demos" "with") total_timesteps=${RL_TIMESTEPS} \
+  $(call_script "expert_demos" "with") ${RL_TIMESTEPS} \
   normalize=${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
   env_name={env} seed={seed} reward_type={reward_type} \
   reward_path=${PM_OUTPUT}/reward/{reward_path}/{reward_suffix} \
