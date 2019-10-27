@@ -21,4 +21,7 @@ def _register_policies():
     # import inside function so as not to pollute global namespace
     from imitation.policies import serialize  # pylint:disable=import-outside-toplevel
     serialize.policy_registry.register("mixture",
-                                       indirect="evaluating_rewards.policies.load_mixture")
+                                       indirect="evaluating_rewards.policies:load_mixture")
+
+
+_register_policies()
