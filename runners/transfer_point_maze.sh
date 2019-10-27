@@ -23,12 +23,29 @@ ENV_TEST="imitation/PointMazeRightVel-v0"
 ENVS="${ENV_TRAIN} ${ENV_TEST}"
 ENVS_SANITIZED=$(echo ${ENVS} | sed -e 's/\//_/g')
 TARGET_REWARD_TYPE="evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"
-RL_TIMESTEPS=200000
 N_STEPS=2048
 NORMALIZE=False
-PM_OUTPUT=${OUTPUT_ROOT}/transfer_point_maze
 SEED=42
 TRANSITION_P=0.05
+
+if [[ ${fast} == "true" ]]; then
+  # intended for debugging
+  RL_TIMESTEPS=16384
+  IRL_EPOCHS="with n_epochs=5"
+  PREFERENCES_TIMESTEPS="with total_timesteps=16384"
+  REGRESS_TIMESTESP="with total_timesteps=16384"
+  COMPARISON_TIMESTEPS="with total_timesteps=16384"
+  EVAL_TIMESTEPS=4096
+  PM_OUTPUT=${OUTPUT_ROOT}/transfer_point_maze_fast
+else
+  RL_TIMESTEPS=200000
+  IRL_EPOCHS=""
+  PREFERENCES_TIMESTEPS=""
+  REGRESS_TIMESTEPS=""
+  COMPARISON_TIMESTEPS=""
+  EVAL_TIMESTEPS=100000
+  PM_OUTPUT=${OUTPUT_ROOT}/transfer_point_maze
+fi
 
 
 # Step 0) Train Policies on Ground Truth
@@ -50,10 +67,10 @@ wait
 MIXED_POLICY_PATH=${TRANSITION_P}:random:dummy:ppo2:${PM_OUTPUT}/expert/train/policies/final
 $(call_script "train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/preferences \
-    policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
+    ${PREFERENCES_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 $(call_script "train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
-    policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
+    ${REGRESS_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 
 # IRL: uses demonstrations from previous part
 for state_only in True False; do
@@ -65,7 +82,7 @@ for state_only in True False; do
   $(call_script "train_adversarial" "with") env_name=${ENV_TRAIN} seed=${SEED} \
       init_trainer_kwargs.reward_kwargs.state_only=${state_only} \
       rollout_path=${PM_OUTPUT}/expert/train/rollouts/final.pkl \
-      log_dir=${PM_OUTPUT}/reward/irl_${name}&
+      ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
 done
 
 wait
@@ -85,7 +102,7 @@ for name in comparison_expert comparison_random; do
     source_reward_path=${PM_OUTPUT}/reward/{source_reward_path}/{source_reward_suffix} \
     target_reward_type=${TARGET_REWARD_TYPE} \
     dataset_factory_kwargs.policy_type=mixture dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH} \
-    log_dir=${PM_OUTPUT}/${name}/{source_reward_path}/{seed} \
+    ${COMPARISON_TIMESTEPS} log_dir=${PM_OUTPUT}/${name}/{source_reward_path}/{seed} \
     ::: source_reward_type evaluating_rewards/Zero-v0 \
         evaluating_rewards/RewardModel-v0 evaluating_rewards/RewardModel-v0 \
         imitation/RewardNet_unshaped-v0 imitation/RewardNet_unshaped-v0 \
@@ -118,8 +135,8 @@ wait
 for env in ${ENVS}; do
   env_sanitized=$(echo ${env} | sed -e 's/\//_/g')
   parallel --header : --results $HOME/output/parallel/learnt \
-           $(call_script "eval_policy" "with") rendder=False num_vec=8 \
-           eval_n_timesteps=100000 policy_type=ppo2 env_name=${env} \
+           $(call_script "eval_policy" "with") render=False num_vec=8 \
+           eval_n_timesteps=${EVAL_TIMESTEPS} policy_type=ppo2 env_name=${env} \
            reward_type=${TARGET_REWARD_TYPE} \
            policy_path={policy_path}/policies/final \
            log_dir=${PM_OUTPUT}/policy_eval/{policy_path} \
