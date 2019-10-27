@@ -17,15 +17,12 @@
 Outputs a bash-style dictionary suitable for experiment scripts.
 """
 
-from absl import app
-
 # Imported for side-effect of registering custom environments with Gym
 from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
 from evaluating_rewards.experiments import env_rewards
 
 
-def main(argv):
-    del argv
+def main():
     print("declare -A REWARDS_BY_ENV=(")
     for env_name, patterns in env_rewards.REWARDS_BY_ENV.items():
         rewards = env_rewards.find_rewards(patterns)
@@ -35,4 +32,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    app.run(main)
+    main()

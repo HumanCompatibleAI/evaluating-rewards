@@ -20,7 +20,6 @@ Note most environments are too high-dimensional to directly visualize reward.
 import os
 from typing import Any, Mapping, Sequence, Tuple
 
-from absl import app
 import gym
 from imitation import util
 import numpy as np
@@ -183,5 +182,4 @@ def visualize_pm_reward(
 
 
 if __name__ == "__main__":
-    main = script_utils.make_main(visualize_pm_reward_ex, "visualize_pm_reward")
-    app.run(main)
+    script_utils.experiment_main(visualize_pm_reward_ex, "visualize_pm_reward")

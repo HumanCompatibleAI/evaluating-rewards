@@ -15,10 +15,10 @@
 """Load reward models of different types."""
 
 import contextlib
+import logging
 from typing import Callable, Iterator
 import uuid
 
-from absl import logging
 from imitation.rewards import reward_net, serialize
 from imitation.util import registry
 from imitation.util import serialize as util_serialize

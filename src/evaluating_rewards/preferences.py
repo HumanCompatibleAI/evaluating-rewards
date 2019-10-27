@@ -22,10 +22,10 @@ reward model, not an ensemble, with no prioritized sampling. 3) No adaptive
 regularization based on validation accuracy.
 """
 
+import logging
 import math
 from typing import Any, Dict, Iterable, List, NamedTuple, Sequence, Type
 
-from absl import logging
 from imitation.util import rollout
 import numpy as np
 import pandas as pd

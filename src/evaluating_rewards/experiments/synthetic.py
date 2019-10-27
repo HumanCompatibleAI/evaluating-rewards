@@ -18,9 +18,9 @@ See Colab notebook for use cases.
 """
 
 import functools
+import logging
 from typing import Any, Callable, Iterable, List, Mapping, Optional, Tuple, Type
 
-from absl import logging
 import gym
 import numpy as np
 import pandas as pd

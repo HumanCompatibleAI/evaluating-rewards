@@ -1,4 +1,3 @@
-absl-py
 gym
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@a6faef8
 matplotlib

@@ -50,15 +50,11 @@ def add_sacred_symlink(observer: observers.FileStorageObserver):
     return f
 
 
-def make_main(experiment, name):
+def experiment_main(experiment, name):
     """Returns a main function for experiment."""
 
-    def main(argv):
-        # TODO(): this writes output to disk, which may fail on some VMs
-        sacred_dir = os.path.join(get_output_dir(), "sacred", name)
-        observer = observers.FileStorageObserver.create(sacred_dir)
-        experiment.observers.append(observer)
-        experiment.pre_run_hook(add_sacred_symlink(observer))
-        experiment.run_commandline(argv)
-
-    return main
+    sacred_dir = os.path.join(get_output_dir(), "sacred", name)
+    observer = observers.FileStorageObserver.create(sacred_dir)
+    experiment.observers.append(observer)
+    experiment.pre_run_hook(add_sacred_symlink(observer))
+    experiment.run_commandline()

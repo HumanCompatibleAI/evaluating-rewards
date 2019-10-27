@@ -17,7 +17,6 @@
 import functools
 from typing import Any, Dict, Mapping
 
-from absl import app
 import sacred
 
 from evaluating_rewards import comparisons, datasets, rewards
@@ -118,5 +117,4 @@ def train_regress(
 
 
 if __name__ == "__main__":
-    main = script_utils.make_main(train_regress_ex, "train_regress")
-    app.run(main)
+    script_utils.experiment_main(train_regress_ex, "train_regress")
