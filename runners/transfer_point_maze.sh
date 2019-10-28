@@ -24,7 +24,7 @@ ENVS="${ENV_TRAIN} ${ENV_TEST}"
 ENVS_SANITIZED=$(echo ${ENVS} | sed -e 's/\//_/g')
 TARGET_REWARD_TYPE="evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"
 N_STEPS=2048
-NORMALIZE=False
+NORMALIZE="normalize_kwargs.norm_obs=False"  # normalize reward still, but not observations
 SEED=42
 TRANSITION_P=0.05
 
@@ -52,7 +52,7 @@ fi
 # This acts as a baseline, and the demonstrations are needed for IRL.
 
 EXPERT_DEMO_CMD="$(call_script "expert_demos" "with") seed=${SEED} \
-    normalize=${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
+    ${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
     ${RL_TIMESTEPS} reward_type=${TARGET_REWARD_TYPE}"
 ${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train&
 ${EXPERT_DEMO_CMD} env_name=${ENV_TEST} log_dir=${PM_OUTPUT}/expert/test&
@@ -122,7 +122,7 @@ done
 
 parallel --header : --results ${PM_OUTPUT}/parallel/transfer \
   $(call_script "expert_demos" "with") ${RL_TIMESTEPS} \
-  normalize=${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
+  ${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
   env_name={env} seed={seed} reward_type={reward_type} \
   reward_path=${PM_OUTPUT}/reward/{reward_path}/{reward_suffix} \
   log_dir=${PM_OUTPUT}/policy/{env_sanitized}/{reward_path}/{seed} \
