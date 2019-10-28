@@ -135,6 +135,8 @@ def _find_sacred_parent(
     parent = path
     while parent and not os.path.exists(os.path.join(parent, "sacred", "config.json")):
         parent = os.path.dirname(parent)
+        if parent == "/":
+            parent = ""
     if not parent:
         raise ValueError(f"No parent of '{path}' contains a Sacred directory.")
 
@@ -155,38 +157,47 @@ def _find_sacred_parent(
     return config, run, parent
 
 
-def path_to_config(index: Iterable[str]) -> pd.DataFrame:
+HARDCODED_TYPES = ["evaluating_rewards/Zero-v0"]
+
+
+def path_to_config(types: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
     """Extracts relevant config parameters from paths in index.
 
     Args:
-        index: An index of paths.
+        types: An index of typses.
+        paths: An index of paths.
 
     Returns:
         A MultiIndex consisting of original reward type and seed(s).
     """
     seen = {}
     res = []
-    for path in index:
-        config, run, path = _find_sacred_parent(path, seen)
+    assert len(types) == len(paths)
+    for (type, path) in zip(types, paths):
 
-        if "target_reward_type" in config:
-            # Learning directly from a reward: e.g. train_{regress,preferences}
-            pretty_type = {"train_regress": "regress", "train_preferences": "preferences"}
-            model_type = pretty_type[run["command"]]
-            res.append((config["target_reward_type"], model_type, config["seed"], 0))
-        elif "rollout_path" in config:
-            # Learning from demos: e.g. train_adversarial
-            rollout_config, _, _ = _find_sacred_parent(config["rollout_path"], seen)
-            reward_type = rollout_config["reward_type"] or "EnvReward"
-            reward_args = config["init_trainer_kwargs"]["reward_kwargs"]
-            state_only = reward_args.get("state_only", False)
-            model_type = "IRL" + ("-SO" if state_only else "-SA")
-            res.append((reward_type, model_type, config["seed"], rollout_config["seed"]))
+        if type in HARDCODED_TYPES:
+            res.append((type, "hardcoded", 0, 0))
+            continue
         else:
-            raise ValueError(
-                f"Unexpected config at '{path}': does not contain "
-                "'source_reward_type' or 'rollout_path'"
-            )
+            config, run, path = _find_sacred_parent(path, seen)
+            if "target_reward_type" in config:
+                # Learning directly from a reward: e.g. train_{regress,preferences}
+                pretty_type = {"train_regress": "regress", "train_preferences": "preferences"}
+                model_type = pretty_type[run["command"]]
+                res.append((config["target_reward_type"], model_type, config["seed"], 0))
+            elif "rollout_path" in config:
+                # Learning from demos: e.g. train_adversarial
+                rollout_config, _, _ = _find_sacred_parent(config["rollout_path"], seen)
+                reward_type = rollout_config["reward_type"] or "EnvReward"
+                reward_args = config["init_trainer_kwargs"]["reward_kwargs"]
+                state_only = reward_args.get("state_only", False)
+                model_type = "IRL" + ("-SO" if state_only else "-SA")
+                res.append((reward_type, model_type, config["seed"], rollout_config["seed"]))
+            else:
+                raise ValueError(
+                    f"Unexpected config at '{path}': does not contain "
+                    "'source_reward_type' or 'rollout_path'"
+                )
 
     names = ["source_reward_type", "model_type", "model_seed", "data_seed"]
     return pd.DataFrame(res, columns=names)
@@ -195,7 +206,9 @@ def path_to_config(index: Iterable[str]) -> pd.DataFrame:
 def rewrite_index(series: pd.Series) -> pd.Series:
     if "source_reward_path" in series.index.names:
         new_index = series.index.to_frame(index=False)
-        source_reward = path_to_config(new_index["source_reward_path"])
+        source_reward = path_to_config(
+            new_index["source_reward_type"], new_index["source_reward_path"]
+        )
         new_index = new_index.drop(columns="source_reward_path")
         new_index = pd.concat([source_reward, new_index], axis=1)
         new_index = pd.MultiIndex.from_frame(new_index)
