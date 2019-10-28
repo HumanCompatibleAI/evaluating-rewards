@@ -160,11 +160,11 @@ def _find_sacred_parent(
 HARDCODED_TYPES = ["evaluating_rewards/Zero-v0"]
 
 
-def path_to_config(types: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
+def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
     """Extracts relevant config parameters from paths in index.
 
     Args:
-        types: An index of typses.
+        kinds: An index of reward types.
         paths: An index of paths.
 
     Returns:
@@ -172,12 +172,10 @@ def path_to_config(types: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
     """
     seen = {}
     res = []
-    assert len(types) == len(paths)
-    for (type, path) in zip(types, paths):
+    for (kind, path) in zip(kinds, paths):
 
-        if type in HARDCODED_TYPES:
-            res.append((type, "hardcoded", 0, 0))
-            continue
+        if kind in HARDCODED_TYPES:
+            res.append((kind, "hardcoded", 0, 0))
         else:
             config, run, path = _find_sacred_parent(path, seen)
             if "target_reward_type" in config:
@@ -204,6 +202,7 @@ def path_to_config(types: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
 
 
 def rewrite_index(series: pd.Series) -> pd.Series:
+    """Replace `source_reward_path` with info extracted from config at that path."""
     if "source_reward_path" in series.index.names:
         new_index = series.index.to_frame(index=False)
         source_reward = path_to_config(
