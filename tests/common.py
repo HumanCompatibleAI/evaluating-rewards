@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Common functionality for tests."""
+import contextlib
 import copy
 from typing import Dict, Iterator, Tuple, TypeVar
 
@@ -96,8 +97,9 @@ def combine_dicts(*dicts: Dict[str, Dict[K, V]],) -> Iterator[Tuple[str, Dict[K,
 
 
 make_env = test_envs.make_env_fixture(skip_fn=pytest.skip)
+make_env_ctx = contextlib.contextmanager(make_env)
 
 
 def make_venv(env_name):
-    with make_env(env_name) as env:
+    with make_env_ctx(env_name) as env:
         yield vec_env.DummyVecEnv([lambda: env])
