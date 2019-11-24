@@ -99,4 +99,5 @@ make_env = test_envs.make_env_fixture(skip_fn=pytest.skip)
 
 
 def make_venv(env_name):
-    return vec_env.DummyVecEnv([lambda: make_env(env_name)])
+    with make_env(env_name) as env:
+        yield vec_env.DummyVecEnv([lambda: env])
