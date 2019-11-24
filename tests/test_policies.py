@@ -30,7 +30,7 @@ class FixedPolicy(base.HardCodedPolicy):  # pylint:disable=abstract-method
     def __init__(self, ob_space: gym.Space, ac_space: gym.Space, fixed_val: np.ndarray):
         super().__init__(ob_space, ac_space)
         self.fixed_val = fixed_val
-        if not ac_space.contains(fixed_val):
+        if not ac_space.contains(fixed_val):  # pragma: no cover
             raise ValueError(f"fixed_val = '{fixed_val}' not contained in ac_space = '{ac_space}'")
 
     def _choose_action(self, obs: np.ndarray) -> np.ndarray:
