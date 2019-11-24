@@ -120,6 +120,3 @@ def load_mixture(policy_path: str, venv: vec_env.VecEnv) -> Iterator[policies.Ba
         ]
         mixture = PolicyMixture(pols, transition_p=transition_p)
         yield mixture
-
-
-serialize.policy_registry.register("mixture", value=load_mixture)

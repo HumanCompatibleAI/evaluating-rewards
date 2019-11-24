@@ -1,5 +1,5 @@
-[![CircleCI](https://circleci.com/gh/HumanCompatibleAI/evaluating_rewards.svg?style=svg)](https://circleci.com/gh/HumanCompatibleAI/evaluating_rewards)
-[![codecov](https://codecov.io/gh/HumanCompatibleAI/evaluating_rewards/branch/master/graph/badge.svg)](https://codecov.io/gh/HumanCompatibleAI/evaluating_rewards)
+[![CircleCI](https://circleci.com/gh/HumanCompatibleAI/evaluating-rewards.svg?style=svg)](https://circleci.com/gh/HumanCompatibleAI/evaluating_rewards)
+[![codecov](https://codecov.io/gh/HumanCompatibleAI/evaluating-rewards/branch/master/graph/badge.svg)](https://codecov.io/gh/HumanCompatibleAI/evaluating_rewards)
 
 # Evaluating Rewards
 

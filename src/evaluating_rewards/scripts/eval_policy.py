@@ -16,8 +16,6 @@
 
 from imitation.scripts import eval_policy
 
-# Imported for side-effect (registers policies we may want to use)
-from evaluating_rewards import policies  # pylint:disable=unused-import # noqa: F401
 from evaluating_rewards.scripts import script_utils
 
 if __name__ == "__main__":

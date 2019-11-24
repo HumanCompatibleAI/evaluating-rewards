@@ -23,7 +23,7 @@ EXPERT_DEMOS_CMD=$(call_script "expert_demos" "with")
 learnt_model $*  # sets learnt_model_dir, source_reward_type and model_name
 
 declare -A TRANSFER_ENVS=(
-  ["imitation/PointMazeLeft-v0"]="imitation/PointMazeRight-v0"
+  ["imitation/PointMazeLeftVel-v0"]="imitation/PointMazeRightVel-v0"
 )
 
 echo "Starting model comparison"
