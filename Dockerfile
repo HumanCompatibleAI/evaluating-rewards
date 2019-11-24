@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:10.0-runtime-ubuntu18.04
+# base stage contains just binary dependencies.
+# This is used in the CI build.
+FROM nvidia/cuda:10.0-runtime-ubuntu18.04 AS base
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN    apt-get update -q \
@@ -32,16 +34,11 @@ RUN    apt-get update -q \
     unzip \
     vim \
     virtualenv \
-    wget \
     xpra \
     xserver-xorg-dev \
     fonts-symbola \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-RUN add-apt-repository --yes ppa:deadsnakes/ppa \
-    && apt-get update -q \
-    && apt-get install -y python3.7-dev python3.7
 
 RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sci-artifacts/manual-builds/patchelf_0.9_amd64.elf \
     && chmod +x /usr/local/bin/patchelf
@@ -49,12 +46,20 @@ RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sc
 ENV LANG C.UTF-8
 
 RUN    mkdir -p /root/.mujoco \
-    && wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco200.zip \
-    && unzip mujoco200.zip -d /root/.mujoco \
-    && mv /root/.mujoco/mujoco200_linux /root/.mujoco/mujoco200 \
-    && rm mujoco200.zip
+    && curl -o mjpro150.zip https://www.roboti.us/download/mjpro150_linux.zip \
+    && unzip mjpro150.zip -d /root/.mujoco \
+    && rm mjpro150.zip
 
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/root/.mujoco/mujoco200/bin
+# Set the PATH to the venv before we create the venv, so it's visible in base.
+# This is since we may create the venv outside of Docker, e.g. in CI
+# or by binding it in for local development.
+ENV PATH="/venv/bin:$PATH"
+ENV LD_LIBRARY_PATH /root/.mujoco/mjpro150/bin:${LD_LIBRARY_PATH}
+
+# python-req stage contains Python venv, but not code.
+# It is useful for development purposes: you can mount
+# code from outside the Docker container.
+FROM base as python-req
 
 WORKDIR /evaluating-rewards
 # Copy only necessary dependencies to build virtual environment.
@@ -63,10 +68,12 @@ COPY ./scripts /evaluating-rewards/scripts
 COPY ./requirements.txt /evaluating-rewards
 COPY ./requirements-dev.txt /evaluating-rewards
 
-ENV VIRTUAL_ENV=/evaluating-rewards/venv
 # mjkey.txt needs to exist for build, but doesn't need to be a real key
-RUN touch /root/.mujoco/mjkey.txt && /evaluating-rewards/scripts/build_venv.sh $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN touch /root/.mujoco/mjkey.txt && /evaluating-rewards/scripts/build_venv.sh /venv
+
+# full stage contains everything.
+# Can be used for deployment and local testing.
+FROM python-req as full
 
 # Delay copying (and installing) the code until the very end
 COPY . /evaluating-rewards
@@ -75,4 +82,4 @@ RUN python setup.py sdist bdist_wheel
 RUN pip install dist/evaluating_rewards-*.whl
 
 # Default entrypoints
-CMD ["pytest -n auto -vv tests/"]
+CMD ["pytest", "-n", "auto", "-vv", "tests/"]
