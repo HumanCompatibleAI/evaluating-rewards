@@ -146,6 +146,5 @@ for env in ${ENVS}; do
            reward_type=${TARGET_REWARD_TYPE} \
            policy_path={policy_path}/policies/final \
            log_dir=${PM_OUTPUT}/policy_eval/{policy_path} \
-           ::: reward_type ${types} :::+ reward_type_sanitized ${types_sanitized} \
            ::: policy_path ${PM_OUTPUT}/policy/${env_sanitized}/*/*
 done
