@@ -19,7 +19,7 @@ orbs:
 executors:
   my-executor:
     docker:
-      - image: humancompatibleai/evaluating_rewards:latest
+      - image: humancompatibleai/evaluating_rewards:base
     working_directory: /evaluating-rewards
     environment:
       # If you change these, also change scripts/code_checks.sh
