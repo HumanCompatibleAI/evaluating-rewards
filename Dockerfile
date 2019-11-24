@@ -30,6 +30,8 @@ RUN    apt-get update -q \
     software-properties-common \
     net-tools \
     parallel \
+    python3.7 \
+    python3.7-dev \
     rsync \
     unzip \
     vim \
