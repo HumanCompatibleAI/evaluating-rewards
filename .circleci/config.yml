@@ -19,7 +19,7 @@ orbs:
 executors:
   my-executor:
     docker:
-      - image: humancompatibleai/evaluating_rewards:latest
+      - image: humancompatibleai/evaluating_rewards:base
     working_directory: /evaluating-rewards
     environment:
       # If you change these, also change scripts/code_checks.sh
@@ -39,24 +39,22 @@ commands:
       # binary (non-Python) dependencies change.
       - restore_cache:
           keys:
-            - v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
-            # fallback to using the latest cache if no exact match is found
-            - v1-dependencies-
+            - v2-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
 
       - run:
           name: install dependencies
           # MUJOCO_KEY is defined in a CircleCI context
           # Do some sanity checks to make sure key works
           command: |
-            pip install --upgrade -r requirements.txt -r requirements-dev.txt
             curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
             md5sum /root/.mujoco/mjkey.txt
+            [[ -d /venv ]] || /evaluating-rewards/scripts/build_venv.sh /venv
             python -c "import mujoco_py"
 
       - save_cache:
           paths:
-            - ./venv
-          key: v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
+            - /venv
+          key: v2-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
 
       - run:
           name: install evaluating_rewards
@@ -100,7 +98,7 @@ jobs:
       - run:
           name: run tests
           command: |
-            pytest --cov=venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
+            pytest --cov=/venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
                    --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
                     -n ${NUM_CPUS} -vv tests/

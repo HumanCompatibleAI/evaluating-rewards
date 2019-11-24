@@ -1,7 +1,6 @@
-gym
+gym[mujoco]
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git
 matplotlib
-mujoco_py
 numpy
 pandas
 seaborn
