@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DOCKER_IMAGE="evaluating_rewards:latest"
+DOCKER_IMAGE="humancompatibleai/evaluating_rewards:latest"
 LOCAL_MNT="/mnt/eval_reward"
 
 CMD="bash"
