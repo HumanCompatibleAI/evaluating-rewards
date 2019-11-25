@@ -20,4 +20,6 @@ from evaluating_rewards.scripts import script_utils
 
 if __name__ == "__main__":
     script_utils.add_logging_config(train_adversarial.train_ex, "train_adversarial")
-    script_utils.experiment_main(train_adversarial.train_ex, "train_adversarial")
+    script_utils.experiment_main(
+        train_adversarial.train_ex, "train_adversarial", sacred_symlink=True
+    )

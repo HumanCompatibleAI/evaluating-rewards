@@ -17,6 +17,7 @@
 import os
 
 from imitation.util import util
+import sacred
 from sacred import observers
 
 # Imported for side-effects (registers with Gym)
@@ -38,10 +39,24 @@ def add_logging_config(experiment, name):
     experiment.config(logging_config)
 
 
-def experiment_main(experiment, name):
+def add_sacred_symlink(observer: observers.FileStorageObserver):
+    def f(log_dir: str) -> None:
+        """Adds a symbolic link in log_dir to observer output directory."""
+        if observer.dir is None:
+            # In a command like print_config that produces no permanent output
+            return
+        os.makedirs(log_dir, exist_ok=True)
+        os.symlink(observer.dir, os.path.join(log_dir, "sacred"), target_is_directory=True)
+
+    return f
+
+
+def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):
     """Returns a main function for experiment."""
 
     sacred_dir = os.path.join(get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)
+    if sacred_symlink:
+        experiment.pre_run_hook(add_sacred_symlink(observer))
     experiment.observers.append(observer)
     experiment.run_commandline()
