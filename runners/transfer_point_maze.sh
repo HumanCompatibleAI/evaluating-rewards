@@ -70,7 +70,8 @@ $(call_script "train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     ${PREFERENCES_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 $(call_script "train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
-    ${REGRESS_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
+    ${REGRESS_TIMESTEPS} dataset_factory_kwargs.policy_type=mixture \
+    dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}&
 
 # IRL: uses demonstrations from previous part
 for state_only in True False; do
