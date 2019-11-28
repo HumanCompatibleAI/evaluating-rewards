@@ -25,7 +25,8 @@ from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
 
 
 def get_output_dir():
-    return os.path.join(os.getenv("HOME"), "output")
+    default = os.path.join(os.getenv("HOME"), "output")
+    return os.getenv("EVAL_OUTPUT_ROOT", default)
 
 
 def logging_config(log_root, env_name):
