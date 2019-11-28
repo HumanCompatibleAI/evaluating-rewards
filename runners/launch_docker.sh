@@ -27,7 +27,7 @@ fi
 
 docker pull ${DOCKER_IMAGE}
 docker run -it --rm \
-       -v ${LOCAL_MNT}/data:/root/output \
+       -v ${LOCAL_MNT}/data:/mnt/eval_reward/data \
        -v ${LOCAL_MNT}/src:/evaluating-rewards \
        -v ${LOCAL_MNT}/mjkey.txt:/root/.mujoco/mjkey.txt \
        ${FLAGS} ${DOCKER_IMAGE} \

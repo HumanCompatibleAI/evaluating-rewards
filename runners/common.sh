@@ -53,4 +53,4 @@ eval "$(${ENV_REWARD_CMD} 2>/dev/null)"
 ENVS="${!REWARDS_BY_ENV[@]}"
 echo "Loaded mappings for environments ${ENVS}"
 
-OUTPUT_ROOT=$HOME/output
+OUTPUT_ROOT=/mnt/eval_reward/data
