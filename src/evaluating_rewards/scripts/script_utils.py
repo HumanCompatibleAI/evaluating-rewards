@@ -40,13 +40,19 @@ def add_logging_config(experiment, name):
 
 
 def add_sacred_symlink(observer: observers.FileStorageObserver):
+    """Adds a symbolic link to the output directory of `observer`."""
+
     def f(log_dir: str) -> None:
         """Adds a symbolic link in log_dir to observer output directory."""
         if observer.dir is None:
             # In a command like print_config that produces no permanent output
             return
         os.makedirs(log_dir, exist_ok=True)
-        os.symlink(observer.dir, os.path.join(log_dir, "sacred"), target_is_directory=True)
+        # Use relative paths so we can mount the output directory at different paths
+        # (e.g. when copying across machines).
+        symlink_path = os.path.join(log_dir, "sacred")
+        target_path = os.path.relpath(observer.dir, start=log_dir)
+        os.symlink(target_path, symlink_path, target_is_directory=True)
 
     return f
 
