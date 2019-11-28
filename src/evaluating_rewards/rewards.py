@@ -704,10 +704,10 @@ def compute_returns(
     # To compute returns, we must sum over slices of the flattened reward
     # sequence corresponding to each episode. Find the episode boundaries.
     ep_boundaries = np.where(transitions.dones)[0]
-    # NumPy equivalent of Python ep_boundaries = [0] + ep_boundaries[:-1]
-    idxs = np.pad(ep_boundaries[:-1], (1, 0), "constant")
     # ep_boundaries is inclusive, but reduceat takes exclusive range
-    idxs = idxs + 1
+    ep_boundaries = ep_boundaries + 1
+    # NumPy equivalent of Python idxs = [0] + ep_boundaries[:-1]
+    idxs = np.pad(ep_boundaries[:-1], (1, 0), "constant")
     # Now, sum over the slices.
     ep_returns = {k: np.add.reduceat(v, idxs) for k, v in preds.items()}
 

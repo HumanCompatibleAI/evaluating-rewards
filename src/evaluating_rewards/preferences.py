@@ -273,8 +273,8 @@ class PreferenceComparisonTrainer:
         """Returns loss to be optimized given a batch of experience."""
         returns = self._get_returns()
 
-        # self._preference_labels are 0 (first trajectory > second trajectory)
-        # or 1 (second > first), shape (batch_size, ).
+        # self._preference_labels are 1 (first trajectory > second trajectory)
+        # or 0 (second > first), shape (batch_size, ).
         # preference_labels are shape (2, batch_size) and preference_label[i][j]
         # is 1 if trajectory i is preferred in comparison j.
         preference_labels = tf.stack([self._preference_labels, 1 - self._preference_labels])
