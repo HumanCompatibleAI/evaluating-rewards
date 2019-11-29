@@ -141,7 +141,7 @@ class PreferenceComparisonTrainer:
         optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
         optimizer_kwargs: Dict[str, Any] = None,
         weight_l2_reg: float = 0.0,
-        reward_l2_reg: float = 1e-3,
+        reward_l2_reg: float = 1e-4,
         accuracy_threshold: float = 0.5,
     ):
         """Constructs a PreferenceComparisonTrainer for a reward model.

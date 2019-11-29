@@ -42,9 +42,9 @@ def default_config():
     model_reward_type = rewards.MLPRewardModel
     total_timesteps = 2e6  # total number of steps to train for
     batch_timesteps = 10000  # total number of timesteps in each batch
-    learning_rate = 1e-3
+    learning_rate = 1e-2
     weight_l2_reg = 0.0  # scaling factor for weight/parameter regularization
-    reward_l2_reg = 1e-3  # scaling factor for regularization of output
+    reward_l2_reg = 1e-4  # scaling factor for regularization of output
     accuracy_threshold = 0.5  # minimum probability in correct direction to count as success
 
     _ = locals()  # quieten flake8 unused variable warning
