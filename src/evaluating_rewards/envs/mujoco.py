@@ -271,7 +271,6 @@ class PointMazeReward(MujocoHardcodedReward):
             ctrl_coef: Scale factor for control penalty.
         """
         super().__init__(observation_space, action_space, target=target, ctrl_coef=ctrl_coef)
-        self.target = target
 
     @classmethod
     def from_venv(cls, venv: vec_env.VecEnv, *args, **kwargs):
