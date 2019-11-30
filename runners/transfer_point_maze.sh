@@ -54,7 +54,8 @@ fi
 EXPERT_DEMO_CMD="$(call_script "expert_demos" "with") seed=${SEED} \
     ${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
     ${RL_TIMESTEPS} reward_type=${TARGET_REWARD_TYPE}"
-${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train&
+${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train \
+    rollout_save_n_episodes=1000&
 ${EXPERT_DEMO_CMD} env_name=${ENV_TEST} log_dir=${PM_OUTPUT}/expert/test&
 
 wait
