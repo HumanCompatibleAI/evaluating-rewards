@@ -140,9 +140,9 @@ class PreferenceComparisonTrainer:
         batch_size: int,
         optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
         optimizer_kwargs: Dict[str, Any] = None,
-        regularization_weight: float = 0.0,
-        reward_l2_reg: float = 1e-2,
-        accuracy_threshold: float = 0.7,
+        weight_l2_reg: float = 0.0,
+        reward_l2_reg: float = 1e-4,
+        accuracy_threshold: float = 0.5,
     ):
         """Constructs a PreferenceComparisonTrainer for a reward model.
 
@@ -152,7 +152,7 @@ class PreferenceComparisonTrainer:
             batch_size: The number of trajectories in each training epoch.
             optimizer: A TensorFlow optimizer.
             optimizer_kwargs: Parameters for the optimizer, e.g. learning rate.
-            regularization_weight: The weight of regularizations on the parameters.
+            weight_l2_reg: The weight of regularizations on the parameters.
             reward_l2_reg: The weight of regularization on the outputs. This can be
                 interpreted as a sparsity prior.
             accuracy_threshold: The minimum probability for a model prediction to be
@@ -163,7 +163,7 @@ class PreferenceComparisonTrainer:
         self._model_params = model_params
         self._batch_size = batch_size
         self._reward_l2_reg = reward_l2_reg
-        self._regularization_weight = regularization_weight
+        self._regularization_weight = weight_l2_reg
         self._accuracy_threshold = accuracy_threshold
 
         self._preference_labels = tf.placeholder(shape=(None,), dtype=tf.int32, name="preferred")
@@ -273,8 +273,8 @@ class PreferenceComparisonTrainer:
         """Returns loss to be optimized given a batch of experience."""
         returns = self._get_returns()
 
-        # self._preference_labels are 0 (first trajectory > second trajectory)
-        # or 1 (second > first), shape (batch_size, ).
+        # self._preference_labels are 1 (first trajectory > second trajectory)
+        # or 0 (second > first), shape (batch_size, ).
         # preference_labels are shape (2, batch_size) and preference_label[i][j]
         # is 1 if trajectory i is preferred in comparison j.
         preference_labels = tf.stack([self._preference_labels, 1 - self._preference_labels])

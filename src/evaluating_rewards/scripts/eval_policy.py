@@ -20,4 +20,4 @@ from evaluating_rewards.scripts import script_utils
 
 if __name__ == "__main__":
     script_utils.add_logging_config(eval_policy.eval_policy_ex, "eval_policy")
-    script_utils.experiment_main(eval_policy.eval_policy_ex, "eval_policy")
+    script_utils.experiment_main(eval_policy.eval_policy_ex, "eval_policy", sacred_symlink=False)

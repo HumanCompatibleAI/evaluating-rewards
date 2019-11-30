@@ -36,13 +36,17 @@ def default_config():
     # Trajectory specification
     policy_type = "random"  # type of policy to generate comparison trajectories
     policy_path = "dummy"  # path to policy
-    trajectory_length = 25  # length of trajectories compared
+    trajectory_length = 5  # length of trajectories compared
 
     # Hyperparameters
     model_reward_type = rewards.MLPRewardModel
-    total_timesteps = 2e6
-    batch_timesteps = 10000
-    learning_rate = 1e-3
+    total_timesteps = 5e6  # total number of steps to train for
+    batch_timesteps = 10000  # total number of timesteps in each batch
+    learning_rate = 1e-2
+    weight_l2_reg = 0.0  # scaling factor for weight/parameter regularization
+    reward_l2_reg = 1e-4  # scaling factor for regularization of output
+    accuracy_threshold = 0.5  # minimum probability in correct direction to count as success
+
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -75,6 +79,9 @@ def train_preferences(
     total_timesteps: int,
     batch_timesteps: int,
     learning_rate: float,
+    weight_l2_reg: float,
+    reward_l2_reg: float,
+    accuracy_threshold: float,
     # Logging
     log_dir: str,
 ) -> Mapping[str, Any]:
@@ -89,7 +96,13 @@ def train_preferences(
         batch_size = batch_timesteps // trajectory_length
         kwargs = {"learning_rate": learning_rate}
         return preferences.PreferenceComparisonTrainer(
-            model, model_params, batch_size=batch_size, optimizer_kwargs=kwargs
+            model,
+            model_params,
+            batch_size=batch_size,
+            optimizer_kwargs=kwargs,
+            weight_l2_reg=weight_l2_reg,
+            reward_l2_reg=reward_l2_reg,
+            accuracy_threshold=accuracy_threshold,
         )
 
     with policies_serialize.load_policy(policy_type, policy_path, venv) as policy:

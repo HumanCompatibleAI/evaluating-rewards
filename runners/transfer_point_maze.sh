@@ -54,7 +54,8 @@ fi
 EXPERT_DEMO_CMD="$(call_script "expert_demos" "with") seed=${SEED} \
     ${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
     ${RL_TIMESTEPS} reward_type=${TARGET_REWARD_TYPE}"
-${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train&
+${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train \
+    rollout_save_n_episodes=1000&
 ${EXPERT_DEMO_CMD} env_name=${ENV_TEST} log_dir=${PM_OUTPUT}/expert/test&
 
 wait
@@ -70,7 +71,8 @@ $(call_script "train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     ${PREFERENCES_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 $(call_script "train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
-    ${REGRESS_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
+    ${REGRESS_TIMESTEPS} dataset_factory_kwargs.policy_type=mixture \
+    dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}&
 
 # IRL: uses demonstrations from previous part
 for state_only in True False; do
@@ -146,6 +148,5 @@ for env in ${ENVS}; do
            reward_type=${TARGET_REWARD_TYPE} \
            policy_path={policy_path}/policies/final \
            log_dir=${PM_OUTPUT}/policy_eval/{policy_path} \
-           ::: reward_type ${types} :::+ reward_type_sanitized ${types_sanitized} \
            ::: policy_path ${PM_OUTPUT}/policy/${env_sanitized}/*/*
 done

@@ -17,6 +17,7 @@
 import os
 
 from imitation.util import util
+import sacred
 from sacred import observers
 
 # Imported for side-effects (registers with Gym)
@@ -24,7 +25,8 @@ from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
 
 
 def get_output_dir():
-    return os.path.join(os.getenv("HOME"), "output")
+    default = os.path.join(os.getenv("HOME"), "output")
+    return os.getenv("EVAL_OUTPUT_ROOT", default)
 
 
 def logging_config(log_root, env_name):
@@ -39,22 +41,29 @@ def add_logging_config(experiment, name):
 
 
 def add_sacred_symlink(observer: observers.FileStorageObserver):
+    """Adds a symbolic link to the output directory of `observer`."""
+
     def f(log_dir: str) -> None:
         """Adds a symbolic link in log_dir to observer output directory."""
         if observer.dir is None:
             # In a command like print_config that produces no permanent output
             return
         os.makedirs(log_dir, exist_ok=True)
-        os.symlink(observer.dir, os.path.join(log_dir, "sacred"), target_is_directory=True)
+        # Use relative paths so we can mount the output directory at different paths
+        # (e.g. when copying across machines).
+        symlink_path = os.path.join(log_dir, "sacred")
+        target_path = os.path.relpath(observer.dir, start=log_dir)
+        os.symlink(target_path, symlink_path, target_is_directory=True)
 
     return f
 
 
-def experiment_main(experiment, name):
+def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):
     """Returns a main function for experiment."""
 
     sacred_dir = os.path.join(get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)
+    if sacred_symlink:
+        experiment.pre_run_hook(add_sacred_symlink(observer))
     experiment.observers.append(observer)
-    experiment.pre_run_hook(add_sacred_symlink(observer))
     experiment.run_commandline()
