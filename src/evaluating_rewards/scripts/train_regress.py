@@ -34,9 +34,9 @@ def default_config():
 
     # Model to train and hyperparameters
     model_reward_type = rewards.MLPRewardModel
-    total_timesteps = 1e6
+    total_timesteps = 10e6
     batch_size = 4096
-    learning_rate = 1e-2
+    learning_rate = 2e-2
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

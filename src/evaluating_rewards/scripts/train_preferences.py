@@ -40,7 +40,7 @@ def default_config():
 
     # Hyperparameters
     model_reward_type = rewards.MLPRewardModel
-    total_timesteps = 2e6  # total number of steps to train for
+    total_timesteps = 5e6  # total number of steps to train for
     batch_timesteps = 10000  # total number of timesteps in each batch
     learning_rate = 1e-2
     weight_l2_reg = 0.0  # scaling factor for weight/parameter regularization
