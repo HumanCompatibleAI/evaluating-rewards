@@ -30,5 +30,5 @@ fi
 
 if [ "$skipexpensive" != "true" ]; then
     pytype ${TYPECHECK_FILES}
-    pylint -j 0 ${SRC_FILES}
+    pylint --extension-pkg-whitelist=numpy -j 0 ${SRC_FILES}
 fi
