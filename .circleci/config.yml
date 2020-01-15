@@ -83,7 +83,7 @@ jobs:
 
       - run:
           name: pylint
-          command: pylint -j ${NUM_CPUS} ${SRC_FILES}
+          command: pylint --extension-pkg-whitelist=numpy -j ${NUM_CPUS} ${SRC_FILES}
 
       - run:
           name: pytype
