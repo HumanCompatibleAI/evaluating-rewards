@@ -21,6 +21,7 @@ from typing import Any, Iterable, Mapping, Optional
 import matplotlib.pyplot as plt
 import sacred
 
+from evaluating_rewards import serialize
 from evaluating_rewards.experiments import results, visualize
 from evaluating_rewards.scripts import script_utils
 
@@ -31,7 +32,7 @@ visualize_divergence_heatmap_ex = sacred.Experiment("visualize_divergence_heatma
 def default_config():
     """Default configuration values."""
     # Dataset parameters
-    log_root = script_utils.get_output_dir()  # where results are read from/written to
+    log_root = serialize.get_output_dir()  # where results are read from/written to
     data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
     data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
     search = {  # parameters to filter by in datasets

@@ -108,7 +108,7 @@ def dense_no_ctrl_sparsified():
             "Sparsified",
             "evaluating_rewards/RewardModel-v0",
             os.path.join(
-                script_utils.get_output_dir(),
+                serialize.get_output_dir(),
                 "model_comparison",
                 "evaluating_rewards_PointMassLine-v0",
                 "20190921_190606_58935eb0a51849508381daf1055d0360",

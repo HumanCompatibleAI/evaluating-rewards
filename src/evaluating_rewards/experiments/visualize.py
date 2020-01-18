@@ -25,6 +25,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from evaluating_rewards import serialize
+
 # Internal dependencies
 
 SYMBOLS = {
@@ -115,6 +117,14 @@ def save_figs(root_dir: str, generator: Iterable[Tuple[str, plt.Figure]], **kwar
         save_fig(path, fig, **kwargs)
 
 
+# Older versions of the code stored absolute paths in config.
+# Try and turn these into relative paths for portability.
+DATA_ROOT_PREFIXES = [
+    "/root/output",
+    "/mnt/eval_reward/data",
+]
+
+
 def _find_sacred_parent(
     path: str, seen: Dict[str, str]
 ) -> Tuple[Dict[str, Any], Dict[str, Any], str]:
@@ -132,6 +142,11 @@ def _find_sacred_parent(
         ValueError: if the parent path was already in seen for a different child.
         ValueError: no parent path containing a Sacred directory exists.
     """
+    for root_prefix in DATA_ROOT_PREFIXES:
+        if path.startswith(root_prefix):
+            path = path.replace(root_prefix, serialize.get_output_dir())
+            break
+
     parent = path
     while parent and not os.path.exists(os.path.join(parent, "sacred", "config.json")):
         parent = os.path.dirname(parent)
