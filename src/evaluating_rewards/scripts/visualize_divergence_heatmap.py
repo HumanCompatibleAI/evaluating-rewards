@@ -14,9 +14,11 @@
 
 """CLI script to plot heatmap of divergence between pairs of reward models."""
 
+import itertools
 import os
-from typing import Any, Dict
+from typing import Any, Iterable, Mapping
 
+import matplotlib.pyplot as plt
 import sacred
 
 from evaluating_rewards.experiments import results, visualize
@@ -37,6 +39,10 @@ def default_config():
     }
 
     # Figure parameters
+    heatmap_kwargs = {
+        "masks": {"all": [results.always_true]},
+        "order": None,
+    }
     # TODO: style sheet to apply?
     save_kwargs = {
         "fmt": "pdf",
@@ -50,27 +56,132 @@ def default_config():
 def logging_config(log_root, search, data_kind):
     # TODO: timestamp?
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root,
-        "visualize_divergence_heatmap",
-        ":".join(f'{k}={v.replace("/", "_")}' for k, v in search.items()),
-        data_kind,
+        log_root, "visualize_divergence_heatmap", str(search).replace("/", "_"), data_kind,
     )
+
+
+def _norm(args: Iterable[str]) -> bool:
+    return any(results.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
+
+
+def _point_mass_after_plot():
+    plt.subplots_adjust(bottom=0.15, top=0.95, left=0.16, right=0.95)
+
+
+@visualize_divergence_heatmap_ex.named_config
+def point_mass():
+    """Heatmaps for evaluating_rewards/PointMass* environments."""
+    search = {  # noqa: F841  pylint:disable=unused-variable
+        "env_name": "evaluating_rewards/PointMassLine-v0",
+        "dataset_factory": {
+            # can also use evaluating_rewards.experiments.datasets.random_transition_generator
+            "escape/py/function": "evaluating_rewards.experiments.datasets.random_policy_generator",
+        },
+    }
+    heatmap_kwargs = {}
+    heatmap_kwargs["masks"] = {
+        "diagonal": [results.zero, results.same],
+        "control": [results.zero, results.control],
+        "dense_vs_sparse": [results.zero, results.sparse_or_dense],
+        "norm": [results.zero, results.same, _norm],
+        "all": [results.always_true],
+    }
+    order = ["SparseNoCtrl", "Sparse", "DenseNoCtrl", "Dense", "GroundTruth"]
+    heatmap_kwargs["order"] = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
+    heatmap_kwargs["after_plot"] = _point_mass_after_plot
+    del order
+
+
+@visualize_divergence_heatmap_ex.named_config
+def point_maze():
+    """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
+    search = {
+        "env_name": "evaluating_rewards/PointMazeLeft-v0",
+    }
+    heatmap_kwargs = {
+        "masks": {"all": [results.always_true]},  # "all" is still only 3x3
+        "order": [
+            "imitation/PointMazeGroundTruthWithCtrl-v0",
+            "imitation/PointMazeGroundTruthNoCtrl-v0",
+            "evaluating_rewards/Zero-v0",
+        ],
+    }
+    _ = locals()
+    del _
+
+
+MUJOCO_STANDARD_ORDER = ["ForwardNoCtrl", "ForwardWithCtrl", "BackwardNoCtrl", "BackwardWithCtrl"]
+
+
+@visualize_divergence_heatmap_ex.named_config
+def half_cheetah():
+    """Heatmaps for HalfCheetah-v3."""
+    search = {
+        "env_name": "evaluating_rewards/HalfCheetah-v3",
+    }
+    heatmap_kwargs = {
+        "masks": {
+            "diagonal": [results.zero, results.same],
+            "control": [results.zero, results.control],
+            "direction": [results.zero, results.direction],
+            "no_ctrl": [results.zero, results.no_ctrl],
+            "all": [results.always_true],
+        },
+        "order": [
+            f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
+            for suffix in MUJOCO_STANDARD_ORDER
+        ],
+    }
+    _ = locals()
+    del _
+
+
+def hopper_activity(args: Iterable[str]) -> bool:
+    pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
+    repl = results.replace(pattern, r"\1\2")(args)
+    return len(set(repl)) > 1 and results.no_ctrl(args)
+
+
+@visualize_divergence_heatmap_ex.named_config
+def hopper():
+    """Heatmaps for Hopper-v3."""
+    search = {  # noqa: F841  pylint:disable=unused-variable
+        "env_name": "evaluating_rewards/Hopper-v3",
+    }
+    heatmap_kwargs = {}
+    heatmap_kwargs["masks"] = {
+        "diagonal": [results.zero, results.same],
+        "control": [results.zero, results.control],
+        "direction": [results.zero, results.direction],
+        "no_ctrl": [results.zero, results.no_ctrl],
+        "different_activity": [results.zero, hopper_activity],
+        "all": [results.always_true],
+    }
+    activities = ["GroundTruth", "Backflip"]
+    heatmap_kwargs["order"] = [
+        f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
+        for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
+    ]
+    heatmap_kwargs["after_plot"] = lambda: plt.yticks(rotation="horizontal")
+    del activities
 
 
 @visualize_divergence_heatmap_ex.main
 def visualize_divergence_heatmap(
     data_root: str,
     data_kind: str,
-    search: Dict[str, Any],
+    search: Mapping[str, Any],
+    heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
-    save_kwargs: Dict[str, Any],
+    save_kwargs: Mapping[str, Any],
 ):
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
         data_root: where to load data from.
         data_kind: subdirectory to load data from.
-        search: dict which Sacred configs must match to be included in results.
+        search: mapping which Sacred configs must match to be included in results.
+        heatmap_kwargs: passed through to `visualize.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `visualize.save_figs`.
         """
@@ -78,8 +189,14 @@ def visualize_divergence_heatmap(
     # TODO: make keys kind dependent?
     keys = ["source_reward_type", "target_reward_type", "seed"]
 
+    # Workaround tags reserved by Sacrd
+    search = dict(search)
+    for k, v in search.items():
+        if isinstance(v, dict):
+            search[k] = {inner_k.replace("escape/", ""): inner_v for inner_k, inner_v in v.items()}
+
     def cfg_filter(cfg):
-        return all([cfg[k] == v for k, v in search.items()])
+        return all((cfg[k] == v for k, v in search.items()))
 
     # TODO: do I need to load everything when I just use loss?
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
@@ -87,10 +204,14 @@ def visualize_divergence_heatmap(
     # TODO: handle sequences of heatmaps? functions? or just make dict from env to fn?
     loss = stats["loss"]["loss"]
     # TODO: usetex, Apple Color Emoji, make fonts match doc
-    heatmaps = results.compact_heatmaps(
-        loss=loss, order=loss.index.levels[0], masks={"all": [results.always_true]},
-    )
+    heatmap_kwargs = dict(heatmap_kwargs)
+    if heatmap_kwargs.get("order") is None:
+        heatmap_kwargs["order"] = loss.index.levels[0]
+
+    heatmaps = results.compact_heatmaps(loss=loss, **heatmap_kwargs)
     visualize.save_figs(log_dir, heatmaps.items(), **save_kwargs)
+
+    return heatmaps
 
 
 if __name__ == "__main__":

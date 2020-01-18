@@ -16,7 +16,6 @@
 
 import collections
 import functools
-import itertools
 import json
 import os
 import pickle
@@ -403,71 +402,7 @@ def compact_heatmaps(
         match_mask = mask(loss, matching)
         visualize.comparison_heatmap(loss, fmt=fmt, preserve_order=True, mask=match_mask, ax=ax)
         # make room for multi-line xlabels
-        # TODO(): this only makes sense for PM I think?
         after_plot()
         figs[name] = fig
 
     return figs
-
-
-def _norm(args: Iterable[str]) -> bool:
-    return any(match("evaluating_rewards/PointMassGroundTruth-v0")(args))
-
-
-def _point_mass_after_plot():
-    plt.subplots_adjust(bottom=0.15, top=0.95, left=0.16, right=0.95)
-
-
-def point_mass_heatmaps(loss: pd.Series, **kwargs):
-    """Heatmaps for evaluating_rewards/PointMass* environments."""
-    masks = {
-        "diagonal": [zero, same],
-        "control": [zero, control],
-        "dense_vs_sparse": [zero, sparse_or_dense],
-        "norm": [zero, same, _norm],
-        "all": [always_true],
-    }
-    order = ["SparseNoCtrl", "Sparse", "DenseNoCtrl", "Dense", "GroundTruth"]
-    order = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
-    return compact_heatmaps(loss, order, masks, after_plot=_point_mass_after_plot, **kwargs)
-
-
-def point_maze_heatmaps(loss: pd.Series, **kwargs):
-    """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
-    masks = {"all": [always_true]}  # "all" is still only only 3x3
-    order = [
-        "imitation/PointMazeGroundTruthWithCtrl-v0",
-        "imitation/PointMazeGroundTruthNoCtrl-v0",
-        "evaluating_rewards/Zero-v0",
-    ]
-    return compact_heatmaps(loss, order, masks, **kwargs)
-
-
-def _hopper_activity(args: Iterable[str]) -> bool:
-    pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
-    repl = replace(pattern, r"\1\2")(args)
-    return len(set(repl)) > 1 and no_ctrl(args)
-
-
-def _hopper_after_plot():
-    plt.yticks(rotation="horizontal")
-
-
-def hopper_heatmaps(loss: pd.Series, **kwargs):
-    """Heatmaps for Hopper-v3."""
-    masks = {
-        "diagonal": [zero, same],
-        "control": [zero, control],
-        "direction": [zero, direction],
-        "no_ctrl": [zero, no_ctrl],
-        "different_activity": [zero, _hopper_activity],
-        "all": [always_true],
-    }
-    activities = ["GroundTruth", "Backflip"]
-    order = ["ForwardNoCtrl", "ForwardWithCtrl", "BackwardNoCtrl", "BackwardWithCtrl"]
-    order = [
-        f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
-        for prefix, suffix in itertools.product(activities, order)
-    ]
-
-    return compact_heatmaps(loss, order, masks, after_plot=_hopper_after_plot, **kwargs)
