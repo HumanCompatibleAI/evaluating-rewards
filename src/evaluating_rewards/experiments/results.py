@@ -329,8 +329,8 @@ def mask(
         levels: A sequence of levels to match.
 
     Returns:
-        A boolean Series, with an index equal to `series` excluding all levels not
-        in `levels`. The value is true iff one of `matchings` returns true.
+        A boolean Series, with an index equal to `series`.
+        The value is true iff one of `matchings` returns true.
     """
     xs = []
     for level in levels:
@@ -344,8 +344,10 @@ def mask(
     res = pd.Series(False, index=index)
     for matching in matchings:
         res |= index.map(matching)
+    res = ~res
+    res.index = series.index
 
-    return ~res
+    return res
 
 
 def pipeline(stats: ConfigStatsMapping, **kwargs):

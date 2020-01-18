@@ -174,7 +174,7 @@ def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
     res = []
     for (kind, path) in zip(kinds, paths):
 
-        if kind in HARDCODED_TYPES:
+        if kind in HARDCODED_TYPES or path == "dummy":
             res.append((kind, "hardcoded", 0, 0))
         else:
             config, run, path = _find_sacred_parent(path, seen)
@@ -208,7 +208,7 @@ def rewrite_index(series: pd.Series) -> pd.Series:
         source_reward = path_to_config(
             new_index["source_reward_type"], new_index["source_reward_path"]
         )
-        new_index = new_index.drop(columns="source_reward_path")
+        new_index = new_index.drop(columns=["source_reward_type", "source_reward_path"])
         new_index = pd.concat([source_reward, new_index], axis=1)
         new_index = pd.MultiIndex.from_frame(new_index)
         series.index = new_index
@@ -235,6 +235,15 @@ def _is_str_ascii(x: str) -> bool:
 
 def _is_ascii(idx: pd.Index) -> bool:
     return all([_is_str_ascii(str(x)) for x in idx])
+
+
+def remove_constant_levels(index: pd.MultiIndex) -> pd.MultiIndex:
+    index = index.copy()
+    levels = index.names
+    for level in levels:
+        if len(index.get_level_values(level).unique()) == 1:
+            index = index.droplevel(level=level)
+    return index
 
 
 def comparison_heatmap(
@@ -272,6 +281,7 @@ def comparison_heatmap(
         """Helper to reformat labels for ease of interpretability."""
         series = series.copy()
         series = rewrite_index(series)
+        series.index = remove_constant_levels(series.index)
         series.index.names = [LEVEL_NAMES.get(name, name) for name in series.index.names]
         series = series.rename(index=pretty_rewrite)
 

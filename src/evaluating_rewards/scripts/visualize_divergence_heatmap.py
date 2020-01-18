@@ -16,7 +16,7 @@
 
 import itertools
 import os
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Optional
 
 import matplotlib.pyplot as plt
 import sacred
@@ -33,9 +33,10 @@ def default_config():
     # Dataset parameters
     log_root = script_utils.get_output_dir()  # where results are read from/written to
     data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
-    data_kind = "hardcoded"  # subdirectory to read from
+    data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
     search = {  # parameters to filter by in datasets
         "env_name": "evaluating_rewards/Hopper-v3",
+        "model_wrapper_kwargs": {},
     }
 
     # Figure parameters
@@ -53,10 +54,10 @@ def default_config():
 
 
 @visualize_divergence_heatmap_ex.config
-def logging_config(log_root, search, data_kind):
+def logging_config(log_root, search):
     # TODO: timestamp?
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root, "visualize_divergence_heatmap", str(search).replace("/", "_"), data_kind,
+        log_root, "visualize_divergence_heatmap", str(search).replace("/", "_"),
     )
 
 
@@ -169,7 +170,7 @@ def hopper():
 @visualize_divergence_heatmap_ex.main
 def visualize_divergence_heatmap(
     data_root: str,
-    data_kind: str,
+    data_subdir: Optional[str],
     search: Mapping[str, Any],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
@@ -185,19 +186,19 @@ def visualize_divergence_heatmap(
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `visualize.save_figs`.
         """
-    data_dir = os.path.join(data_root, data_kind)
-    # TODO: make keys kind dependent?
-    keys = ["source_reward_type", "target_reward_type", "seed"]
-
-    # Workaround tags reserved by Sacrd
+    data_dir = data_root
+    if data_subdir is not None:
+        data_dir = os.path.join(data_dir, data_subdir)
+    # Workaround tags reserved by Sacred
     search = dict(search)
     for k, v in search.items():
         if isinstance(v, dict):
             search[k] = {inner_k.replace("escape/", ""): inner_v for inner_k, inner_v in v.items()}
 
     def cfg_filter(cfg):
-        return all((cfg[k] == v for k, v in search.items()))
+        return all((cfg.get(k) == v for k, v in search.items()))
 
+    keys = ["source_reward_type", "source_reward_path", "target_reward_type", "seed"]
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
