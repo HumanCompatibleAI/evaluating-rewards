@@ -22,13 +22,13 @@ import matplotlib.pyplot as plt
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.experiments import results, visualize
+from evaluating_rewards.analysis import results, visualize
 from evaluating_rewards.scripts import script_utils
 
-visualize_divergence_heatmap_ex = sacred.Experiment("visualize_divergence_heatmap")
+plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 
-@visualize_divergence_heatmap_ex.config
+@plot_divergence_heatmap_ex.config
 def default_config():
     """Default configuration values."""
     # Dataset parameters
@@ -42,7 +42,7 @@ def default_config():
 
     # Figure parameters
     heatmap_kwargs = {
-        "masks": {"all": [results.always_true]},
+        "masks": {"all": [visualize.always_true]},
         "order": None,
     }
     # TODO: style sheet to apply?
@@ -54,23 +54,23 @@ def default_config():
     del _
 
 
-@visualize_divergence_heatmap_ex.config
+@plot_divergence_heatmap_ex.config
 def logging_config(log_root, search):
     # TODO: timestamp?
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root, "visualize_divergence_heatmap", str(search).replace("/", "_"),
+        log_root, "plot_divergence_heatmap", str(search).replace("/", "_"),
     )
 
 
 def _norm(args: Iterable[str]) -> bool:
-    return any(results.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
+    return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
 
 def _point_mass_after_plot():
     plt.subplots_adjust(bottom=0.15, top=0.95, left=0.16, right=0.95)
 
 
-@visualize_divergence_heatmap_ex.named_config
+@plot_divergence_heatmap_ex.named_config
 def point_mass():
     """Heatmaps for evaluating_rewards/PointMass* environments."""
     search = {  # noqa: F841  pylint:disable=unused-variable
@@ -82,11 +82,11 @@ def point_mass():
     }
     heatmap_kwargs = {}
     heatmap_kwargs["masks"] = {
-        "diagonal": [results.zero, results.same],
-        "control": [results.zero, results.control],
-        "dense_vs_sparse": [results.zero, results.sparse_or_dense],
-        "norm": [results.zero, results.same, _norm],
-        "all": [results.always_true],
+        "diagonal": [visualize.zero, visualize.same],
+        "control": [visualize.zero, visualize.control],
+        "dense_vs_sparse": [visualize.zero, visualize.sparse_or_dense],
+        "norm": [visualize.zero, visualize.same, _norm],
+        "all": [visualize.always_true],
     }
     order = ["SparseNoCtrl", "Sparse", "DenseNoCtrl", "Dense", "GroundTruth"]
     heatmap_kwargs["order"] = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
@@ -94,14 +94,14 @@ def point_mass():
     del order
 
 
-@visualize_divergence_heatmap_ex.named_config
+@plot_divergence_heatmap_ex.named_config
 def point_maze():
     """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
     search = {
         "env_name": "evaluating_rewards/PointMazeLeft-v0",
     }
     heatmap_kwargs = {
-        "masks": {"all": [results.always_true]},  # "all" is still only 3x3
+        "masks": {"all": [visualize.always_true]},  # "all" is still only 3x3
         "order": [
             "imitation/PointMazeGroundTruthWithCtrl-v0",
             "imitation/PointMazeGroundTruthNoCtrl-v0",
@@ -115,7 +115,7 @@ def point_maze():
 MUJOCO_STANDARD_ORDER = ["ForwardNoCtrl", "ForwardWithCtrl", "BackwardNoCtrl", "BackwardWithCtrl"]
 
 
-@visualize_divergence_heatmap_ex.named_config
+@plot_divergence_heatmap_ex.named_config
 def half_cheetah():
     """Heatmaps for HalfCheetah-v3."""
     search = {
@@ -123,11 +123,11 @@ def half_cheetah():
     }
     heatmap_kwargs = {
         "masks": {
-            "diagonal": [results.zero, results.same],
-            "control": [results.zero, results.control],
-            "direction": [results.zero, results.direction],
-            "no_ctrl": [results.zero, results.no_ctrl],
-            "all": [results.always_true],
+            "diagonal": [visualize.zero, visualize.same],
+            "control": [visualize.zero, visualize.control],
+            "direction": [visualize.zero, visualize.direction],
+            "no_ctrl": [visualize.zero, visualize.no_ctrl],
+            "all": [visualize.always_true],
         },
         "order": [
             f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
@@ -140,11 +140,11 @@ def half_cheetah():
 
 def hopper_activity(args: Iterable[str]) -> bool:
     pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
-    repl = results.replace(pattern, r"\1\2")(args)
-    return len(set(repl)) > 1 and results.no_ctrl(args)
+    repl = visualize.replace(pattern, r"\1\2")(args)
+    return len(set(repl)) > 1 and visualize.no_ctrl(args)
 
 
-@visualize_divergence_heatmap_ex.named_config
+@plot_divergence_heatmap_ex.named_config
 def hopper():
     """Heatmaps for Hopper-v3."""
     search = {  # noqa: F841  pylint:disable=unused-variable
@@ -152,12 +152,12 @@ def hopper():
     }
     heatmap_kwargs = {}
     heatmap_kwargs["masks"] = {
-        "diagonal": [results.zero, results.same],
-        "control": [results.zero, results.control],
-        "direction": [results.zero, results.direction],
-        "no_ctrl": [results.zero, results.no_ctrl],
-        "different_activity": [results.zero, hopper_activity],
-        "all": [results.always_true],
+        "diagonal": [visualize.zero, visualize.same],
+        "control": [visualize.zero, visualize.control],
+        "direction": [visualize.zero, visualize.direction],
+        "no_ctrl": [visualize.zero, visualize.no_ctrl],
+        "different_activity": [visualize.zero, hopper_activity],
+        "all": [visualize.always_true],
     }
     activities = ["GroundTruth", "Backflip"]
     heatmap_kwargs["order"] = [
@@ -168,8 +168,8 @@ def hopper():
     del activities
 
 
-@visualize_divergence_heatmap_ex.main
-def visualize_divergence_heatmap(
+@plot_divergence_heatmap_ex.main
+def plot_divergence_heatmap(
     data_root: str,
     data_subdir: Optional[str],
     search: Mapping[str, Any],
@@ -183,9 +183,9 @@ def visualize_divergence_heatmap(
         data_root: where to load data from.
         data_kind: subdirectory to load data from.
         search: mapping which Sacred configs must match to be included in results.
-        heatmap_kwargs: passed through to `visualize.compact_heatmaps`.
+        heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
-        save_kwargs: passed through to `visualize.save_figs`.
+        save_kwargs: passed through to `analysis.save_figs`.
         """
     data_dir = data_root
     if data_subdir is not None:
@@ -208,13 +208,16 @@ def visualize_divergence_heatmap(
     if heatmap_kwargs.get("order") is None:
         heatmap_kwargs["order"] = loss.index.levels[0]
 
-    heatmaps = results.compact_heatmaps(loss=loss, **heatmap_kwargs)
-    visualize.save_fig(os.path.join(log_dir, "loss"), res["loss"]["fig"], **save_kwargs)
-    visualize.save_fig(os.path.join(log_dir, "affine"), res["affine"]["fig"], **save_kwargs)
-    visualize.save_figs(log_dir, heatmaps.items(), **save_kwargs)
+    figs = {}
 
-    return heatmaps
+    figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])
+    figs["affine"] = visualize.affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
+    heatmaps = visualize.compact_heatmaps(loss=loss, **heatmap_kwargs)
+    figs.update(heatmaps)
+    visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+
+    return figs
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(visualize_divergence_heatmap_ex, "visualize_divergence_heatmap")
+    script_utils.experiment_main(plot_divergence_heatmap_ex, "plot_divergence_heatmap")

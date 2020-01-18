@@ -19,20 +19,20 @@ import tempfile
 import pandas as pd
 import xarray as xr
 
+from evaluating_rewards.analysis.plot_divergence_heatmap import plot_divergence_heatmap_ex
+from evaluating_rewards.analysis.plot_pm_reward import plot_pm_reward_ex
 from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
 from evaluating_rewards.scripts.train_regress import train_regress_ex
-from evaluating_rewards.scripts.visualize_divergence_heatmap import visualize_divergence_heatmap_ex
-from evaluating_rewards.scripts.visualize_pm_reward import visualize_pm_reward_ex
 from tests import common
 
 EXPERIMENTS = {
     # experiment, expected_type
+    "plot_divergence": (plot_divergence_heatmap_ex, dict),
+    "plot_pm": (plot_pm_reward_ex, xr.DataArray),
     "comparison": (model_comparison_ex, dict),
     "regress": (train_regress_ex, dict),
     "preferences": (train_preferences_ex, pd.DataFrame),
-    "visualize_divergence": (visualize_divergence_heatmap_ex, dict),
-    "visualize_pm": (visualize_pm_reward_ex, xr.DataArray),
 }
 
 

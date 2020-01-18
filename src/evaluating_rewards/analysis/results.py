@@ -15,22 +15,18 @@
 """Helper methods to load and analyse results from experiments."""
 
 import collections
-import functools
 import json
 import os
 import pickle
-import re
-from typing import Any, Callable, Iterable, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
 
 import gym
 from imitation import util as imitation_util
-from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 from stable_baselines.common import vec_env
 
 from evaluating_rewards import serialize
-from evaluating_rewards.experiments import visualize
 
 Config = Tuple[Any, ...]
 Stats = Mapping[str, Any]
@@ -179,7 +175,7 @@ def average_unwrapped_loss(stats: Stats) -> float:
 
 
 def loss_pipeline(
-    stats: ConfigStatsMapping, preprocess: Tuple[PreprocessFn] = (), figsize=(12, 16)
+    stats: ConfigStatsMapping, preprocess: Tuple[PreprocessFn] = (),
 ):
     """Extract losses from stats and visualize in a heatmap."""
     loss = {cfg: average_loss(d) for cfg, d in stats.items()}
@@ -188,15 +184,7 @@ def loss_pipeline(
         loss = pre(loss)
         unwrapped_loss = pre(unwrapped_loss)
 
-    fig, axs = plt.subplots(2, 1, figsize=figsize, squeeze=True)
-
-    visualize.comparison_heatmap(loss, ax=axs[0])
-    axs[0].set_title("Matched Loss")
-
-    visualize.comparison_heatmap(unwrapped_loss, ax=axs[1])
-    axs[1].set_title("Original Loss")
-
-    return {"fig": fig, "loss": loss, "unwrapped_loss": unwrapped_loss}
+    return {"loss": loss, "unwrapped_loss": unwrapped_loss}
 
 
 def get_metric(stats: ConfigStatsMapping, key: str, idx: int = -1):
@@ -218,7 +206,7 @@ def get_affine_from_models(env_name: str, paths: Iterable[str]):
 
 
 def affine_pipeline(
-    stats: ConfigStatsMapping, preprocess: Tuple[PreprocessFn] = (), figsize=(12, 16)
+    stats: ConfigStatsMapping, preprocess: Tuple[PreprocessFn] = (),
 ):
     """Extract final affine parameters from stats and visualize in a heatmap."""
     constants = get_metric(stats, "constant")
@@ -227,127 +215,7 @@ def affine_pipeline(
         constants = pre(constants)
         scales = pre(scales)
 
-    fig, axs = plt.subplots(2, 1, figsize=figsize, squeeze=True)
-
-    visualize.comparison_heatmap(scales, ax=axs[0], robust=True)
-    axs[0].set_title("Scale")
-
-    visualize.comparison_heatmap(constants, log=False, center=0.0)
-    axs[1].set_title("Constant")
-
-    return {"fig": fig, "constants": constants, "scales": scales}
-
-
-def median_seeds(series: pd.Series) -> pd.Series:
-    """Take the median over any seeds in a series.."""
-    seeds = [name for name in series.index.names if "seed" in name]
-    assert seeds, "No seed levels found"
-    non_seeds = [name for name in series.index.names if name not in seeds]
-    return series.groupby(non_seeds).median()
-
-
-def compact(series: pd.Series) -> pd.Series:
-    """Make series smaller, suitable for e.g. small figures."""
-    series = median_seeds(series)
-    if "target_reward_type" in series.index.names:
-        targets = series.index.get_level_values("target_reward_type")
-        series = series.loc[targets != "evaluating_rewards/Zero-v0"]
-    return series
-
-
-def same(args: Iterable[Any]) -> bool:
-    """All values in args are the same."""
-    some_arg = next(iter(args))
-    return all(arg == some_arg for arg in args)
-
-
-def replace(pattern: str, replacement: str) -> Callable[[Iterable[str]], Iterable[str]]:
-    """Iterable version version of re.sub."""
-    pattern = re.compile(pattern)
-
-    def helper(args: Iterable[str]) -> Iterable[str]:
-        return tuple(re.sub(pattern, replacement, x) for x in args)
-
-    return helper
-
-
-def match(pattern: str) -> Callable[[Iterable[str]], Iterable[bool]]:
-    """Iterable version of re.match."""
-    pattern = re.compile(pattern)
-
-    def helper(args: Iterable[str]) -> Iterable[bool]:
-        return tuple(bool(pattern.match(x)) for x in args)
-
-    return helper
-
-
-def zero(args: Iterable[str]) -> bool:
-    """Are any of the arguments the Zero reward function."""
-    return any(arg == "evaluating_rewards/Zero-v0" for arg in args)
-
-
-def control(args: Iterable[str]) -> bool:
-    """Do args differ only in terms of with/without control cost?"""
-    args = replace(r"(.*?)(NoCtrl|WithCtrl|)-(.*)", r"\1-\3")(args)
-    return same(args)
-
-
-def sparse_or_dense(args: Iterable[str]) -> bool:
-    """Args are both sparse or both dense?"""
-    args = replace(r"(.*)(Sparse|Dense)(.*)", r"\1\2")(args)
-    return same(args)
-
-
-def direction(args: Iterable[str]) -> bool:
-    """Do args differ only in terms of forward/backward and control cost?"""
-    pattern = r"evaluating_rewards/(.*?)(Backward|Forward)(WithCtrl|NoCtrl)(.*)"
-    args = replace(pattern, r"\1\4")(args)
-    return same(args)
-
-
-def no_ctrl(args: Iterable[str]) -> bool:
-    """Are args all without control cost?"""
-    return all("NoCtrl" in arg for arg in args)
-
-
-def always_true(args: Iterable[str]) -> bool:
-    """Constant true."""
-    del args
-    return True
-
-
-def mask(
-    series: pd.Series,
-    matchings: Iterable[FilterFn],
-    levels: Iterable[str] = ("source_reward_type", "target_reward_type"),
-) -> pd.Series:
-    """Masks values in `series` not matching any of `matchings`.
-
-    Args:
-        series: Input data.
-        matchings: A sequence of callables.
-        levels: A sequence of levels to match.
-
-    Returns:
-        A boolean Series, with an index equal to `series`.
-        The value is true iff one of `matchings` returns true.
-    """
-    xs = []
-    for level in levels:
-        xs.append(set(series.index.get_level_values(level)))
-
-    index = series.index
-    for level in index.names:
-        if level not in levels:
-            index = index.droplevel(level=level)
-
-    res = pd.Series(False, index=index)
-    for matching in matchings:
-        res |= index.map(matching)
-    res = ~res
-    res.index = series.index
-
-    return res
+    return {"constants": constants, "scales": scales}
 
 
 def pipeline(stats: ConfigStatsMapping, **kwargs):
@@ -358,53 +226,102 @@ def pipeline(stats: ConfigStatsMapping, **kwargs):
     return {"loss": loss_pipeline(stats, **kwargs), "affine": affine_pipeline(stats, **kwargs)}
 
 
-short_fmt = functools.partial(visualize.short_e, precision=0)
+# Older versions of the code stored absolute paths in config.
+# Try and turn these into relative paths for portability.
 
 
-def compact_heatmaps(
-    loss: pd.Series,
-    order: Iterable[str],
-    masks: Mapping[str, Iterable[FilterFn]],
-    fmt: Callable[[float], str] = short_fmt,
-    after_plot: Callable[[], None] = lambda: None,
-) -> Mapping[str, plt.Figure]:
-    """Plots a series of compact heatmaps, suitable for presentations.
+DATA_ROOT_PREFIXES = [
+    "/root/output",
+    "/mnt/eval_reward/data",
+]
+
+
+def _find_sacred_parent(
+    path: str, seen: Dict[str, str]
+) -> Tuple[Dict[str, Any], Dict[str, Any], str]:
+    """Finds first Sacred directory that is in path or a parent.
 
     Args:
-        loss: The loss between source and target.
-                The index should consist of target_reward_type, one of
-                source_reward_{type,path}, and any number of seed indices.
-                source_reward_path, if present, is rewritten into source_reward_type
-                and a seed index.
-        order: The order to plot the source and reward types.
-        masks: A mapping from strings to collections of filter functions. Any
-                (source, reward) pair not matching one of these filters is masked
-                from the figure.
-        fmt: A Callable mapping losses to strings to annotate cells in heatmap.
-        after_plot: Called after plotting, for environment-specific tweaks.
+        path: Path to a directory to start searching from.
+        seen: A dictionary from parent paths to children.
 
     Returns:
-        A mapping from strings to figures.
+        A tuple of the config found and the parent path it is located at.
+        As a side-effect, adds path to seen.
+
+    Raises:
+        ValueError: if the parent path was already in seen for a different child.
+        ValueError: no parent path containing a Sacred directory exists.
     """
-    loss = loss.copy()
-    loss = visualize.rewrite_index(loss)
-    loss = compact(loss)
+    for root_prefix in DATA_ROOT_PREFIXES:
+        if path.startswith(root_prefix):
+            path = path.replace(root_prefix, serialize.get_output_dir())
+            break
 
-    source_order = list(order)
-    zero_type = "evaluating_rewards/Zero-v0"
-    if zero_type in loss.index.get_level_values("source_reward_type"):
-        if zero_type not in source_order:
-            source_order.append(zero_type)
-    loss = loss.reindex(index=source_order, level="source_reward_type")
-    loss = loss.reindex(index=order, level="target_reward_type")
+    parent = path
+    while parent and not os.path.exists(os.path.join(parent, "sacred", "config.json")):
+        parent = os.path.dirname(parent)
+        if parent == "/":
+            parent = ""
+    if not parent:
+        raise ValueError(f"No parent of '{path}' contains a Sacred directory.")
 
-    figs = {}
-    for name, matching in masks.items():
-        fig, ax = plt.subplots(1, 1, figsize=(5, 4), squeeze=True)
-        match_mask = mask(loss, matching)
-        visualize.comparison_heatmap(loss, fmt=fmt, preserve_order=True, mask=match_mask, ax=ax)
-        # make room for multi-line xlabels
-        after_plot()
-        figs[name] = fig
+    if parent in seen and seen[parent] != path:
+        raise ValueError(
+            f"index contains two paths '{path}' and '{seen[parent]}' "
+            f"with common Sacred parent 'f{parent}'."
+        )
+    seen[parent] = path
 
-    return figs
+    config_path = os.path.join(parent, "sacred", "config.json")
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    run_path = os.path.join(parent, "sacred", "run.json")
+    with open(run_path, "r") as f:
+        run = json.load(f)
+
+    return config, run, parent
+
+
+HARDCODED_TYPES = ["evaluating_rewards/Zero-v0"]
+
+
+def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
+    """Extracts relevant config parameters from paths in index.
+
+    Args:
+        kinds: An index of reward types.
+        paths: An index of paths.
+
+    Returns:
+        A MultiIndex consisting of original reward type and seed(s).
+    """
+    seen = {}
+    res = []
+    for (kind, path) in zip(kinds, paths):
+
+        if kind in HARDCODED_TYPES or path == "dummy":
+            res.append((kind, "hardcoded", 0, 0))
+        else:
+            config, run, path = _find_sacred_parent(path, seen)
+            if "target_reward_type" in config:
+                # Learning directly from a reward: e.g. train_{regress,preferences}
+                pretty_type = {"train_regress": "regress", "train_preferences": "preferences"}
+                model_type = pretty_type[run["command"]]
+                res.append((config["target_reward_type"], model_type, config["seed"], 0))
+            elif "rollout_path" in config:
+                # Learning from demos: e.g. train_adversarial
+                rollout_config, _, _ = _find_sacred_parent(config["rollout_path"], seen)
+                reward_type = rollout_config["reward_type"] or "EnvReward"
+                reward_args = config["init_trainer_kwargs"]["reward_kwargs"]
+                state_only = reward_args.get("state_only", False)
+                model_type = "IRL" + ("-SO" if state_only else "-SA")
+                res.append((reward_type, model_type, config["seed"], rollout_config["seed"]))
+            else:
+                raise ValueError(
+                    f"Unexpected config at '{path}': does not contain "
+                    "'source_reward_type' or 'rollout_path'"
+                )
+
+    names = ["source_reward_type", "model_type", "model_seed", "data_seed"]
+    return pd.DataFrame(res, columns=names)
