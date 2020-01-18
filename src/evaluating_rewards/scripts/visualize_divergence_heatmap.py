@@ -198,17 +198,17 @@ def visualize_divergence_heatmap(
     def cfg_filter(cfg):
         return all((cfg[k] == v for k, v in search.items()))
 
-    # TODO: do I need to load everything when I just use loss?
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
-    stats = results.pipeline(stats)
-    # TODO: handle sequences of heatmaps? functions? or just make dict from env to fn?
-    loss = stats["loss"]["loss"]
+    res = results.pipeline(stats)
+    loss = res["loss"]["loss"]
     # TODO: usetex, Apple Color Emoji, make fonts match doc
     heatmap_kwargs = dict(heatmap_kwargs)
     if heatmap_kwargs.get("order") is None:
         heatmap_kwargs["order"] = loss.index.levels[0]
 
     heatmaps = results.compact_heatmaps(loss=loss, **heatmap_kwargs)
+    visualize.save_fig(os.path.join(log_dir, "loss"), res["loss"]["fig"], **save_kwargs)
+    visualize.save_fig(os.path.join(log_dir, "affine"), res["affine"]["fig"], **save_kwargs)
     visualize.save_figs(log_dir, heatmaps.items(), **save_kwargs)
 
     return heatmaps
