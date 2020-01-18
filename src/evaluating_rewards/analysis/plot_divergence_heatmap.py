@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import results, visualize
+from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.scripts import script_utils
 
 plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
@@ -45,7 +45,7 @@ def default_config():
         "masks": {"all": [visualize.always_true]},
         "order": None,
     }
-    # TODO: style sheet to apply?
+    styles = ["paper", "paper-1col"]
     save_kwargs = {
         "fmt": "pdf",
     }
@@ -170,6 +170,7 @@ def hopper():
 
 @plot_divergence_heatmap_ex.main
 def plot_divergence_heatmap(
+    styles: Iterable[str],
     data_root: str,
     data_subdir: Optional[str],
     search: Mapping[str, Any],
@@ -187,6 +188,9 @@ def plot_divergence_heatmap(
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
         """
+    for style in styles:
+        plt.style.use(stylesheets.STYLES[style])
+
     data_dir = data_root
     if data_subdir is not None:
         data_dir = os.path.join(data_dir, data_subdir)
@@ -209,7 +213,6 @@ def plot_divergence_heatmap(
         heatmap_kwargs["order"] = loss.index.levels[0]
 
     figs = {}
-
     figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])
     figs["affine"] = visualize.affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
     heatmaps = visualize.compact_heatmaps(loss=loss, **heatmap_kwargs)
