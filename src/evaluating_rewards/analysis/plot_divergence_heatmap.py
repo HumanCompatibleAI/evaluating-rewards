@@ -14,6 +14,13 @@
 
 """CLI script to plot heatmap of divergence between pairs of reward models."""
 
+# pylint:disable=wrong-import-position,wrong-import-order
+import matplotlib  # isort:skip
+
+# Need PGF to use LaTeX with includegraphics
+matplotlib.use("pgf")  # noqa: E402
+
+# isort: imports-stdlib
 import itertools
 import os
 from typing import Any, Iterable, Mapping, Optional
@@ -45,7 +52,7 @@ def default_config():
         "masks": {"all": [visualize.always_true]},
         "order": None,
     }
-    styles = ["paper", "paper-1col"]
+    styles = ["paper", "paper-1col", "tex"]
     save_kwargs = {
         "fmt": "pdf",
     }
@@ -144,6 +151,11 @@ def hopper_activity(args: Iterable[str]) -> bool:
     return len(set(repl)) > 1 and visualize.no_ctrl(args)
 
 
+def horizontal_ticks() -> None:
+    plt.xticks(rotation="horizontal")
+    plt.yticks(rotation="horizontal")
+
+
 @plot_divergence_heatmap_ex.named_config
 def hopper():
     """Heatmaps for Hopper-v3."""
@@ -164,7 +176,7 @@ def hopper():
         f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
         for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
     ]
-    heatmap_kwargs["after_plot"] = lambda: plt.yticks(rotation="horizontal")
+    heatmap_kwargs["after_plot"] = horizontal_ticks
     del activities
 
 
@@ -188,6 +200,8 @@ def plot_divergence_heatmap(
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
         """
+    if "tex" in styles:
+        os.environ["TEXINPUTS"] = stylesheets.ANALYSIS_DIR + ":"
     for style in styles:
         plt.style.use(stylesheets.STYLES[style])
 
@@ -207,7 +221,6 @@ def plot_divergence_heatmap(
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
-    # TODO: usetex, Apple Color Emoji, make fonts match doc
     heatmap_kwargs = dict(heatmap_kwargs)
     if heatmap_kwargs.get("order") is None:
         heatmap_kwargs["order"] = loss.index.levels[0]

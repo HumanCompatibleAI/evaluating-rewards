@@ -1,5 +1,9 @@
 """matplotlib styles."""
 
+import os
+
+ANALYSIS_DIR = os.path.dirname(os.path.abspath(__file__))
+
 STYLES = {
     # Matching ICML 2020 style
     "paper": {
@@ -14,4 +18,11 @@ STYLES = {
         "ytick.labelsize": 10,
     },
     "paper-1col": {"figure.figsize": (3.25, 9.0)},
+    "tex": {
+        "backend": "pgf",
+        "text.usetex": True,
+        "pgf.texsystem": "pdflatex",
+        "pgf.rcfonts": False,
+        "pgf.preamble": [r"\usepackage{figemojis}", r"\usepackage{times}"],
+    },
 }

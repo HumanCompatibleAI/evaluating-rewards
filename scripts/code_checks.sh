@@ -22,7 +22,7 @@ set -e  # quit immediately on error
 
 flake8 ${SRC_FILES}
 black --check ${SRC_FILES}
-codespell -I .codespell.skip --skip='*.pyc' ${SRC_FILES}
+codespell -I .codespell.skip --skip='*.pyc,*.pdf,*.png' ${SRC_FILES}
 
 if [ -x "`which circleci`" ]; then
     circleci config validate

@@ -28,10 +28,12 @@ import seaborn as sns
 from evaluating_rewards.analysis import results
 
 SYMBOLS = {
-    "running": "\U0001f3c3",  # runner
-    "backflip": "\U0001f938",  # cartwheel: closest Unicode has
-    "withctrl": "\U0001f40c",  # snail
-    "noctrl": "\U0001f406",  # cheetah
+    "running": r"\\running{}",
+    "backflip": r"\\backflipping{}",
+    "withctrl": r"\\controlpenalty{}",
+    "noctrl": r"\\nocontrolpenalty{}",
+    "backward": r"\\backward{}",
+    "forward": r"\\forward{}",
 }
 
 
@@ -49,8 +51,8 @@ TRANSFORMATIONS = {
     r"(.*)(Hopper|HalfCheetah)Backflip(.*)": f"\\1\\2{SYMBOLS['backflip']}\\3",
     r"^Hopper(.*)": r"\1",
     r"^HalfCheetah(.*)": r"\1",
-    r"^(.*)Backward(.*)": r"\1←\2",
-    r"^(.*)Forward(.*)": r"\1→\2",
+    r"^(.*)Backward(.*)": f"\\1{SYMBOLS['backward']}\\2",
+    r"^(.*)Forward(.*)": f"\\1{SYMBOLS['forward']}\\2",
     r"^(.*)WithCtrl(.*)": f"\\1{SYMBOLS['withctrl']}\\2",
     r"^(.*)NoCtrl(.*)": f"\\1{SYMBOLS['noctrl']}\\2",
 }
