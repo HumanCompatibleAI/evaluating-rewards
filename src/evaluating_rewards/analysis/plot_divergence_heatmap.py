@@ -35,6 +35,11 @@ from evaluating_rewards.scripts import script_utils
 plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 
+def horizontal_ticks() -> None:
+    plt.xticks(rotation="horizontal")
+    plt.yticks(rotation="horizontal")
+
+
 @plot_divergence_heatmap_ex.config
 def default_config():
     """Default configuration values."""
@@ -51,6 +56,7 @@ def default_config():
     heatmap_kwargs = {
         "masks": {"all": [visualize.always_true]},
         "order": None,
+        "after_plot": horizontal_ticks,
     }
     styles = ["paper", "paper-1col", "tex"]
     save_kwargs = {
@@ -73,10 +79,6 @@ def _norm(args: Iterable[str]) -> bool:
     return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
 
-def _point_mass_after_plot():
-    plt.subplots_adjust(bottom=0.15, top=0.95, left=0.16, right=0.95)
-
-
 @plot_divergence_heatmap_ex.named_config
 def point_mass():
     """Heatmaps for evaluating_rewards/PointMass* environments."""
@@ -97,7 +99,7 @@ def point_mass():
     }
     order = ["SparseNoCtrl", "Sparse", "DenseNoCtrl", "Dense", "GroundTruth"]
     heatmap_kwargs["order"] = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
-    heatmap_kwargs["after_plot"] = _point_mass_after_plot
+    heatmap_kwargs["after_plot"] = horizontal_ticks
     del order
 
 
@@ -149,11 +151,6 @@ def hopper_activity(args: Iterable[str]) -> bool:
     pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
     repl = visualize.replace(pattern, r"\1\2")(args)
     return len(set(repl)) > 1 and visualize.no_ctrl(args)
-
-
-def horizontal_ticks() -> None:
-    plt.xticks(rotation="horizontal")
-    plt.yticks(rotation="horizontal")
 
 
 @plot_divergence_heatmap_ex.named_config

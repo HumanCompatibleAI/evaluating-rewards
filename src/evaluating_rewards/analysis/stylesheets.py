@@ -16,6 +16,10 @@ STYLES = {
         "axes.labelsize": 10,
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
+        "figure.subplot.top": 0.99,
+        "figure.subplot.bottom": 0.11,
+        "figure.subplot.left": 0.16,
+        "figure.subplot.right": 0.96,
     },
     "paper-1col": {"figure.figsize": (3.25, 9.0)},
     "tex": {
