@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to analysis a reward model for PointMassLine*-v0.
+"""CLI script to visualize a reward model for PointMassLine*-v0.
 
 Note most environments are too high-dimensional to directly visualize reward.
 """

@@ -205,8 +205,9 @@ def plot_divergence_heatmap(
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
+        styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         data_root: where to load data from.
-        data_kind: subdirectory to load data from.
+        data_subdir: subdirectory to load data from.
         search: mapping which Sacred configs must match to be included in results.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
