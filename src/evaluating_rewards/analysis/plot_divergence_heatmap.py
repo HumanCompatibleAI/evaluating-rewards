@@ -217,37 +217,40 @@ def plot_divergence_heatmap(
         """
     if "tex" in styles:
         os.environ["TEXINPUTS"] = stylesheets.LATEX_DIR + ":"
-    for style in styles:
-        plt.style.use(stylesheets.STYLES[style])
+    styles = [stylesheets.STYLES[style] for style in styles]
+    with plt.style.context(styles):
+        data_dir = data_root
+        if data_subdir is not None:
+            data_dir = os.path.join(data_dir, data_subdir)
+        # Workaround tags reserved by Sacred
+        search = dict(search)
+        for k, v in search.items():
+            if isinstance(v, dict):
+                search[k] = {
+                    inner_k.replace("escape/", ""): inner_v for inner_k, inner_v in v.items()
+                }
 
-    data_dir = data_root
-    if data_subdir is not None:
-        data_dir = os.path.join(data_dir, data_subdir)
-    # Workaround tags reserved by Sacred
-    search = dict(search)
-    for k, v in search.items():
-        if isinstance(v, dict):
-            search[k] = {inner_k.replace("escape/", ""): inner_v for inner_k, inner_v in v.items()}
+        def cfg_filter(cfg):
+            return all((cfg.get(k) == v for k, v in search.items()))
 
-    def cfg_filter(cfg):
-        return all((cfg.get(k) == v for k, v in search.items()))
+        keys = ["source_reward_type", "source_reward_path", "target_reward_type", "seed"]
+        stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
+        res = results.pipeline(stats)
+        loss = res["loss"]["loss"]
+        heatmap_kwargs = dict(heatmap_kwargs)
+        if heatmap_kwargs.get("order") is None:
+            heatmap_kwargs["order"] = loss.index.levels[0]
 
-    keys = ["source_reward_type", "source_reward_path", "target_reward_type", "seed"]
-    stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
-    res = results.pipeline(stats)
-    loss = res["loss"]["loss"]
-    heatmap_kwargs = dict(heatmap_kwargs)
-    if heatmap_kwargs.get("order") is None:
-        heatmap_kwargs["order"] = loss.index.levels[0]
+        figs = {}
+        figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])
+        figs["affine"] = visualize.affine_heatmap(
+            res["affine"]["scales"], res["affine"]["constants"]
+        )
+        heatmaps = visualize.compact_heatmaps(loss=loss, **heatmap_kwargs)
+        figs.update(heatmaps)
+        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
-    figs = {}
-    figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])
-    figs["affine"] = visualize.affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
-    heatmaps = visualize.compact_heatmaps(loss=loss, **heatmap_kwargs)
-    figs.update(heatmaps)
-    visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-
-    return figs
+        return figs
 
 
 if __name__ == "__main__":
