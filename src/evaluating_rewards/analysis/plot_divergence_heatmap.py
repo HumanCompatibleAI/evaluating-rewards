@@ -59,7 +59,7 @@ def default_config():
         "order": None,
         "after_plot": horizontal_ticks,
     }
-    styles = ["paper", "paper-1col", "tex"]
+    styles = ["paper", "heatmap-1col", "tex"]
     save_kwargs = {
         "fmt": "pdf",
     }

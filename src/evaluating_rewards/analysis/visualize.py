@@ -369,7 +369,7 @@ def compact_heatmaps(
 
     figs = {}
     for name, matching in masks.items():
-        fig, ax = plt.subplots(1, 1, figsize=(5, 4), squeeze=True)
+        fig, ax = plt.subplots(1, 1, squeeze=True)
         match_mask = compute_mask(loss, matching)
         comparison_heatmap(loss, fmt=fmt, preserve_order=True, mask=match_mask, ax=ax)
         # make room for multi-line xlabels
