@@ -226,11 +226,9 @@ def pipeline(stats: ConfigStatsMapping, **kwargs):
     return {"loss": loss_pipeline(stats, **kwargs), "affine": affine_pipeline(stats, **kwargs)}
 
 
-# Older versions of the code stored absolute paths in config.
-# Try and turn these into relative paths for portability.
-
-
 DATA_ROOT_PREFIXES = [
+    # Older versions of the code stored absolute paths in config.
+    # Try and turn these into relative paths for portability.
     "/root/output",
     "/mnt/eval_reward/data",
 ]

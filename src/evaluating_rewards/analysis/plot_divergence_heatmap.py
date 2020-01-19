@@ -86,6 +86,8 @@ def fast():
     search = {
         "env_name": "evaluating_rewards/PointMassLine-v0",
     }
+    # Do not include "tex" in styles here: this will break on CI.
+    styles = ["paper", "heatmap-1col"]
     _ = locals()
     del _
 
