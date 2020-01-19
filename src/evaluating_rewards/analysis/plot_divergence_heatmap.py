@@ -25,6 +25,7 @@ import itertools
 import os
 from typing import Any, Iterable, Mapping, Optional
 
+from imitation import util
 import matplotlib.pyplot as plt
 import sacred
 
@@ -71,7 +72,10 @@ def default_config():
 def logging_config(log_root, search):
     # TODO: timestamp?
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root, "plot_divergence_heatmap", str(search).replace("/", "_"),
+        log_root,
+        "plot_divergence_heatmap",
+        str(search).replace("/", "_"),
+        util.make_unique_timestamp(),
     )
 
 
