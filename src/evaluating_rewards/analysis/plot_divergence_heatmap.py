@@ -14,19 +14,11 @@
 
 """CLI script to plot heatmap of divergence between pairs of reward models."""
 
-# pylint:disable=wrong-import-position,wrong-import-order,ungrouped-imports
-import matplotlib  # isort:skip
-
-# Need PGF to use LaTeX with includegraphics
-matplotlib.use("pgf")  # noqa: E402
-
-# isort: imports-stdlib
 import itertools
 import os
 from typing import Any, Iterable, Mapping, Optional
 
 from imitation import util
-import matplotlib.pyplot as plt
 import sacred
 
 from evaluating_rewards import serialize
@@ -37,6 +29,9 @@ plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 
 def horizontal_ticks() -> None:
+    # lazy import to allow custom backend
+    import matplotlib.pyplot as plt  # pylint:disable=import-outside-toplevel
+
     plt.xticks(rotation="horizontal")
     plt.yticks(rotation="horizontal")
 
@@ -216,8 +211,14 @@ def plot_divergence_heatmap(
         save_kwargs: passed through to `analysis.save_figs`.
         """
     if "tex" in styles:
+        import matplotlib  # pylint:disable=import-outside-toplevel
+
+        matplotlib.use("pgf")  # PGF backend best for LaTeX
         os.environ["TEXINPUTS"] = stylesheets.LATEX_DIR + ":"
     styles = [stylesheets.STYLES[style] for style in styles]
+
+    import matplotlib.pyplot as plt  # pylint:disable=import-outside-toplevel
+
     with plt.style.context(styles):
         data_dir = data_root
         if data_subdir is not None:
