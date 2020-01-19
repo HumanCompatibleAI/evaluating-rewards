@@ -78,6 +78,18 @@ def logging_config(log_root, search):
     )
 
 
+@plot_divergence_heatmap_ex.named_config
+def fast():
+    """Intended for debugging/unit test."""
+    data_root = os.path.join("tests", "data")
+    data_subdir = "comparison"
+    search = {
+        "env_name": "evaluating_rewards/PointMassLine-v0",
+    }
+    _ = locals()
+    del _
+
+
 def _norm(args: Iterable[str]) -> bool:
     return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
