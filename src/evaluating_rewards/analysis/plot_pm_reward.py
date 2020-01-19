@@ -41,7 +41,7 @@ def default_config():
     # Reward parameters
     env_name = "evaluating_rewards/PointMassLine-v0"
     # Simple method: specify one model
-    reward_type = "evaluating_rewards/PointMassSparse-v0"
+    reward_type = "evaluating_rewards/PointMassSparseWithCtrl-v0"
     reward_path = "dummy"
     # Complex method: specify multiple models
     models = None
