@@ -1,0 +1,13 @@
+\usepackage{graphicx}
+\usepackage[export]{adjustbox}
+
+\newcommand{\emoji}[1]{\includegraphics[width=1em,valign=t,raise=-0.1em]{emojis/#1}}
+
+\newcommand{\running}{\reflectbox{\emoji{noto_running}}}
+\newcommand{\backflipping}{\reflectbox{\emoji{vexel_backflip}}}
+
+\newcommand{\forward}[1]{#1}
+\newcommand{\backward}[1]{\reflectbox{#1}}
+
+\newcommand{\controlpenalty}{\reflectbox{\emoji{noto_snail}}}
+\newcommand{\nocontrolpenalty}{\reflectbox{\emoji{mozilla_cheetah}}}

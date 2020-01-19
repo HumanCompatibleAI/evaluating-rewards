@@ -35,7 +35,7 @@ def default_config():
     dataset_factory_kwargs = dict()
 
     # Model to fit to target
-    source_reward_type = "evaluating_rewards/PointMassSparse-v0"
+    source_reward_type = "evaluating_rewards/PointMassSparseWithCtrl-v0"
     source_reward_path = "dummy"
 
     # Model to train and hyperparameters

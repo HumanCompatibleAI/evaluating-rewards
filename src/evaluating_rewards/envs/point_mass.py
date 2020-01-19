@@ -311,7 +311,7 @@ reward_serialize.reward_registry.register(
     value=registry.build_loader_fn_require_space(PointMassGroundTruth),
 )
 reward_serialize.reward_registry.register(
-    key="evaluating_rewards/PointMassSparse-v0",
+    key="evaluating_rewards/PointMassSparseWithCtrl-v0",
     value=registry.build_loader_fn_require_space(PointMassSparseReward),
 )
 reward_serialize.reward_registry.register(
@@ -319,7 +319,7 @@ reward_serialize.reward_registry.register(
     value=registry.build_loader_fn_require_space(PointMassSparseReward, ctrl_coef=0.0),
 )
 reward_serialize.reward_registry.register(
-    key="evaluating_rewards/PointMassDense-v0",
+    key="evaluating_rewards/PointMassDenseWithCtrl-v0",
     value=registry.build_loader_fn_require_space(PointMassDenseReward),
 )
 reward_serialize.reward_registry.register(

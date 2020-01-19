@@ -20,13 +20,9 @@ from imitation.util import util
 import sacred
 from sacred import observers
 
-# Imported for side-effects (registers with Gym)
+# envs imported for side-effects (registers with Gym)
 from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
-
-
-def get_output_dir():
-    default = os.path.join(os.getenv("HOME"), "output")
-    return os.getenv("EVAL_OUTPUT_ROOT", default)
+from evaluating_rewards import serialize
 
 
 def logging_config(log_root, env_name):
@@ -36,7 +32,7 @@ def logging_config(log_root, env_name):
 
 
 def add_logging_config(experiment, name):
-    experiment.add_config({"log_root": os.path.join(get_output_dir(), name)})
+    experiment.add_config({"log_root": os.path.join(serialize.get_output_dir(), name)})
     experiment.config(logging_config)
 
 
@@ -61,7 +57,7 @@ def add_sacred_symlink(observer: observers.FileStorageObserver):
 def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):
     """Returns a main function for experiment."""
 
-    sacred_dir = os.path.join(get_output_dir(), "sacred", name)
+    sacred_dir = os.path.join(serialize.get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)
     if sacred_symlink:
         experiment.pre_run_hook(add_sacred_symlink(observer))

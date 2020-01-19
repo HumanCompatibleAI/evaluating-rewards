@@ -31,11 +31,15 @@ PM_REWARD_TYPES = {
         "loss_ub": 6.5e-3,
         "rel_loss_lb": 10,
     },
-    "dense": {"target": "evaluating_rewards/PointMassDense-v0", "loss_ub": 4e-2, "rel_loss_lb": 10},
+    "dense": {
+        "target": "evaluating_rewards/PointMassDenseWithCtrl-v0",
+        "loss_ub": 4e-2,
+        "rel_loss_lb": 10,
+    },
     # For sparse and zero, set a low relative error bound, since some
     # random seeds have small scale and so get a low initial loss.
     "sparse": {
-        "target": "evaluating_rewards/PointMassSparse-v0",
+        "target": "evaluating_rewards/PointMassSparseWithCtrl-v0",
         "loss_ub": 4e-2,
         "rel_loss_lb": 2,
     },

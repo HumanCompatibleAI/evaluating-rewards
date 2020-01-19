@@ -16,6 +16,7 @@
 
 import contextlib
 import logging
+import os
 from typing import Callable, Iterator
 import uuid
 
@@ -30,6 +31,12 @@ import tensorflow as tf
 from evaluating_rewards import rewards
 
 RewardLoaderFn = Callable[[str, vec_env.VecEnv], rewards.RewardModel]
+
+
+def get_output_dir():
+    """Get default output directory to use as parent for relative paths."""
+    default = os.path.join(os.getenv("HOME"), "output")
+    return os.getenv("EVAL_OUTPUT_ROOT", default)
 
 
 class RewardRegistry(registry.Registry[RewardLoaderFn]):
@@ -134,5 +141,6 @@ def load_reward(reward_type: str, reward_path: str, venv: vec_env.VecEnv) -> rew
         The reward model loaded from reward_path.
     """
     agent_loader = reward_registry.get(reward_type)
+    reward_path = os.path.join(get_output_dir(), reward_path)
     logging.debug(f"Loading {reward_type} from {reward_path}")
     return agent_loader(reward_path, venv)

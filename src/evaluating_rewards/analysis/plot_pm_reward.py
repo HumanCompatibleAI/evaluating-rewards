@@ -28,19 +28,20 @@ from stable_baselines.common import vec_env
 import xarray as xr
 
 from evaluating_rewards import serialize
-from evaluating_rewards.experiments import point_mass_analysis, visualize
+from evaluating_rewards.analysis import visualize
+from evaluating_rewards.experiments import point_mass_analysis
 from evaluating_rewards.scripts import script_utils
 
-visualize_pm_reward_ex = sacred.Experiment("visualize_pm_reward")
+plot_pm_reward_ex = sacred.Experiment("plot_pm_reward")
 
 
-@visualize_pm_reward_ex.config
+@plot_pm_reward_ex.config
 def default_config():
     """Default configuration values."""
     # Reward parameters
     env_name = "evaluating_rewards/PointMassLine-v0"
     # Simple method: specify one model
-    reward_type = "evaluating_rewards/PointMassSparse-v0"
+    reward_type = "evaluating_rewards/PointMassSparseWithCtrl-v0"
     reward_path = "dummy"
     # Complex method: specify multiple models
     models = None
@@ -63,10 +64,10 @@ def default_config():
     del _
 
 
-script_utils.add_logging_config(visualize_pm_reward_ex, "visualize_pm_reward")
+script_utils.add_logging_config(plot_pm_reward_ex, "plot_pm_reward")
 
 
-@visualize_pm_reward_ex.config
+@plot_pm_reward_ex.config
 def logging_config(log_root, models, reward_type, reward_path):
     if models is None:
         save_path = os.path.join(
@@ -78,7 +79,7 @@ def logging_config(log_root, models, reward_type, reward_path):
     del _
 
 
-@visualize_pm_reward_ex.config
+@plot_pm_reward_ex.config
 def reward_config(models, reward_type, reward_path):
     if models is None:
         models = [("singleton", reward_type, reward_path)]
@@ -89,13 +90,13 @@ def reward_config(models, reward_type, reward_path):
 STRIP_CONFIG = dict(pos_density=7, ncols=7, width=9.5, height=1.5)
 
 
-@visualize_pm_reward_ex.named_config
+@plot_pm_reward_ex.named_config
 def strip():
     locals().update(**STRIP_CONFIG)
     cbar_kwargs = {"aspect": 3, "pad": 0.03}  # noqa: F841  pylint:disable=unused-variable
 
 
-@visualize_pm_reward_ex.named_config
+@plot_pm_reward_ex.named_config
 def dense_no_ctrl_sparsified():
     """PointMassDenseNoCtrl along with sparsified and ground-truth sparse reward."""
     locals().update(**STRIP_CONFIG)
@@ -108,7 +109,7 @@ def dense_no_ctrl_sparsified():
             "Sparsified",
             "evaluating_rewards/RewardModel-v0",
             os.path.join(
-                script_utils.get_output_dir(),
+                serialize.get_output_dir(),
                 "model_comparison",
                 "evaluating_rewards_PointMassLine-v0",
                 "20190921_190606_58935eb0a51849508381daf1055d0360",
@@ -121,14 +122,14 @@ def dense_no_ctrl_sparsified():
     del _
 
 
-@visualize_pm_reward_ex.named_config
+@plot_pm_reward_ex.named_config
 def fast():
     """Small config, intended for tests / debugging."""
     density = 5  # noqa: F841  pylint:disable=unused-variable
 
 
-@visualize_pm_reward_ex.main
-def visualize_pm_reward(
+@plot_pm_reward_ex.main
+def plot_pm_reward(
     env_name: str,
     models: Sequence[Tuple[str, str, str]],
     # Mesh parameters
@@ -182,4 +183,4 @@ def visualize_pm_reward(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(visualize_pm_reward_ex, "visualize_pm_reward")
+    script_utils.experiment_main(plot_pm_reward_ex, "plot_pm_reward")
