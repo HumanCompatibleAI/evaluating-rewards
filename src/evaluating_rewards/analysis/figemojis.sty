@@ -3,11 +3,11 @@
 
 \newcommand{\emoji}[1]{\includegraphics[width=1em,valign=t,raise=-0.1em]{emojis/#1}}
 
-\newcommand{\running}{\emoji{apple/runner.pdf}}
-\newcommand{\backflipping}{\emoji{apple/cartwheel.png}}
+\newcommand{\running}{\reflectbox{\emoji{noto_running}}}
+\newcommand{\backflipping}{\reflectbox{\emoji{vexel_backflip}}}
 
-\newcommand{\forward}{$\rightarrow$}
-\newcommand{\backward}{$\leftarrow$}
+\newcommand{\forward}[1]{#1}
+\newcommand{\backward}[1]{\reflectbox{#1}}
 
-\newcommand{\controlpenalty}{\emoji{apple/snail.pdf}}
-\newcommand{\nocontrolpenalty}{\emoji{apple/cheetah.pdf}}
+\newcommand{\controlpenalty}{\reflectbox{\emoji{noto_snail}}}
+\newcommand{\nocontrolpenalty}{\reflectbox{\emoji{mozilla_cheetah}}}

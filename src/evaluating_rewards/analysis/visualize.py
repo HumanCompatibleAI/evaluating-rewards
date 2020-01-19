@@ -27,16 +27,6 @@ import seaborn as sns
 
 from evaluating_rewards.analysis import results
 
-SYMBOLS = {
-    "running": r"\\running{}",
-    "backflip": r"\\backflipping{}",
-    "withctrl": r"\\controlpenalty{}",
-    "noctrl": r"\\nocontrolpenalty{}",
-    "backward": r"\\backward{}",
-    "forward": r"\\forward{}",
-}
-
-
 TRANSFORMATIONS = {
     r"^evaluating_rewards[_/](.*)-v0": r"\1",
     r"^imitation[_/](.*)-v0": r"\1",
@@ -47,14 +37,14 @@ TRANSFORMATIONS = {
     "^PointMassSparse": "Sparse",
     "^PointMassSparseNoCtrl": "Sparse\nNo Ctrl",
     "^PointMazeGroundTruth": "GT",
-    r"(.*)(Hopper|HalfCheetah)GroundTruth(.*)": f"\\1\\2{SYMBOLS['running']}\\3",
-    r"(.*)(Hopper|HalfCheetah)Backflip(.*)": f"\\1\\2{SYMBOLS['backflip']}\\3",
+    r"(.*)(Hopper|HalfCheetah)GroundTruth(.*)": r"\1\2\\running{}\3",
+    r"(.*)(Hopper|HalfCheetah)Backflip(.*)": r"\1\2\\backflipping{}\3",
     r"^Hopper(.*)": r"\1",
     r"^HalfCheetah(.*)": r"\1",
-    r"^(.*)Backward(.*)": f"\\1{SYMBOLS['backward']}\\2",
-    r"^(.*)Forward(.*)": f"\\1{SYMBOLS['forward']}\\2",
-    r"^(.*)WithCtrl(.*)": f"\\1{SYMBOLS['withctrl']}\\2",
-    r"^(.*)NoCtrl(.*)": f"\\1{SYMBOLS['noctrl']}\\2",
+    r"^(.*)Backward(.*)": r"\\backward{\1\2}",
+    r"^(.*)Forward(.*)": r"\\forward{\1\2}",
+    r"^(.*)WithCtrl(.*)": r"\1\\controlpenalty{}\2",
+    r"^(.*)NoCtrl(.*)": r"\1\\nocontrolpenalty{}\2",
 }
 
 
@@ -118,11 +108,6 @@ def short_e(x: float, precision: int = 2) -> str:
     base, exponent = formatted.split("e")
     exponent = int(exponent)
     return f"{base}e{exponent}"
-
-
-def _is_ascii(idx: pd.Index) -> bool:
-    # TODO(adam): remove pytype annotation when issue pytype GH#493 fixed
-    return all([str(x).isascii() for x in idx])  # pytype:disable=attribute-error
 
 
 def remove_constant_levels(index: pd.MultiIndex) -> pd.MultiIndex:
@@ -227,35 +212,7 @@ def comparison_heatmap(
     if robust:
         flat = data.values.flatten()
         kwargs["vmin"], kwargs["vmax"] = np.quantile(flat, [0.25, 0.75])
-    ax = sns.heatmap(data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws, mask=mask, **kwargs)
-
-    labels_symbols = not (_is_ascii(vals.index) and _is_ascii(vals.columns))
-    if labels_symbols:
-        # TODO(): ideally we'd set symbola as a fall-back font, but this
-        # is not supported by matplotlib currently, see e.g.
-        # https://stackoverflow.com/questions/53581589/matplotlib-can-i-use-a-secondary-font-for-missing-glyphs
-        ax.set_xticklabels(ax.get_xticklabels(), fontfamily="symbola")
-        ax.set_yticklabels(ax.get_yticklabels(), fontfamily="symbola")
-
-
-def print_symbols(
-    out_dir: str, symbols: Optional[Mapping[str, str]] = None, fontfamily: str = "symbola"
-) -> Mapping[str, plt.Figure]:
-    """Save PNG rendering of `symbols` to `out_dir`."""
-    if symbols is None:
-        symbols = SYMBOLS
-
-    figs = {}
-    for symbol_name, symbol in symbols.items():
-        fig = plt.figure(figsize=(0.15, 0.15))
-        plt.text(0, 0, symbol, fontfamily=fontfamily)
-        plt.axis("off")
-        plt.tight_layout()
-        figs[symbol_name] = fig
-
-    save_figs(out_dir, figs.items(), bbox_inches=0, fmt="png", dpi=1200)
-
-    return figs
+    sns.heatmap(data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws, mask=mask, **kwargs)
 
 
 def median_seeds(series: pd.Series) -> pd.Series:
