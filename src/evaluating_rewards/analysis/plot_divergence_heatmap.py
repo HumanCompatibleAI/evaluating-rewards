@@ -70,7 +70,6 @@ def default_config():
 
 @plot_divergence_heatmap_ex.config
 def logging_config(log_root, search):
-    # TODO: timestamp?
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
         "plot_divergence_heatmap",
