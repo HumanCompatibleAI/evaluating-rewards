@@ -14,7 +14,7 @@
 
 """CLI script to plot heatmap of divergence between pairs of reward models."""
 
-# pylint:disable=wrong-import-position,wrong-import-order
+# pylint:disable=wrong-import-position,wrong-import-order,ungrouped-imports
 import matplotlib  # isort:skip
 
 # Need PGF to use LaTeX with includegraphics
@@ -198,7 +198,7 @@ def plot_divergence_heatmap(
         save_kwargs: passed through to `analysis.save_figs`.
         """
     if "tex" in styles:
-        os.environ["TEXINPUTS"] = stylesheets.ANALYSIS_DIR + ":"
+        os.environ["TEXINPUTS"] = stylesheets.LATEX_DIR + ":"
     for style in styles:
         plt.style.use(stylesheets.STYLES[style])
 

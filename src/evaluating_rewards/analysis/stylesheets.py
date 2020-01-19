@@ -2,7 +2,7 @@
 
 import os
 
-ANALYSIS_DIR = os.path.dirname(os.path.abspath(__file__))
+LATEX_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "latex")
 
 STYLES = {
     # Matching ICML 2020 style
