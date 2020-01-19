@@ -16,9 +16,10 @@
 
 import functools
 import logging
+import math
 import os
 import re
-from typing import Any, Callable, Iterable, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -103,6 +104,8 @@ def rewrite_index(series: pd.Series) -> pd.Series:
 
 def short_e(x: float, precision: int = 2) -> str:
     """Formats 1.2345 as 1.2e-1, rather than Python 1.2e-01."""
+    if not math.isfinite(x):
+        return str(x)
     fmt = "{:." + str(precision) + "e}"
     formatted = fmt.format(x)
     base, exponent = formatted.split("e")
@@ -379,22 +382,31 @@ def compact_heatmaps(
     return figs
 
 
-def _dual_heatmap(a: pd.Series, alab: str, b: pd.Series, blab: str) -> plt.Figure:
+def _multi_heatmap(
+    data: Iterable[pd.Series], labels: Iterable[pd.Series], kwargs: Iterable[Dict[str, Any]]
+) -> plt.Figure:
+    data = tuple(data)
+    labels = tuple(labels)
+    kwargs = tuple(kwargs)
+    ncols = len(data)
+    assert ncols == len(labels)
+    assert ncols == len(kwargs)
+
     width, height = plt.rcParams.get("figure.figsize")
-    fig, axs = plt.subplots(2, 1, figsize=(2 * width, height), squeeze=True)
+    fig, axs = plt.subplots(ncols, 1, figsize=(ncols * width, height), squeeze=True)
 
-    comparison_heatmap(a, ax=axs[0])
-    axs[0].set_title(alab)
-
-    comparison_heatmap(b, ax=axs[1])
-    axs[1].set_title(blab)
+    for series, lab, kw, ax in zip(data, labels, kwargs, axs):
+        comparison_heatmap(series, ax=ax, **kw)
+        ax.set_title(lab)
 
     return fig
 
 
 def loss_heatmap(loss: pd.Series, unwrapped_loss: pd.Series) -> plt.Figure:
-    return _dual_heatmap(loss, "Loss", unwrapped_loss, "Unwrapped Loss")
+    return _multi_heatmap([loss, unwrapped_loss], ["Loss", "Unwrapped Loss"], [{}, {}])
 
 
 def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
-    return _dual_heatmap(scales, "Scale", constants, "Constant")
+    return _multi_heatmap(
+        [scales, constants], ["Scale", "Constant"], [dict(robust=True), dict(log=False, center=0.0)]
+    )
