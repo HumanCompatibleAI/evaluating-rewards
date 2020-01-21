@@ -18,7 +18,7 @@ Note most environments are too high-dimensional to directly visualize reward.
 """
 
 import os
-from typing import Any, Mapping, Sequence, Tuple
+from typing import Any, Iterable, Mapping, Sequence, Tuple
 
 import gym
 from imitation import util
@@ -28,7 +28,7 @@ from stable_baselines.common import vec_env
 import xarray as xr
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import visualize
+from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.experiments import point_mass_analysis
 from evaluating_rewards.scripts import script_utils
 
@@ -55,9 +55,8 @@ def default_config():
     act_lim = lim  # action point range
 
     # Figure parameters
+    styles = ["paper", "pointmass-2col", "tex"]
     ncols = 3  # number of heatmaps per row
-    width = 5  # in
-    height = 4  # in
     cbar_kwargs = {"fraction": 0.1, "pad": 0.05}
     fmt = "pdf"  # file type
     _ = locals()  # quieten flake8 unused variable warning
@@ -87,7 +86,7 @@ def reward_config(models, reward_type, reward_path):
     del _
 
 
-STRIP_CONFIG = dict(pos_density=7, ncols=7, width=9.5, height=1.5)
+STRIP_CONFIG = dict(pos_density=7, ncols=7)
 
 
 @plot_pm_reward_ex.named_config
@@ -130,6 +129,7 @@ def fast():
 
 @plot_pm_reward_ex.main
 def plot_pm_reward(
+    styles: Iterable[str],
     env_name: str,
     models: Sequence[Tuple[str, str, str]],
     # Mesh parameters
@@ -140,46 +140,43 @@ def plot_pm_reward(
     density: int,
     # Figure parameters
     ncols: int,
-    width: float,
-    height: float,
     cbar_kwargs: Mapping[str, Any],
     save_path: str,
     fmt: str,
 ) -> xr.DataArray:
     """Entry-point into script to visualize a reward model for point mass."""
-    env = gym.make(env_name)
-    venv = vec_env.DummyVecEnv([lambda: env])
-    goal = np.array([0.0])
+    with stylesheets.setup_styles(styles):
+        env = gym.make(env_name)
+        venv = vec_env.DummyVecEnv([lambda: env])
+        goal = np.array([0.0])
 
-    rewards = {}
-    with util.make_session():
-        for model_name, reward_type, reward_path in models:
-            model = serialize.load_reward(reward_type, reward_path, venv)
-            reward = point_mass_analysis.evaluate_reward_model(
-                env,
-                model,
-                goal=goal,
-                pos_lim=pos_lim,
-                pos_density=pos_density,
-                vel_lim=vel_lim,
-                act_lim=act_lim,
-                density=density,
-            )
-            rewards[model_name] = reward
+        rewards = {}
+        with util.make_session():
+            for model_name, reward_type, reward_path in models:
+                model = serialize.load_reward(reward_type, reward_path, venv)
+                reward = point_mass_analysis.evaluate_reward_model(
+                    env,
+                    model,
+                    goal=goal,
+                    pos_lim=pos_lim,
+                    pos_density=pos_density,
+                    vel_lim=vel_lim,
+                    act_lim=act_lim,
+                    density=density,
+                )
+                rewards[model_name] = reward
 
-    if len(rewards) == 1:
-        reward = next(iter(rewards.values()))
-        kwargs = {"col_wrap": ncols}
-    else:
-        reward = xr.Dataset(rewards).to_array("model")
-        kwargs = {"row": "Model"}
+        if len(rewards) == 1:
+            reward = next(iter(rewards.values()))
+            kwargs = {"col_wrap": ncols}
+        else:
+            reward = xr.Dataset(rewards).to_array("model")
+            kwargs = {"row": "Model"}
 
-    fig = point_mass_analysis.plot_reward(
-        reward, figsize=(width, height), cbar_kwargs=cbar_kwargs, **kwargs
-    )
-    visualize.save_fig(save_path, fig, fmt=fmt)
+        fig = point_mass_analysis.plot_reward(reward, cbar_kwargs=cbar_kwargs, **kwargs)
+        visualize.save_fig(save_path, fig, fmt=fmt)
 
-    return reward
+        return reward
 
 
 if __name__ == "__main__":
