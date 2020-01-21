@@ -24,7 +24,7 @@ STYLES = {
         "figure.figsize": (3.25, 2.4375),
         "figure.subplot.top": 0.99,
         "figure.subplot.bottom": 0.16,
-        "figure.subplot.left": 0.15,
+        "figure.subplot.left": 0.16,
         "figure.subplot.right": 0.91,
     },
     "tex": {

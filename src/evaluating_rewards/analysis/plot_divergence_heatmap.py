@@ -87,6 +87,17 @@ def fast():
     del _
 
 
+@plot_divergence_heatmap_ex.named_config
+def dataset_transition():
+    """Searches for comparisons using `random_transition_generator`."""
+    search = {
+        "dataset_factory": {
+            "escape/py/function":
+                "evaluating_rewards.experiments.datasets.random_transition_generator",
+        },
+    }
+
+
 def _norm(args: Iterable[str]) -> bool:
     return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
@@ -97,8 +108,8 @@ def point_mass():
     search = {  # noqa: F841  pylint:disable=unused-variable
         "env_name": "evaluating_rewards/PointMassLine-v0",
         "dataset_factory": {
-            # can also use evaluating_rewards.experiments.datasets.random_transition_generator
-            "escape/py/function": "evaluating_rewards.experiments.datasets.random_policy_generator",
+            "escape/py/function":
+                "evaluating_rewards.experiments.datasets.random_policy_generator",
         },
     }
     heatmap_kwargs = {}
@@ -109,7 +120,7 @@ def point_mass():
         "norm": [visualize.zero, visualize.same, _norm],
         "all": [visualize.always_true],
     }
-    order = ["SparseNoCtrl", "Sparse", "DenseNoCtrl", "Dense", "GroundTruth"]
+    order = ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
     heatmap_kwargs["order"] = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
     heatmap_kwargs["after_plot"] = horizontal_ticks
     del order
