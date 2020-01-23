@@ -51,7 +51,7 @@ STYLES = {
 def setup_styles(styles: Iterable[str]) -> Iterator[None]:
     """Context manager: uses specified matplotlib styles while in context.
 
-    WARNING: This should be called before any matplotlib
+    Side-effect: if "tex" is in styles, will switch `matplotlib` backend to `pgf`.
 
     Args:
         styles: keys of styles defined in `STYLES`.
