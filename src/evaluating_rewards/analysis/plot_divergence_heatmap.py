@@ -19,6 +19,7 @@ import os
 from typing import Any, Iterable, Mapping, Optional
 
 from imitation import util
+import matplotlib.pyplot as plt
 import sacred
 
 from evaluating_rewards import serialize
@@ -30,8 +31,6 @@ plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 def horizontal_ticks() -> None:
     # lazy import to allow custom backend
-    import matplotlib.pyplot as plt  # pylint:disable=import-outside-toplevel
-
     plt.xticks(rotation="horizontal")
     plt.yticks(rotation="horizontal")
 
@@ -87,6 +86,18 @@ def fast():
     del _
 
 
+@plot_divergence_heatmap_ex.named_config
+def dataset_transition():
+    """Searches for comparisons using `random_transition_generator`."""
+    search = {  # noqa: F841  pylint:disable=unused-variable
+        "dataset_factory": {
+            "escape/py/function": (
+                "evaluating_rewards.experiments.datasets.random_transition_generator"
+            ),
+        },
+    }
+
+
 def _norm(args: Iterable[str]) -> bool:
     return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
@@ -97,7 +108,6 @@ def point_mass():
     search = {  # noqa: F841  pylint:disable=unused-variable
         "env_name": "evaluating_rewards/PointMassLine-v0",
         "dataset_factory": {
-            # can also use evaluating_rewards.experiments.datasets.random_transition_generator
             "escape/py/function": "evaluating_rewards.experiments.datasets.random_policy_generator",
         },
     }
@@ -109,7 +119,7 @@ def point_mass():
         "norm": [visualize.zero, visualize.same, _norm],
         "all": [visualize.always_true],
     }
-    order = ["SparseNoCtrl", "Sparse", "DenseNoCtrl", "Dense", "GroundTruth"]
+    order = ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
     heatmap_kwargs["order"] = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
     heatmap_kwargs["after_plot"] = horizontal_ticks
     del order
@@ -210,16 +220,7 @@ def plot_divergence_heatmap(
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
         """
-    if "tex" in styles:
-        import matplotlib  # pylint:disable=import-outside-toplevel
-
-        matplotlib.use("pgf")  # PGF backend best for LaTeX
-        os.environ["TEXINPUTS"] = stylesheets.LATEX_DIR + ":"
-    styles = [stylesheets.STYLES[style] for style in styles]
-
-    import matplotlib.pyplot as plt  # pylint:disable=import-outside-toplevel
-
-    with plt.style.context(styles):
+    with stylesheets.setup_styles(styles):
         data_dir = data_root
         if data_subdir is not None:
             data_dir = os.path.join(data_dir, data_subdir)

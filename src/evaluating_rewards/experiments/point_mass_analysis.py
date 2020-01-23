@@ -19,7 +19,9 @@ See Colab notebooks for use cases.
 
 import itertools
 from typing import List, Tuple
+from unittest import mock
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -27,6 +29,11 @@ import xarray
 
 from evaluating_rewards import datasets, rewards
 from evaluating_rewards.envs import point_mass
+
+
+def no_op(*args, **kwargs):
+    """No-operation: I do nothing, really."""
+    del args, kwargs
 
 
 def plot_reward(rew: xarray.DataArray, cmap: str = "RdBu", **kwargs) -> plt.Figure:
@@ -41,9 +48,49 @@ def plot_reward(rew: xarray.DataArray, cmap: str = "RdBu", **kwargs) -> plt.Figu
     Returns:
         A figure containing a facet of heatmaps visualizing the reward.
     """
-    rew = rew.rename({dim: dim.capitalize() for dim in rew.dims})
-    rew = rew.rename({"Position": "Pos"})  # tight on space in title
-    facet = rew.plot(x="Acceleration", y="Velocity", col="Pos", cmap=cmap, **kwargs)
+    # xarray insists on calling tight_layout(). We would prefer to tweak figure spacing
+    # manually to ensure font sizes remain the same for publication-quality figures.
+    with mock.patch("matplotlib.figure.Figure.tight_layout", new=no_op):
+        rew = rew.rename({dim: dim.capitalize() for dim in rew.dims})
+        rew = rew.rename(
+            {"Acceleration": "Accel.", "Position": "Pos."}  # abbreviate to save space in figure
+        )
+        # By default xarray ignores figsize and does its own size calculation. Override.
+        figsize = mpl.rcParams.get("figure.figsize")
+        facet = rew.plot(x="Accel.", y="Velocity", col="Pos.", cmap=cmap, figsize=figsize, **kwargs)
+
+        if "row" in kwargs:
+            # xarray adds row labels in a hard-to-spot far-right side.
+            # Remove them and put it in a better place.
+
+            # Remove annotations on right-side axes (should just be labels)
+            for ax in facet.axes[:, -1]:
+                for child in ax.get_children():
+                    if isinstance(child, mpl.text.Annotation):
+                        child.remove()
+
+            # Add more noticeable annotations on left-side axes
+            row_dim = kwargs["row"]
+            labels = [str(coord.values) for coord in rew.coords[row_dim]]
+            pad = 30
+            for ax, label in zip(facet.axes[:, 0], labels):
+                ax.annotate(
+                    label,
+                    xy=(0, 0.5),
+                    xytext=(-ax.yaxis.labelpad - pad, 0),
+                    xycoords=ax.yaxis.label,
+                    textcoords="offset points",
+                    size="large",
+                    fontweight="bold",
+                    ha="center",
+                    va="baseline",
+                )
+
+        col_dim = "Pos."
+        labels = [float(coord.values) for coord in rew.coords[col_dim]]
+        for ax, label in zip(facet.axes[0, :], labels):
+            ax.set_title(f"{col_dim} = {label:.4}", fontweight="bold")
+
     return facet.fig
 
 

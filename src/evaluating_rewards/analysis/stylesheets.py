@@ -1,6 +1,8 @@
 """matplotlib styles."""
 
+import contextlib
 import os
+from typing import Iterable, Iterator
 
 LATEX_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "latex")
 
@@ -16,6 +18,15 @@ STYLES = {
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
     },
+    "pointmass-2col": {
+        "figure.figsize": (6.75, 2.5),
+        "figure.subplot.left": 0.2,
+        "figure.subplot.right": 1.0,
+        "figure.subplot.top": 0.92,
+        "figure.subplot.bottom": 0.16,
+        "figure.subplot.hspace": 0.2,
+        "figure.subplot.wspace": 0.25,
+    },
     "heatmap-2col": {"figure.figsize": (6.75, 5.0625)},
     "heatmap-1col": {
         "font.size": 8,
@@ -24,14 +35,49 @@ STYLES = {
         "figure.figsize": (3.25, 2.4375),
         "figure.subplot.top": 0.99,
         "figure.subplot.bottom": 0.16,
-        "figure.subplot.left": 0.15,
+        "figure.subplot.left": 0.16,
         "figure.subplot.right": 0.91,
     },
     "tex": {
-        "backend": "pgf",
         "text.usetex": True,
         "pgf.texsystem": "pdflatex",
         "pgf.rcfonts": False,
-        "pgf.preamble": [r"\usepackage{figemojis}", r"\usepackage{times}"],
+        "pgf.preamble": [r"\usepackage{figsymbols}", r"\usepackage{times}"],
     },
 }
+
+
+@contextlib.contextmanager
+def setup_styles(styles: Iterable[str]) -> Iterator[None]:
+    """Context manager: uses specified matplotlib styles while in context.
+
+    Side-effect: if "tex" is in styles, will switch `matplotlib` backend to `pgf`.
+
+    Args:
+        styles: keys of styles defined in `STYLES`.
+
+    Returns:
+        A ContextManager. While entered in the context, the specified styles are applied,
+        and (if "tex" is one of the styles) the environment variable "TEXINPUTS" is set
+        to support custom macros."""
+    old_tex_inputs = os.environ.get("TEXINPUTS")
+    try:
+        if "tex" in styles:
+            import matplotlib  # pylint:disable=import-outside-toplevel
+
+            # PGF backend best for LaTeX. matplotlib probably already imported:
+            # but should be able to switch as non-interactive.
+            matplotlib.use("pgf", warn=False, force=True)
+            os.environ["TEXINPUTS"] = LATEX_DIR + ":"
+        styles = [STYLES[style] for style in styles]
+
+        import matplotlib.pyplot as plt  # pylint:disable=import-outside-toplevel
+
+        with plt.style.context(styles):
+            yield
+    finally:
+        if "tex" in styles:
+            if old_tex_inputs is None:
+                del os.environ["TEXINPUTS"]
+            else:
+                os.environ["TEXINPUTS"] = old_tex_inputs
