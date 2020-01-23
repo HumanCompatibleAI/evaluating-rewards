@@ -120,7 +120,10 @@ def dense_no_ctrl_sparsified():
 @plot_pm_reward_ex.named_config
 def fast():
     """Small config, intended for tests / debugging."""
-    density = 5  # noqa: F841  pylint:disable=unused-variable
+    density = 5
+    styles = ["paper", "pointmass-2col"]  # don't use TeX for tests
+    _ = locals()
+    del _
 
 
 @plot_pm_reward_ex.main
