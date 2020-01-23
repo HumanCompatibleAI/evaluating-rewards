@@ -57,7 +57,7 @@ def default_config():
     # Figure parameters
     styles = ["paper", "pointmass-2col", "tex"]
     ncols = 3  # number of heatmaps per row
-    cbar_kwargs = {"fraction": 0.1, "pad": 0.05}
+    cbar_kwargs = {"fraction": 0.07, "pad": 0.02}
     fmt = "pdf"  # file type
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -68,12 +68,11 @@ script_utils.add_logging_config(plot_pm_reward_ex, "plot_pm_reward")
 
 @plot_pm_reward_ex.config
 def logging_config(log_root, models, reward_type, reward_path):
+    data_root = os.path.join(log_root, "model_comparison")
     if models is None:
-        save_path = os.path.join(
+        log_dir = os.path.join(
             log_root, reward_type.replace("/", "_"), reward_path.replace("/", "_")
         )
-    else:
-        save_path = util.make_unique_timestamp()
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -99,7 +98,6 @@ def strip():
 def dense_no_ctrl_sparsified():
     """PointMassDenseNoCtrl along with sparsified and ground-truth sparse reward."""
     locals().update(**STRIP_CONFIG)
-    height = 4.5
     pos_lim = 0.15
     # Use lists of tuples rather than OrderedDict as Sacred reorders dictionaries
     models = [
@@ -108,8 +106,6 @@ def dense_no_ctrl_sparsified():
             "Sparsified",
             "evaluating_rewards/RewardModel-v0",
             os.path.join(
-                serialize.get_output_dir(),
-                "model_comparison",
                 "evaluating_rewards_PointMassLine-v0",
                 "20190921_190606_58935eb0a51849508381daf1055d0360",
                 "model",
@@ -132,6 +128,7 @@ def plot_pm_reward(
     styles: Iterable[str],
     env_name: str,
     models: Sequence[Tuple[str, str, str]],
+    data_root: str,
     # Mesh parameters
     pos_lim: float,
     pos_density: int,
@@ -141,7 +138,7 @@ def plot_pm_reward(
     # Figure parameters
     ncols: int,
     cbar_kwargs: Mapping[str, Any],
-    save_path: str,
+    log_dir: str,
     fmt: str,
 ) -> xr.DataArray:
     """Entry-point into script to visualize a reward model for point mass."""
@@ -153,6 +150,7 @@ def plot_pm_reward(
         rewards = {}
         with util.make_session():
             for model_name, reward_type, reward_path in models:
+                reward_path = os.path.join(data_root, reward_path)
                 model = serialize.load_reward(reward_type, reward_path, venv)
                 reward = point_mass_analysis.evaluate_reward_model(
                     env,
@@ -174,6 +172,7 @@ def plot_pm_reward(
             kwargs = {"row": "Model"}
 
         fig = point_mass_analysis.plot_reward(reward, cbar_kwargs=cbar_kwargs, **kwargs)
+        save_path = os.path.join(log_dir, "reward")
         visualize.save_fig(save_path, fig, fmt=fmt)
 
         return reward

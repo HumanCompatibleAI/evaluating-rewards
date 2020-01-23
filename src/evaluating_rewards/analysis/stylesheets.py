@@ -18,7 +18,15 @@ STYLES = {
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
     },
-    "pointmas-2col": {"figure.figsize": (6.75, 5.0625)},
+    "pointmass-2col": {
+        "figure.figsize": (6.75, 2.5),
+        "figure.subplot.left": 0.2,
+        "figure.subplot.right": 1.0,
+        "figure.subplot.top": 0.92,
+        "figure.subplot.bottom": 0.16,
+        "figure.subplot.hspace": 0.2,
+        "figure.subplot.wspace": 0.25,
+    },
     "heatmap-2col": {"figure.figsize": (6.75, 5.0625)},
     "heatmap-1col": {
         "font.size": 8,
