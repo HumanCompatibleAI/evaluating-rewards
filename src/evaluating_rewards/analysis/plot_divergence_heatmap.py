@@ -19,6 +19,7 @@ import os
 from typing import Any, Iterable, Mapping, Optional
 
 from imitation import util
+import matplotlib.pyplot as plt
 import sacred
 
 from evaluating_rewards import serialize
@@ -30,8 +31,6 @@ plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 def horizontal_ticks() -> None:
     # lazy import to allow custom backend
-    import matplotlib.pyplot as plt  # pylint:disable=import-outside-toplevel
-
     plt.xticks(rotation="horizontal")
     plt.yticks(rotation="horizontal")
 

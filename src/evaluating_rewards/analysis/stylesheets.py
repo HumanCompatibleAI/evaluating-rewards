@@ -2,9 +2,7 @@
 
 import contextlib
 import os
-import sys
 from typing import Iterable, Iterator
-import warnings
 
 LATEX_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "latex")
 
@@ -33,7 +31,6 @@ STYLES = {
         "figure.subplot.right": 0.91,
     },
     "tex": {
-        "backend": "pgf",
         "text.usetex": True,
         "pgf.texsystem": "pdflatex",
         "pgf.rcfonts": False,
@@ -55,18 +52,14 @@ def setup_styles(styles: Iterable[str]) -> Iterator[None]:
         A ContextManager. While entered in the context, the specified styles are applied,
         and (if "tex" is one of the styles) the environment variable "TEXINPUTS" is set
         to support custom macros."""
-    if "matplotlib" in sys.modules:
-        warnings.warn(
-            "`setup_styles` should be called before importing matplotlib. "
-            "Otherwise custom backends (required for TeX) may not be set."
-        )
-
     old_tex_inputs = os.environ.get("TEXINPUTS")
     try:
         if "tex" in styles:
             import matplotlib  # pylint:disable=import-outside-toplevel
 
-            matplotlib.use("pgf")  # PGF backend best for LaTeX
+            # PGF backend best for LaTeX. matplotlib probably already imported:
+            # but should be able to switch as non-interactive.
+            matplotlib.use("pgf", warn=False, force=True)
             os.environ["TEXINPUTS"] = LATEX_DIR + ":"
         styles = [STYLES[style] for style in styles]
 
