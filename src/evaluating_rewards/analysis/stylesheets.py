@@ -76,7 +76,7 @@ def setup_styles(styles: Iterable[str]) -> Iterator[None]:
         with plt.style.context(styles):
             yield
     finally:
-        if old_tex_inputs is None:
+        if old_tex_inputs is None and "TEXINPUTS" in os.environ:
             del os.environ["TEXINPUTS"]
         else:
             os.environ["TEXINPUTS"] = old_tex_inputs
