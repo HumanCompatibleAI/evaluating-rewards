@@ -1,0 +1,52 @@
+\documentclass{article}
+
+\usepackage[left=0.75in,top=1.0in,total={6.75in,9.0in}]{geometry}
+\usepackage{graphicx}
+\usepackage{subcaption}
+
+\begin{document}
+	\begin{figure}
+		\centering
+		\begin{subfigure}{0.49\textwidth}
+			\centering
+			\textbf{Unshaped}
+		\end{subfigure}
+		\begin{subfigure}{0.49\textwidth}
+			\centering
+			\textbf{Shaped}
+		\end{subfigure}
+		\begin{subfigure}{\textwidth}
+			\begin{subfigure}{0.49\textwidth}
+				\centering
+				\includegraphics{unshaped_arrow.pdf}
+			\end{subfigure}
+			\begin{subfigure}{0.49\textwidth}
+				\centering
+				\includegraphics{shaped_arrow.pdf}
+			\end{subfigure}
+			\caption{\textbf{Arrow}: $R(s,a,s')$ is given by the sum of the reward in cell $s$, and if not the no-op action the label above the arrow leading to destination state $s'$.}
+		\end{subfigure}
+		\begin{subfigure}{\textwidth}
+			\begin{subfigure}{0.49\textwidth}
+				\centering			
+				\includegraphics{unshaped_False.pdf}
+			\end{subfigure}
+			\begin{subfigure}{0.49\textwidth}
+				\centering
+				\includegraphics{shaped_False.pdf}
+			\end{subfigure}
+			\caption{\textbf{Triangular source}: $R(s,a,s')$ is given by the reward in cell $s$, in the triangular wedge adjacent to cell $s'$ or for the no-op action the central circle in $s$.}
+		\end{subfigure}
+		\begin{subfigure}{\textwidth}
+			\begin{subfigure}{0.49\textwidth}
+				\centering
+				\includegraphics{unshaped_True.pdf}
+			\end{subfigure}
+			\begin{subfigure}{0.49\textwidth}
+				\centering			
+				\includegraphics{shaped_True.pdf}
+			\end{subfigure}
+			\caption{\textbf{Triangular destination}: $R(s,a,s')$ is given by the reward in cell $s'$, in the triangular wedge adjacent to cell $s$ or for the no-op action the central circle in $s'$.}
+		\end{subfigure}
+	\end{figure}
+\end{document}
