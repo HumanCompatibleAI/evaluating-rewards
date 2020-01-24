@@ -38,6 +38,13 @@ STYLES = {
         "figure.subplot.left": 0.16,
         "figure.subplot.right": 0.91,
     },
+    "gridworld-heatmap-1col": {
+        "figure.figsize": (3.25, 2.4375),
+        "font.size": 8,
+        "axes.labelsize": 8,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+    },
     "tex": {
         "text.usetex": True,
         "pgf.texsystem": "pdflatex",
