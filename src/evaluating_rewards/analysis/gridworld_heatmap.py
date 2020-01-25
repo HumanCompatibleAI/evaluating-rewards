@@ -17,6 +17,7 @@
 This is currently only used for illustrative examples in the paper;
 none of the actual experiments are gridworlds."""
 
+import math
 from typing import Tuple
 
 import matplotlib
@@ -90,7 +91,6 @@ def _set_ticks(n: int, subaxis: matplotlib.axis.Axis) -> None:
 def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     """Construct figure and set sensible defaults."""
     fig, ax = plt.subplots(1, 1)
-    ax.set_facecolor("lightgray")  # background
     # Axes limits
     ax.set_xlim(0, xlen)
     ax.set_ylim(ylen, 0)
@@ -135,6 +135,7 @@ def _reward_draw_spline(
     lum = sns.utils.relative_luminance(color)
     text_color = ".15" if lum > 0.408 else "w"
     xy = pos + 0.5
+
     if tuple(direction) != (0, 0):
         xy = xy + annot_padding * direction
     ax.annotate(
@@ -146,6 +147,7 @@ def _reward_draw_spline(
 
 def _reward_draw(
     state_action_reward: np.ndarray,
+    fig: plt.Figure,
     ax: plt.Axes,
     mappable: matplotlib.cm.ScalarMappable,
     from_dest: bool,
@@ -156,6 +158,14 @@ def _reward_draw(
     triangle_facecolors = []
     circle_offsets = []
     circle_facecolors = []
+
+    circle_area_pt = 200
+    circle_radius_pt = math.sqrt(circle_area_pt / math.pi)
+    circle_radius_in = circle_radius_pt / 72
+    corner_display = ax.transData.transform([0.0, 0.0])
+    circle_radius_display = fig.dpi_scale_trans.transform([circle_radius_in, 0])
+    circle_radius_data = ax.transData.inverted().transform(corner_display + circle_radius_display)
+    annot_padding = 0.25 + 0.5 * circle_radius_data[0]
 
     it = np.nditer(state_action_reward, flags=["multi_index"])
     while not it.finished:
@@ -182,7 +192,7 @@ def _reward_draw(
         verts=triangle_verts, facecolors=triangle_facecolors, edgecolors=edgecolors
     )
     circles = mcollections.CircleCollection(
-        sizes=[200] * len(circle_offsets),
+        sizes=[circle_area_pt] * len(circle_offsets),
         facecolors=circle_facecolors,
         edgecolors=edgecolors,
         offsets=circle_offsets,
@@ -220,6 +230,6 @@ def plot_gridworld_reward(
     assert num_actions == len(ACTION_DELTA)
     fig, ax = _reward_make_fig(xlen, ylen)
     mappable = _reward_make_color_map(state_action_reward)
-    _reward_draw(state_action_reward, ax, mappable, from_dest, annot_padding)
+    _reward_draw(state_action_reward, fig, ax, mappable, from_dest, annot_padding)
     fig.colorbar(mappable, format=cbar_format, fraction=cbar_fraction)
     return fig
