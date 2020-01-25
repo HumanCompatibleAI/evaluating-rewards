@@ -118,7 +118,7 @@ def dense_no_ctrl_sparsified():
 
 
 @plot_pm_reward_ex.named_config
-def fast():
+def test():
     """Small config, intended for tests / debugging."""
     density = 5
     styles = ["paper", "pointmass-2col"]  # don't use TeX for tests

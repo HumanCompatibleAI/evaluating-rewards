@@ -1,3 +1,17 @@
+# Copyright 2020 Adam Gleave
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#            http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Heatmaps for rewards in gridworld environments.
 
 This is currently only used for illustrative examples in the paper;
@@ -75,6 +89,8 @@ def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     # Axes limits
     ax.set_xlim(0, xlen)
     ax.set_ylim(ylen, 0)
+    # TODO(adam): turn off or at least adjust axis labels? 0-3 makes no real sense here.
+    # Should really be located at each 0.5 point -- this will mess up drawing probably.
     # Make grid for gridworld cells
     ax.xaxis.set_major_locator(mticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(mticker.MultipleLocator(1))
@@ -83,14 +99,11 @@ def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     return fig, ax
 
 
-def _reward_make_color_map(
-    state_action_reward: np.ndarray, cmap: str
-) -> matplotlib.cm.ScalarMappable:
-    cmap = matplotlib.cm.get_cmap(cmap)
+def _reward_make_color_map(state_action_reward: np.ndarray) -> matplotlib.cm.ScalarMappable:
     norm = mcolors.Normalize(
         vmin=np.nanmin(state_action_reward), vmax=np.nanmax(state_action_reward)
     )
-    return matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+    return matplotlib.cm.ScalarMappable(norm=norm)
 
 
 def _reward_draw_spline(
@@ -178,7 +191,6 @@ def _reward_draw(
 def plot_gridworld_reward(
     state_action_reward: np.ndarray,
     from_dest: bool = False,
-    cmap: str = "RdBu",
     annot_padding: float = 0.33,
     cbar_fraction: float = 0.05,
 ) -> plt.Figure:
@@ -190,7 +202,6 @@ def plot_gridworld_reward(
       - from_dest: if True, the triangular wedges represent reward when arriving into this
         cell from the adjacent cell; if False, represent reward when leaving this cell into
         the adjacent cell.
-      - cmap: a matplotlib color map identifier.
       - annot_padding: a fraction of a supercell to offset the annotation from the centre.
       - cbar_fraction: the fraction of the axes the colorbar takes up.
 
@@ -202,7 +213,7 @@ def plot_gridworld_reward(
     xlen, ylen, num_actions = state_action_reward.shape
     assert num_actions == len(ACTION_DELTA)
     fig, ax = _reward_make_fig(xlen, ylen)
-    mappable = _reward_make_color_map(state_action_reward, cmap)
+    mappable = _reward_make_color_map(state_action_reward)
     _reward_draw(state_action_reward, ax, mappable, from_dest, annot_padding)
     fig.colorbar(mappable, fraction=cbar_fraction)
     return fig

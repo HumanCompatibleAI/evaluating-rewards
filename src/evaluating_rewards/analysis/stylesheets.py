@@ -39,6 +39,7 @@ STYLES = {
         "figure.subplot.right": 0.91,
     },
     "gridworld-heatmap-1col": {
+        "image.cmap": "RdBu",
         "figure.figsize": (3.25, 2.4375),
         "font.size": 8,
         "axes.labelsize": 8,

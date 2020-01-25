@@ -73,7 +73,7 @@ def logging_config(log_root, search):
 
 
 @plot_divergence_heatmap_ex.named_config
-def fast():
+def test():
     """Intended for debugging/unit test."""
     data_root = os.path.join("tests", "data")
     data_subdir = "comparison"

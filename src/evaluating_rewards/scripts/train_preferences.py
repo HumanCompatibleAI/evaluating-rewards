@@ -52,7 +52,7 @@ def default_config():
 
 
 @train_preferences_ex.named_config
-def fast():
+def test():
     """Small number of epochs, finish quickly, intended for tests / debugging."""
     total_timesteps = 1e4
     _ = locals()  # quieten flake8 unused variable warning

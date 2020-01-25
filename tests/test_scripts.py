@@ -16,10 +16,12 @@
 
 import tempfile
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
 from evaluating_rewards.analysis.plot_divergence_heatmap import plot_divergence_heatmap_ex
+from evaluating_rewards.analysis.plot_gridworld_heatmap import plot_gridworld_heatmap_ex
 from evaluating_rewards.analysis.plot_pm_reward import plot_pm_reward_ex
 from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
@@ -30,6 +32,7 @@ EXPERIMENTS = {
     # experiment, expected_type
     "plot_divergence": (plot_divergence_heatmap_ex, dict),
     "plot_pm": (plot_pm_reward_ex, xr.DataArray),
+    "plot_gridworld": (plot_gridworld_heatmap_ex, plt.Figure),
     "comparison": (model_comparison_ex, dict),
     "regress": (train_regress_ex, dict),
     "preferences": (train_preferences_ex, pd.DataFrame),
@@ -39,6 +42,6 @@ EXPERIMENTS = {
 @common.mark_parametrize_dict("experiment,expected_type", EXPERIMENTS)
 def test_experiment(experiment, expected_type):
     with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
-        run = experiment.run(named_configs=["fast"], config_updates=dict(log_root=tmpdir))
+        run = experiment.run(named_configs=["test"], config_updates=dict(log_root=tmpdir))
     assert run.status == "COMPLETED"
     assert isinstance(run.result, expected_type)
