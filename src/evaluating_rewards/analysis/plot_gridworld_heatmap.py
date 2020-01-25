@@ -33,13 +33,13 @@ plot_gridworld_heatmap_ex = sacred.Experiment("plot_gridworld_heatmap")
 def default_config():
     """Default configuration values."""
     # Reward parameters
-    exp_name = "all_zero"
+    exp_name = "default"
     state_reward = np.zeros((3, 3))
     potential = np.zeros((3, 3))
 
     # Figure parameters
     log_root = os.path.join(serialize.get_output_dir(), "plot_gridworld_heatmap")
-    styles = ["paper", "gridworld-heatmap-1col", "tex"]
+    styles = ["paper", "gridworld-heatmap-1col-narrow", "tex"]
     fmt = "pdf"  # file type
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -59,11 +59,11 @@ def test():
     styles = ["paper", "gridworld-heatmap-1col"]  # noqa: F841  pylint:disable=unused-variable
 
 
-SPARSE_GOAL = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 10]])
+SPARSE_GOAL = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 1]])
 
 OBSTACLE_COURSE = np.array([[0, -1, -1], [0, 0, 0], [-1, -1, 10]])
 
-CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-100, -100, 10]])
+CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-9, -9, 10]])
 
 MANHATTAN_FROM_GOAL = np.array([[4, 3, 2], [3, 2, 1], [2, 1, 0]])
 
@@ -80,7 +80,7 @@ def sparse_goal():
 @plot_gridworld_heatmap_ex.named_config
 def sparse_goal_shift():
     exp_name = "sparse_goal_shift"
-    state_reward = SPARSE_GOAL + 5
+    state_reward = SPARSE_GOAL + 1
     _ = locals()
     del _
 
@@ -97,7 +97,7 @@ def sparse_goal_scale():
 def dense_goal():
     exp_name = "dense_goal"
     state_reward = SPARSE_GOAL
-    potential = -MANHATTAN_FROM_GOAL * 10
+    potential = -MANHATTAN_FROM_GOAL
     _ = locals()
     del _
 
@@ -106,14 +106,24 @@ def dense_goal():
 def antidense_goal():
     exp_name = "antidense_goal"
     state_reward = SPARSE_GOAL
-    potential = MANHATTAN_FROM_GOAL * 10
+    potential = MANHATTAN_FROM_GOAL
+    _ = locals()
+    del _
+
+
+@plot_gridworld_heatmap_ex.named_config
+def transformed_goal():
+    """Shifted, rescaled and reshaped sparse goal."""
+    exp_name = "transformed_goal"
+    state_reward = SPARSE_GOAL * 10 - 1
+    potential = -MANHATTAN_FROM_GOAL * 10
     _ = locals()
     del _
 
 
 # Non-equivalent rewards
 @plot_gridworld_heatmap_ex.named_config
-def obtsacle_course():
+def obstacle_course():
     """Some minor penalties to avoid to reach goal.
 
     Optimal policy for this is optimal in `SPARSE_GOAL`, but not equivalent.
@@ -149,6 +159,13 @@ def sparse_anti_goal():
     del _
 
 
+@plot_gridworld_heatmap_ex.named_config
+def all_zero():
+    """All zero reward function."""
+    # default state_reward and potential_reward are zero, nothing more to do
+    exp_name = "all_zero"  # noqa: F841  pylint:disable=unused-variable
+
+
 @plot_gridworld_heatmap_ex.main
 def plot_gridworld_heatmap(
     state_reward: np.ndarray, potential: np.ndarray, styles: Iterable[str], log_dir: str, fmt: str,
@@ -165,10 +182,10 @@ def plot_gridworld_heatmap(
     Returns:
         The generated figure.
     """
-    state_action_reward = gridworld_heatmap.shape(state_reward, potential)
+    state_action_reward = gridworld_heatmap.shape(state_reward.T, potential.T)
     with stylesheets.setup_styles(styles):
         fig = gridworld_heatmap.plot_gridworld_reward(state_action_reward)
-        visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt)
+        visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)
 
     return fig
 

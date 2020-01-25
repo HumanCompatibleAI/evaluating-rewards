@@ -63,8 +63,9 @@ def save_fig(path: str, fig: plt.Figure, fmt: str = "pdf", dpi: int = 300, **kwa
     root_dir = os.path.dirname(path)
     os.makedirs(root_dir, exist_ok=True)
     logging.info(f"Saving figure to {path}")
+    kwargs.setdefault("transparent", True)
     with open(path, "wb") as f:
-        fig.savefig(f, format=fmt, dpi=dpi, transparent=True, **kwargs)
+        fig.savefig(f, format=fmt, dpi=dpi, **kwargs)
 
 
 def save_figs(root_dir: str, generator: Iterable[Tuple[str, plt.Figure]], **kwargs) -> None:
