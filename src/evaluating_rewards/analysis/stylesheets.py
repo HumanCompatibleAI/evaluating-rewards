@@ -45,6 +45,10 @@ STYLES = {
         "axes.labelsize": 8,
         "xtick.labelsize": 8,
         "ytick.labelsize": 8,
+        "figure.subplot.left": 0.05,
+        "figure.subplot.right": 0.92,
+        "figure.subplot.top": 0.95,
+        "figure.subplot.bottom": 0.08,
     },
     "tex": {
         "text.usetex": True,

@@ -197,6 +197,7 @@ def plot_gridworld_reward(
     state_action_reward: np.ndarray,
     from_dest: bool = False,
     annot_padding: float = 0.33,
+    cbar_format: str = "%.0f",
     cbar_fraction: float = 0.05,
 ) -> plt.Figure:
     """
@@ -220,5 +221,5 @@ def plot_gridworld_reward(
     fig, ax = _reward_make_fig(xlen, ylen)
     mappable = _reward_make_color_map(state_action_reward)
     _reward_draw(state_action_reward, ax, mappable, from_dest, annot_padding)
-    fig.colorbar(mappable, fraction=cbar_fraction)
+    fig.colorbar(mappable, format=cbar_format, fraction=cbar_fraction)
     return fig
