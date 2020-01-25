@@ -23,7 +23,6 @@ import matplotlib
 import matplotlib.collections as mcollections
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
 import seaborn as sns
 
@@ -82,6 +81,12 @@ def shape(state_reward: np.ndarray, state_potential: np.ndarray) -> np.ndarray:
     return np.array(res).transpose((1, 2, 0))
 
 
+def _set_ticks(n: int, subaxis: matplotlib.axis.Axis) -> None:
+    subaxis.set_ticks(np.arange(0, n + 1), minor=True)
+    subaxis.set_ticks(np.arange(n) + 0.5)
+    subaxis.set_ticklabels(np.arange(n))
+
+
 def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     """Construct figure and set sensible defaults."""
     fig, ax = plt.subplots(1, 1)
@@ -89,12 +94,12 @@ def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     # Axes limits
     ax.set_xlim(0, xlen)
     ax.set_ylim(ylen, 0)
-    # TODO(adam): turn off or at least adjust axis labels? 0-3 makes no real sense here.
-    # Should really be located at each 0.5 point -- this will mess up drawing probably.
-    # Make grid for gridworld cells
-    ax.xaxis.set_major_locator(mticker.MultipleLocator(1))
-    ax.yaxis.set_major_locator(mticker.MultipleLocator(1))
-    ax.grid(which="major", color="k")
+    # Make ticks centred in each cell
+    _set_ticks(xlen, ax.xaxis)
+    _set_ticks(ylen, ax.yaxis)
+    # Draw grid along minor ticks, then remove those ticks so they don't protrude
+    ax.grid(which="minor", color="k")
+    ax.tick_params(which="minor", length=0, width=0)
 
     return fig, ax
 
