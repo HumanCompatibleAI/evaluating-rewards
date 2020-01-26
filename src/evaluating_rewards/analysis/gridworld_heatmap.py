@@ -17,32 +17,47 @@
 This is currently only used for illustrative examples in the paper;
 none of the actual experiments are gridworlds."""
 
+import collections
+import enum
 import math
 from typing import Tuple
+from unittest import mock
 
 import matplotlib
 import matplotlib.collections as mcollections
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+import mdptoolbox
 import numpy as np
 import seaborn as sns
 
+
+class Actions(enum.IntEnum):
+    STAY = 0
+    LEFT = 1
+    UP = 2
+    RIGHT = 3
+    DOWN = 4
+
+
 # (x,y) offset caused by taking an action
-ACTION_DELTA = [
-    (0, 0),  # no-op
-    (-1, 0),  # left
-    (0, 1),  # up
-    (1, 0),  # right
-    (0, -1),  # down
-]
+ACTION_DELTA = {
+    Actions.STAY: (0, 0),
+    Actions.LEFT: (-1, 0),
+    Actions.UP: (0, 1),
+    Actions.RIGHT: (1, 0),
+    Actions.DOWN: (0, -1),
+}
 
 # Counter-clockwise, corners of a unit square, centred at (0.5, 0.5).
 CORNERS = [(0, 0), (0, 1), (1, 1), (1, 0)]
 # Vertices subdividing the unit square for each action
 OFFSETS = {
     # Triangles, cutting unit-square into quarters
-    direction: np.array([CORNERS[i], [0.5, 0.5], CORNERS[(i + 1) % len(CORNERS)]])
-    for i, direction in enumerate(ACTION_DELTA[1:])
+    direction: np.array(
+        [CORNERS[action.value - 1], [0.5, 0.5], CORNERS[action.value % len(CORNERS)]]
+    )
+    for action, direction in ACTION_DELTA.items()
 }
 # Circle at the center
 OFFSETS[(0, 0)] = np.array([0.5, 0.5])
@@ -72,7 +87,7 @@ def shape(state_reward: np.ndarray, state_potential: np.ndarray) -> np.ndarray:
     )
 
     res = []
-    for x_delta, y_delta in ACTION_DELTA:
+    for x_delta, y_delta in ACTION_DELTA.values():
         axis = 0 if x_delta else 1
         delta = x_delta + y_delta
         new_potential = np.roll(padded_potential, -delta, axis=axis)
@@ -80,6 +95,73 @@ def shape(state_reward: np.ndarray, state_potential: np.ndarray) -> np.ndarray:
         res.append(shaped[1:-1, 1:-1])
 
     return np.array(res).transpose((1, 2, 0))
+
+
+def _make_transitions(
+    transitions: np.ndarray,
+    low_action: int,
+    high_action: int,
+    states: np.ndarray,
+    idx: np.ndarray,
+    n: int,
+) -> None:
+    transitions[low_action, states[idx == 0], states[idx == 0]] = 1
+    transitions[low_action, states[idx > 0], states[idx < n - 1]] = 1
+    transitions[high_action, states[idx == n - 1], states[idx == n - 1]] = 1
+    transitions[high_action, states[idx < n - 1], states[idx > 0]] = 1
+
+
+def build_mdp(state_action_reward: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Create transition matrix for deterministic gridworld and reshape reward."""
+    xlen, ylen, na = state_action_reward.shape
+    ns = xlen * ylen
+
+    transitions = np.zeros((na, ns, ns))
+    transitions[Actions.STAY.value, :, :] = np.eye(ns, ns)
+    states = np.arange(ns)
+    xs = states % xlen
+    ys = states // ylen
+    _make_transitions(transitions, Actions.LEFT.value, Actions.RIGHT.value, states, ys, ylen)
+    _make_transitions(transitions, Actions.DOWN.value, Actions.UP.value, states, xs, xlen)
+
+    reward = state_action_reward.copy()
+    reward = reward.reshape(ns, na)
+    # We use NaN for transitions that would go outside the gridworld.
+    # But in above transition dynamics these are equivalent to stay, so rewrite.
+    mask = np.isnan(reward)
+    stay_reward = reward[:, Actions.STAY.value]
+    stay_tiled = np.tile(stay_reward, (na, 1)).T
+    reward[mask] = stay_tiled[mask]
+    assert np.isfinite(reward).all()
+
+    return transitions, reward
+
+
+def _no_op_iter(*args, **kwargs):
+    """Does nothing, workaround for bug in pymdptoolbox GH#32."""
+    del args, kwargs
+
+
+def compute_qvalues(state_action_reward: np.ndarray, discount: float) -> np.ndarray:
+    """Computes the Q-values of `state_action_reward` under deterministic dynamics."""
+    transitions, reward = build_mdp(state_action_reward)
+
+    # TODO(adam): remove this workaround once GH pymdptoolbox #32 merged.
+    with mock.patch("mdptoolbox.mdp.ValueIteration._boundIter", new=_no_op_iter):
+        vi = mdptoolbox.mdp.ValueIteration(
+            transitions=transitions, reward=reward, discount=discount
+        )
+        vi.run()
+    q_values = reward + discount * (transitions * vi.V).sum(2).T
+    return q_values
+
+
+def optimal_mask(state_action_reward: np.ndarray, discount: float = 0.95) -> np.ndarray:
+    """Computes the optimal actions for each state in `state_action_reward`."""
+    q_values = compute_qvalues(state_action_reward, discount)
+    best_q = q_values.max(axis=1)[:, np.newaxis]
+    optimal_action = np.isclose(q_values, best_q)
+    return optimal_action.reshape(state_action_reward.shape)
 
 
 def _set_ticks(n: int, subaxis: matplotlib.axis.Axis) -> None:
@@ -93,7 +175,7 @@ def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     fig, ax = plt.subplots(1, 1)
     # Axes limits
     ax.set_xlim(0, xlen)
-    ax.set_ylim(ylen, 0)
+    ax.set_ylim(0, ylen)
     # Make ticks centred in each cell
     _set_ticks(xlen, ax.xaxis)
     _set_ticks(ylen, ax.yaxis)
@@ -115,6 +197,7 @@ def _reward_draw_spline(
     x: int,
     y: int,
     action: int,
+    optimal: bool,
     reward: float,
     from_dest: bool,
     mappable: matplotlib.cm.ScalarMappable,
@@ -138,8 +221,9 @@ def _reward_draw_spline(
 
     if tuple(direction) != (0, 0):
         xy = xy + annot_padding * direction
+    fontweight = "bold" if optimal else None
     ax.annotate(
-        text, xy=xy, ha="center", va="center", color=text_color,
+        text, xy=xy, ha="center", va="center", color=text_color, fontweight=fontweight,
     )
 
     return vert, color
@@ -151,13 +235,10 @@ def _reward_draw(
     ax: plt.Axes,
     mappable: matplotlib.cm.ScalarMappable,
     from_dest: bool,
-    annot_padding: float,
-    edgecolors: str = "gray",
+    edgecolor: str = "gray",
+    hatchcolor: str = "white",
 ) -> None:
-    triangle_verts = []
-    triangle_facecolors = []
-    circle_offsets = []
-    circle_facecolors = []
+    optimal_actions = optimal_mask(state_action_reward)
 
     circle_area_pt = 200
     circle_radius_pt = math.sqrt(circle_area_pt / math.pi)
@@ -167,10 +248,14 @@ def _reward_draw(
     circle_radius_data = ax.transData.inverted().transform(corner_display + circle_radius_display)
     annot_padding = 0.25 + 0.5 * circle_radius_data[0]
 
+    verts = collections.defaultdict(lambda: collections.defaultdict(list))
+    colors = collections.defaultdict(lambda: collections.defaultdict(list))
+
     it = np.nditer(state_action_reward, flags=["multi_index"])
     while not it.finished:
         reward = it[0]
         x, y, action = it.multi_index
+        optimal = optimal_actions[it.multi_index]
         it.iternext()
 
         if not np.isfinite(reward):
@@ -178,35 +263,51 @@ def _reward_draw(
             continue
 
         vert, color = _reward_draw_spline(
-            x, y, action, reward, from_dest, mappable, annot_padding, ax
+            x, y, action, optimal, reward, from_dest, mappable, annot_padding, ax
         )
 
-        if action == 0:  # no-op: circle at center
-            circle_offsets.append(vert)
-            circle_facecolors.append(color)
-        else:  # action moved: triangle at edge
-            triangle_verts.append(vert)
-            triangle_facecolors.append(color)
+        geom = "circle" if action == 0 else "triangle"
+        verts[geom][optimal].append(vert)
+        colors[geom][optimal].append(color)
 
-    legal_poly = mcollections.PolyCollection(
-        verts=triangle_verts, facecolors=triangle_facecolors, edgecolors=edgecolors
-    )
-    circles = mcollections.CircleCollection(
-        sizes=[circle_area_pt] * len(circle_offsets),
-        facecolors=circle_facecolors,
-        edgecolors=edgecolors,
-        offsets=circle_offsets,
-        transOffset=ax.transData,
-    )
+    circle_collections = []
+    triangle_collections = []
 
-    ax.add_collection(legal_poly)
-    ax.add_collection(circles)
+    def _make_triangle(optimal, **kwargs):
+        return mcollections.PolyCollection(
+            verts=verts["triangle"][optimal], facecolors=colors["triangle"][optimal], **kwargs,
+        )
+
+    def _make_circle(optimal, **kwargs):
+        circle_offsets = verts["circle"][optimal]
+        return mcollections.CircleCollection(
+            sizes=[circle_area_pt] * len(circle_offsets),
+            facecolors=colors["circle"][optimal],
+            offsets=circle_offsets,
+            transOffset=ax.transData,
+            **kwargs,
+        )
+
+    maker_collection_dict = {
+        _make_triangle: triangle_collections,
+        _make_circle: circle_collections,
+    }
+
+    for optimal in [False, True]:
+        hatch = "xx" if optimal else None
+
+        for maker_fn, cols in maker_collection_dict.items():
+            cols.append(maker_fn(optimal, edgecolors=edgecolor))
+            if hatch:  # draw the hatch using a different color
+                cols.append(maker_fn(optimal, edgecolors=hatchcolor, linewidth=0, hatch=hatch))
+
+    for cols in triangle_collections + circle_collections:
+        ax.add_collection(cols)
 
 
 def plot_gridworld_reward(
     state_action_reward: np.ndarray,
     from_dest: bool = False,
-    annot_padding: float = 0.33,
     cbar_format: str = "%.0f",
     cbar_fraction: float = 0.05,
 ) -> plt.Figure:
@@ -230,6 +331,6 @@ def plot_gridworld_reward(
     assert num_actions == len(ACTION_DELTA)
     fig, ax = _reward_make_fig(xlen, ylen)
     mappable = _reward_make_color_map(state_action_reward)
-    _reward_draw(state_action_reward, fig, ax, mappable, from_dest, annot_padding)
+    _reward_draw(state_action_reward, fig, ax, mappable, from_dest)
     fig.colorbar(mappable, format=cbar_format, fraction=cbar_fraction)
     return fig

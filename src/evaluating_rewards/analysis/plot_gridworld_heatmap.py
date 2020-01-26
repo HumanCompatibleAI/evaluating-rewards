@@ -39,7 +39,7 @@ def default_config():
 
     # Figure parameters
     log_root = os.path.join(serialize.get_output_dir(), "plot_gridworld_heatmap")
-    styles = ["paper", "gridworld-heatmap-1col-narrow", "tex"]
+    styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-1col-narrow"]
     fmt = "pdf"  # file type
     _ = locals()  # quieten flake8 unused variable warning
     del _
@@ -56,14 +56,16 @@ def logging_config(log_root, exp_name):
 def test():
     """Small config, intended for tests / debugging."""
     # Don't use TeX for tests
-    styles = ["paper", "gridworld-heatmap-1col"]  # noqa: F841  pylint:disable=unused-variable
+    styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-1col"]
+    _ = locals()
+    del _
 
 
 SPARSE_GOAL = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 1]])
 
 OBSTACLE_COURSE = np.array([[0, -1, -1], [0, 0, 0], [-1, -1, 10]])
 
-CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-9, -9, 10]])
+CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-9, -9, 1]])
 
 MANHATTAN_FROM_GOAL = np.array([[4, 3, 2], [3, 2, 1], [2, 1, 0]])
 
@@ -166,6 +168,17 @@ def all_zero():
     exp_name = "all_zero"  # noqa: F841  pylint:disable=unused-variable
 
 
+def _normalize(state_array: np.ndarray) -> np.ndarray:
+    """Tranposes and flips array.
+
+    Matrix indexing convention (i,j) corresponds to row i, column j from top-left.
+    By contrast, function plotting convention is (x,y) is column x, row y from bottom-left.
+    We follow function plotting convention for visualizing gridworlds.
+    Transform matrix (i,j)->(j,m-i) where m is the number of rows.
+    """
+    return state_array.T[:, ::-1]
+
+
 @plot_gridworld_heatmap_ex.main
 def plot_gridworld_heatmap(
     state_reward: np.ndarray, potential: np.ndarray, styles: Iterable[str], log_dir: str, fmt: str,
@@ -182,7 +195,7 @@ def plot_gridworld_heatmap(
     Returns:
         The generated figure.
     """
-    state_action_reward = gridworld_heatmap.shape(state_reward.T, potential.T)
+    state_action_reward = gridworld_heatmap.shape(_normalize(state_reward), _normalize(potential))
     with stylesheets.setup_styles(styles):
         fig = gridworld_heatmap.plot_gridworld_reward(state_action_reward)
         visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)

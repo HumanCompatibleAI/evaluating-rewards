@@ -38,11 +38,14 @@ STYLES = {
         "figure.subplot.left": 0.16,
         "figure.subplot.right": 0.91,
     },
-    "gridworld-heatmap-1col": {
+    "gridworld-heatmap": {
+        "axes.facecolor": "lightgray",
         "image.cmap": "RdBu",
+        "hatch.linewidth": 0.1,
+    },
+    "gridworld-heatmap-1col": {
         "figure.figsize": (3.25, 2.89),
         "font.size": 10,
-        "axes.facecolor": "lightgray",
         "axes.labelsize": 10,
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
@@ -55,7 +58,6 @@ STYLES = {
         "image.cmap": "RdBu",
         "figure.figsize": (2.5, 2.17),
         "font.size": 10,
-        "axes.facecolor": "lightgray",
         "axes.labelsize": 10,
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
@@ -68,7 +70,6 @@ STYLES = {
         "image.cmap": "RdBu",
         "figure.figsize": (2.15, 1.78),
         "font.size": 8,
-        "axes.facecolor": "lightgray",
         "axes.labelsize": 8,
         "xtick.labelsize": 8,
         "ytick.labelsize": 8,
