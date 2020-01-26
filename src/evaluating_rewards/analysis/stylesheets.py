@@ -56,15 +56,15 @@ STYLES = {
     },
     "gridworld-heatmap-1col-narrow": {
         "image.cmap": "RdBu",
-        "figure.figsize": (2.5, 2.17),
+        "figure.figsize": (2.5, 2.07),
         "font.size": 10,
         "axes.labelsize": 10,
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
         "figure.subplot.left": 0.07,
         "figure.subplot.right": 0.89,
-        "figure.subplot.top": 0.95,
-        "figure.subplot.bottom": 0.09,
+        "figure.subplot.top": 0.99,
+        "figure.subplot.bottom": 0.1,
     },
     "gridworld-heatmap-1colin3": {
         "image.cmap": "RdBu",

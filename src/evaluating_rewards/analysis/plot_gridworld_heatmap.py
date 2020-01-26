@@ -55,10 +55,8 @@ def logging_config(log_root, exp_name):
 @plot_gridworld_heatmap_ex.named_config
 def test():
     """Small config, intended for tests / debugging."""
-    # Don't use TeX for tests
-    styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-1col"]
-    _ = locals()
-    del _
+    # No changes from default, but we need this present for unit tests.
+    pass  # pylint:disable=unnecessary-pass
 
 
 SPARSE_GOAL = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 1]])
