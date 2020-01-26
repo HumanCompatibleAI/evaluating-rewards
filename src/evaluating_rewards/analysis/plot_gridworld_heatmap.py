@@ -61,9 +61,9 @@ def test():
 
 SPARSE_GOAL = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 1]])
 
-OBSTACLE_COURSE = np.array([[0, -1, -1], [0, 0, 0], [-1, -1, 10]])
+OBSTACLE_COURSE = np.array([[0, -1, -1], [0, 0, 0], [-1, -1, 5]])
 
-CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-9, -9, 1]])
+CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-9, -9, 5]])
 
 MANHATTAN_FROM_GOAL = np.array([[4, 3, 2], [3, 2, 1], [2, 1, 0]])
 

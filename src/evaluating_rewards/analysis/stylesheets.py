@@ -63,7 +63,7 @@ STYLES = {
         "ytick.labelsize": 10,
         "figure.subplot.left": 0.07,
         "figure.subplot.right": 0.89,
-        "figure.subplot.top": 0.99,
+        "figure.subplot.top": 0.97,
         "figure.subplot.bottom": 0.1,
     },
     "gridworld-heatmap-1colin3": {
