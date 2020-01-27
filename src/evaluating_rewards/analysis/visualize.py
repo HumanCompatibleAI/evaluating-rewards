@@ -229,11 +229,10 @@ def comparison_heatmap(
 def median_seeds(series: pd.Series) -> pd.Series:
     """Take the median over any seeds in a series."""
     seeds = [name for name in series.index.names if "seed" in name]
-    if not seeds:
-        return series
-    else:
+    if seeds:
         non_seeds = [name for name in series.index.names if name not in seeds]
-        return series.groupby(non_seeds).median()
+        series = series.groupby(non_seeds).median()
+    return series
 
 
 def compact(series: pd.Series) -> pd.Series:

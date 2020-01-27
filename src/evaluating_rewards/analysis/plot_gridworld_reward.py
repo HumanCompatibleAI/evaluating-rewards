@@ -71,7 +71,7 @@ def _normalize(state_array: np.ndarray) -> np.ndarray:
     return state_array.T[:, ::-1]
 
 
-def _add_rewards():
+def _add_rewards() -> None:
     for exp_name, cfg in gridworld_rewards.REWARDS.items():
         cfg = cfg.copy()
         cfg["exp_name"] = exp_name

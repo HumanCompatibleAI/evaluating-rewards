@@ -19,6 +19,7 @@ import os
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from imitation import util
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sacred
@@ -105,7 +106,7 @@ def grid_to_3d(reward: np.ndarray) -> np.ndarray:
     return state_to_3d(reward, ns, 5)
 
 
-def make_reward(cfg, discount):
+def make_reward(cfg: Dict[str, np.ndarray], discount: float) -> np.ndarray:
     """Create reward from state-only reward and potential."""
     state_reward = grid_to_3d(cfg["state_reward"])
     potential = cfg["potential"]
@@ -139,7 +140,7 @@ def plot_gridworld_divergence(
     discount: float,
     log_dir: str,
     save_kwargs: Mapping[str, Any],
-):
+) -> Mapping[str, plt.Figure]:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
