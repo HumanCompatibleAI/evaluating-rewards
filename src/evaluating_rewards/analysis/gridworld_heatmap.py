@@ -156,7 +156,7 @@ def compute_qvalues(state_action_reward: np.ndarray, discount: float) -> np.ndar
     return q_values
 
 
-def optimal_mask(state_action_reward: np.ndarray, discount: float = 0.95) -> np.ndarray:
+def optimal_mask(state_action_reward: np.ndarray, discount: float = 0.99) -> np.ndarray:
     """Computes the optimal actions for each state in `state_action_reward`."""
     q_values = compute_qvalues(state_action_reward, discount)
     best_q = q_values.max(axis=1)[:, np.newaxis]

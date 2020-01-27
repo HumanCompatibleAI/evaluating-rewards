@@ -1,9 +1,9 @@
 gym[mujoco]
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@e99844
 matplotlib
-pymdptoolbox
 numpy
 pandas
+pymdptoolbox
 seaborn
 setuptools
 scipy
