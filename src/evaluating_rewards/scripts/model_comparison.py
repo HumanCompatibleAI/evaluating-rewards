@@ -111,7 +111,7 @@ def ellp_loss():
 
 
 @model_comparison_ex.named_config
-def fast():
+def test():
     """Small number of epochs, finish quickly, intended for tests / debugging."""
     pretrain_size = 512
     total_timesteps = 8192

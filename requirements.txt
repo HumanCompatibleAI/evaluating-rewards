@@ -3,6 +3,7 @@ imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@e99844
 matplotlib
 numpy
 pandas
+pymdptoolbox
 seaborn
 setuptools
 scipy
