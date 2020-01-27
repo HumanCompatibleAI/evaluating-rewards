@@ -25,7 +25,7 @@ REWARDS = {
         "state_reward": SPARSE_GOAL * 10 - 1,
         "potential": -MANHATTAN_FROM_GOAL * 10,
     },
-    "obstacle_course": {
+    "dirt_path": {
         # Some minor penalties to avoid to reach goal.
         #
         # Optimal policy for this is optimal in `SPARSE_GOAL`, but not equivalent.
@@ -42,7 +42,7 @@ REWARDS = {
         "state_reward": CLIFF_WALK,
         "potential": ZERO,
     },
-    "sparse_anti_goal": {
+    "sparse_penalty": {
         # Negative of `sparse_goal`.
         "state_reward": -SPARSE_GOAL,
         "potential": ZERO,

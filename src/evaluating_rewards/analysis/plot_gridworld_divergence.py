@@ -19,7 +19,6 @@ import os
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from imitation import util
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sacred
@@ -40,7 +39,11 @@ def default_config():
     reward_subset = None
 
     # Figure parameters
-    styles = ["paper", "huge", "tex"]
+    heatmap_kwargs = {
+        "masks": {"all": [visualize.always_true]},
+        "order": None,
+    }
+    styles = ["paper", "heatmap", "heatmap-2col", "tex"]
     save_kwargs = {
         "fmt": "pdf",
     }
@@ -53,6 +56,23 @@ def default_config():
 def test():
     """Unit tests/debugging."""
     reward_subset = ["sparse_goal", "dense_goal"]  # noqa: F841  pylint:disable=unused-variable
+
+
+@plot_gridworld_divergence_ex.named_config
+def paper():
+    """Figure for paper appendix."""
+    reward_subset = [
+        "sparse_goal",
+        "transformed_goal",
+        "sparse_penalty",
+        "dirt_path",
+        "cliff_walk",
+        "all_zero",
+    ]
+    heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
+        "order": reward_subset,
+        "cbar_kws": dict(fraction=0.05),
+    }
 
 
 @plot_gridworld_divergence_ex.config
@@ -116,6 +136,7 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float) -> pd.Series
 def plot_gridworld_divergence(
     styles: Iterable[str],
     reward_subset: Optional[Iterable[str]],
+    heatmap_kwargs: Dict[str, Any],
     discount: float,
     log_dir: str,
     save_kwargs: Mapping[str, Any],
@@ -135,11 +156,10 @@ def plot_gridworld_divergence(
             rewards = {k: rewards[k] for k in reward_subset}
         divergence = compute_divergence(rewards, discount)
 
-        fig, ax = plt.subplots(1, 1)
-        visualize.comparison_heatmap(vals=divergence, ax=ax)
-        visualize.save_fig(os.path.join(log_dir, "fig"), fig, **save_kwargs)
+        figs = visualize.compact_heatmaps(loss=divergence, **heatmap_kwargs)
+        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
-        return fig
+        return figs
 
 
 if __name__ == "__main__":

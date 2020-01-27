@@ -44,6 +44,12 @@ TRANSFORMATIONS = {
     r"^(.*)Forward(.*)": r"\\forward{\1\2}",
     r"^(.*)WithCtrl(.*)": r"\1\\controlpenalty{}\2",
     r"^(.*)NoCtrl(.*)": r"\1\\nocontrolpenalty{}\2",
+    "sparse_goal": r"\\sparsegoal{}",
+    "transformed_goal": r"\\densegoal{}",
+    "sparse_penalty": r"\\sparsepenalty{}",
+    "all_zero": r"\\zeroreward{}",
+    "dirt_path": r"\\dirtpath{}",
+    "cliff_walk": r"\\cliffwalk{}",
 }
 
 
@@ -176,6 +182,7 @@ def comparison_heatmap(
     vals: pd.Series,
     log: bool = True,
     fmt: Callable[[float], str] = short_e,
+    cbar_kws: Optional[Dict[str, Any]] = None,
     cmap: str = "GnBu",
     robust: bool = False,
     preserve_order: bool = False,
@@ -207,7 +214,9 @@ def comparison_heatmap(
         mask = _heatmap_reformat(mask, preserve_order)
 
     data = np.log10(vals) if log else vals
-    cbar_kws = dict(label=r"$-\log_{10}(q)$") if log else dict()
+    cbar_kws = dict(cbar_kws or {})
+    if log:
+        cbar_kws.setdefault("label", r"$-\log_{10}(q)$")
 
     annot = vals.applymap(fmt)
 
@@ -218,11 +227,13 @@ def comparison_heatmap(
 
 
 def median_seeds(series: pd.Series) -> pd.Series:
-    """Take the median over any seeds in a series.."""
+    """Take the median over any seeds in a series."""
     seeds = [name for name in series.index.names if "seed" in name]
-    assert seeds, "No seed levels found"
-    non_seeds = [name for name in series.index.names if name not in seeds]
-    return series.groupby(non_seeds).median()
+    if not seeds:
+        return series
+    else:
+        non_seeds = [name for name in series.index.names if name not in seeds]
+        return series.groupby(non_seeds).median()
 
 
 def compact(series: pd.Series) -> pd.Series:
@@ -338,6 +349,7 @@ def compact_heatmaps(
     masks: Mapping[str, Iterable[results.FilterFn]],
     fmt: Callable[[float], str] = short_fmt,
     after_plot: Callable[[], None] = lambda: None,
+    **kwargs: Dict[str, Any],
 ) -> Mapping[str, plt.Figure]:
     """Plots a series of compact heatmaps, suitable for presentations.
 
@@ -353,6 +365,7 @@ def compact_heatmaps(
                 from the figure.
         fmt: A Callable mapping losses to strings to annotate cells in heatmap.
         after_plot: Called after plotting, for environment-specific tweaks.
+        kwargs: passed through to `comparison_heatmap`.
 
     Returns:
         A mapping from strings to figures.
@@ -373,7 +386,7 @@ def compact_heatmaps(
     for name, matching in masks.items():
         fig, ax = plt.subplots(1, 1, squeeze=True)
         match_mask = compute_mask(loss, matching)
-        comparison_heatmap(loss, fmt=fmt, preserve_order=True, mask=match_mask, ax=ax)
+        comparison_heatmap(loss, fmt=fmt, preserve_order=True, mask=match_mask, ax=ax, **kwargs)
         # make room for multi-line xlabels
         after_plot()
         figs[name] = fig
