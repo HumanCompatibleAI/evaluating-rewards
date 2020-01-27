@@ -41,7 +41,6 @@ def default_config():
     # Figure parameters
     heatmap_kwargs = {
         "masks": {"all": [visualize.always_true]},
-        "order": None,
     }
     styles = ["paper", "heatmap", "heatmap-2col", "tex"]
     save_kwargs = {

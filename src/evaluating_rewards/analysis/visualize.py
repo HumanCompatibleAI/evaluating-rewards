@@ -345,8 +345,8 @@ short_fmt = functools.partial(short_e, precision=0)
 
 def compact_heatmaps(
     loss: pd.Series,
-    order: Iterable[str],
     masks: Mapping[str, Iterable[results.FilterFn]],
+    order: Optional[Iterable[str]] = None,
     fmt: Callable[[float], str] = short_fmt,
     after_plot: Callable[[], None] = lambda: None,
     **kwargs: Dict[str, Any],
@@ -370,6 +370,8 @@ def compact_heatmaps(
     Returns:
         A mapping from strings to figures.
     """
+    if order is None:
+        order = loss.index.levels[0]
     loss = loss.copy()
     loss = rewrite_index(loss)
     loss = compact(loss)

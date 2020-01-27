@@ -33,7 +33,7 @@ EXPERIMENTS = {
     # experiment, expected_type
     "plot_divergence": (plot_divergence_heatmap_ex, dict),
     "plot_pm": (plot_pm_reward_ex, xr.DataArray),
-    "plot_gridworld_divergence": (plot_gridworld_divergence_ex, plt.Figure),
+    "plot_gridworld_divergence": (plot_gridworld_divergence_ex, dict),
     "plot_gridworld_reward": (plot_gridworld_reward_ex, plt.Figure),
     "comparison": (model_comparison_ex, dict),
     "regress": (train_regress_ex, dict),
