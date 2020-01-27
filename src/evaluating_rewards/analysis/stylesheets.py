@@ -18,6 +18,7 @@ STYLES = {
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
     },
+    "huge": {"figure.figsize": (20, 10)},
     "pointmass-2col": {
         "figure.figsize": (6.75, 2.5),
         "figure.subplot.left": 0.2,

@@ -30,7 +30,6 @@ plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 
 def horizontal_ticks() -> None:
-    # lazy import to allow custom backend
     plt.xticks(rotation="horizontal")
     plt.yticks(rotation="horizontal")
 

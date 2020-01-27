@@ -12,48 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to plot heatmap of divergence between pairs of reward models."""
+"""CLI script to plot heatmap of divergence between reward models in gridworlds."""
 
-import itertools
+import collections
 import os
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from imitation import util
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import sacred
 
-from evaluating_rewards import serialize
-from evaluating_rewards.analysis import results, stylesheets, visualize
+from evaluating_rewards import serialize, tabular
+from evaluating_rewards.analysis import gridworld_rewards, stylesheets, visualize
 from evaluating_rewards.scripts import script_utils
 
-plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
+plot_gridworld_divergence_ex = sacred.Experiment("plot_gridworld_divergence")
 
 
-def horizontal_ticks() -> None:
-    # lazy import to allow custom backend
-    plt.xticks(rotation="horizontal")
-    plt.yticks(rotation="horizontal")
-
-
-@plot_divergence_heatmap_ex.config
+@plot_gridworld_divergence_ex.config
 def default_config():
     """Default configuration values."""
     # Dataset parameters
     log_root = serialize.get_output_dir()  # where results are read from/written to
-    data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
-    data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
-    search = {  # parameters to filter by in datasets
-        "env_name": "evaluating_rewards/Hopper-v3",
-        "model_wrapper_kwargs": {},
-    }
+    discount = 0.99
+    reward_subset = None
 
     # Figure parameters
-    heatmap_kwargs = {
-        "masks": {"all": [visualize.always_true]},
-        "order": None,
-        "after_plot": horizontal_ticks,
-    }
-    styles = ["paper", "heatmap-1col", "tex"]
+    styles = ["paper", "huge", "tex"]
     save_kwargs = {
         "fmt": "pdf",
     }
@@ -62,150 +49,74 @@ def default_config():
     del _
 
 
-@plot_divergence_heatmap_ex.config
-def logging_config(log_root, search):
+@plot_gridworld_divergence_ex.named_config
+def test():
+    """Unit tests/debugging."""
+    reward_subset = ["sparse_goal", "dense_goal"]  # noqa: F841  pylint:disable=unused-variable
+
+
+@plot_gridworld_divergence_ex.config
+def logging_config(log_root):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root,
-        "plot_divergence_heatmap",
-        str(search).replace("/", "_"),
-        util.make_unique_timestamp(),
+        log_root, "plot_gridworld_divergence", util.make_unique_timestamp(),
     )
 
 
-@plot_divergence_heatmap_ex.named_config
-def test():
-    """Intended for debugging/unit test."""
-    data_root = os.path.join("tests", "data")
-    data_subdir = "comparison"
-    search = {
-        "env_name": "evaluating_rewards/PointMassLine-v0",
-    }
-    # Do not include "tex" in styles here: this will break on CI.
-    styles = ["paper", "heatmap-1col"]
-    _ = locals()
-    del _
+def state_to_3d(reward: np.ndarray, ns: int, na: int) -> np.ndarray:
+    """Convert state-only reward R[s] to 3D reward R[s,a,s'].
+
+    Args:
+        - reward: state only reward.
+        - ns: number of states.
+        - na: number of actions.
+
+    Returns:
+        State-action-next state reward from tiling `reward`.
+    """
+    assert reward.ndim == 1
+    assert reward.shape[0] == ns
+    return np.tile(reward[:, np.newaxis, np.newaxis], (1, na, ns))
 
 
-@plot_divergence_heatmap_ex.named_config
-def dataset_transition():
-    """Searches for comparisons using `random_transition_generator`."""
-    search = {  # noqa: F841  pylint:disable=unused-variable
-        "dataset_factory": {
-            "escape/py/function": (
-                "evaluating_rewards.experiments.datasets.random_transition_generator"
-            ),
-        },
-    }
+def grid_to_3d(reward: np.ndarray) -> np.ndarray:
+    """Convert gridworld state-only reward R[i,j] to 3D reward R[s,a,s']."""
+    assert reward.ndim == 2
+    reward = reward.flatten()
+    ns = reward.shape[0]
+    return state_to_3d(reward, ns, 5)
 
 
-def _norm(args: Iterable[str]) -> bool:
-    return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
+def make_reward(cfg, discount):
+    """Create reward from state-only reward and potential."""
+    state_reward = grid_to_3d(cfg["state_reward"])
+    potential = cfg["potential"]
+    assert potential.ndim == 2  # gridworld, (i,j) indexed
+    potential = potential.flatten()
+    return tabular.shape(state_reward, potential, discount)
 
 
-@plot_divergence_heatmap_ex.named_config
-def point_mass():
-    """Heatmaps for evaluating_rewards/PointMass* environments."""
-    search = {  # noqa: F841  pylint:disable=unused-variable
-        "env_name": "evaluating_rewards/PointMassLine-v0",
-        "dataset_factory": {
-            "escape/py/function": "evaluating_rewards.experiments.datasets.random_policy_generator",
-        },
-    }
-    heatmap_kwargs = {}
-    heatmap_kwargs["masks"] = {
-        "diagonal": [visualize.zero, visualize.same],
-        "control": [visualize.zero, visualize.control],
-        "dense_vs_sparse": [visualize.zero, visualize.sparse_or_dense],
-        "norm": [visualize.zero, visualize.same, _norm],
-        "all": [visualize.always_true],
-    }
-    order = ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
-    heatmap_kwargs["order"] = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
-    heatmap_kwargs["after_plot"] = horizontal_ticks
-    del order
+def compute_divergence(reward_cfg: Dict[str, Any], discount: float) -> pd.Series:
+    """Compute divergence for each pair of rewards in `reward_cfg`."""
+    rewards = {name: make_reward(cfg, discount) for name, cfg in reward_cfg.items()}
+    divergence = collections.defaultdict(dict)
+    for src_name, src_reward in rewards.items():
+        for target_name, target_reward in rewards.items():
+            if target_name == "all_zero":
+                continue
+            closest_reward = tabular.closest_reward_em(src_reward, target_reward, discount=discount)
+            div = tabular.direct_sq_divergence(closest_reward, target_reward)
+            divergence[target_name][src_name] = div
+    divergence = pd.DataFrame(divergence)
+    divergence = divergence.stack()
+    divergence.index.names = ["source_reward_type", "target_reward_type"]
+    return divergence
 
 
-@plot_divergence_heatmap_ex.named_config
-def point_maze():
-    """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
-    search = {
-        "env_name": "evaluating_rewards/PointMazeLeft-v0",
-    }
-    heatmap_kwargs = {
-        "masks": {"all": [visualize.always_true]},  # "all" is still only 3x3
-        "order": [
-            "imitation/PointMazeGroundTruthWithCtrl-v0",
-            "imitation/PointMazeGroundTruthNoCtrl-v0",
-            "evaluating_rewards/Zero-v0",
-        ],
-    }
-    _ = locals()
-    del _
-
-
-MUJOCO_STANDARD_ORDER = ["ForwardNoCtrl", "ForwardWithCtrl", "BackwardNoCtrl", "BackwardWithCtrl"]
-
-
-@plot_divergence_heatmap_ex.named_config
-def half_cheetah():
-    """Heatmaps for HalfCheetah-v3."""
-    search = {
-        "env_name": "evaluating_rewards/HalfCheetah-v3",
-    }
-    heatmap_kwargs = {
-        "masks": {
-            "diagonal": [visualize.zero, visualize.same],
-            "control": [visualize.zero, visualize.control],
-            "direction": [visualize.zero, visualize.direction],
-            "no_ctrl": [visualize.zero, visualize.no_ctrl],
-            "all": [visualize.always_true],
-        },
-        "order": [
-            f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
-            for suffix in MUJOCO_STANDARD_ORDER
-        ],
-    }
-    _ = locals()
-    del _
-
-
-def hopper_activity(args: Iterable[str]) -> bool:
-    pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
-    repl = visualize.replace(pattern, r"\1\2")(args)
-    return len(set(repl)) > 1 and visualize.no_ctrl(args)
-
-
-@plot_divergence_heatmap_ex.named_config
-def hopper():
-    """Heatmaps for Hopper-v3."""
-    search = {  # noqa: F841  pylint:disable=unused-variable
-        "env_name": "evaluating_rewards/Hopper-v3",
-    }
-    heatmap_kwargs = {}
-    heatmap_kwargs["masks"] = {
-        "diagonal": [visualize.zero, visualize.same],
-        "control": [visualize.zero, visualize.control],
-        "direction": [visualize.zero, visualize.direction],
-        "no_ctrl": [visualize.zero, visualize.no_ctrl],
-        "different_activity": [visualize.zero, hopper_activity],
-        "all": [visualize.always_true],
-    }
-    activities = ["GroundTruth", "Backflip"]
-    heatmap_kwargs["order"] = [
-        f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
-        for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
-    ]
-    heatmap_kwargs["after_plot"] = horizontal_ticks
-    del activities
-
-
-@plot_divergence_heatmap_ex.main
-def plot_divergence_heatmap(
+@plot_gridworld_divergence_ex.main
+def plot_gridworld_divergence(
     styles: Iterable[str],
-    data_root: str,
-    data_subdir: Optional[str],
-    search: Mapping[str, Any],
-    heatmap_kwargs: Mapping[str, Any],
+    reward_subset: Optional[Iterable[str]],
+    discount: float,
     log_dir: str,
     save_kwargs: Mapping[str, Any],
 ):
@@ -213,47 +124,23 @@ def plot_divergence_heatmap(
 
     Args:
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
-        data_root: where to load data from.
-        data_subdir: subdirectory to load data from.
-        search: mapping which Sacred configs must match to be included in results.
-        heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
+        reward_subset: if specified, subset of keys to plot.
+        discount: discount rate of MDP.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
         """
     with stylesheets.setup_styles(styles):
-        data_dir = data_root
-        if data_subdir is not None:
-            data_dir = os.path.join(data_dir, data_subdir)
-        # Workaround tags reserved by Sacred
-        search = dict(search)
-        for k, v in search.items():
-            if isinstance(v, dict):
-                search[k] = {
-                    inner_k.replace("escape/", ""): inner_v for inner_k, inner_v in v.items()
-                }
+        rewards = gridworld_rewards.REWARDS
+        if reward_subset is not None:
+            rewards = {k: rewards[k] for k in reward_subset}
+        divergence = compute_divergence(rewards, discount)
 
-        def cfg_filter(cfg):
-            return all((cfg.get(k) == v for k, v in search.items()))
+        fig, ax = plt.subplots(1, 1)
+        visualize.comparison_heatmap(vals=divergence, ax=ax)
+        visualize.save_fig(os.path.join(log_dir, "fig"), fig, **save_kwargs)
 
-        keys = ["source_reward_type", "source_reward_path", "target_reward_type", "seed"]
-        stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
-        res = results.pipeline(stats)
-        loss = res["loss"]["loss"]
-        heatmap_kwargs = dict(heatmap_kwargs)
-        if heatmap_kwargs.get("order") is None:
-            heatmap_kwargs["order"] = loss.index.levels[0]
-
-        figs = {}
-        figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])
-        figs["affine"] = visualize.affine_heatmap(
-            res["affine"]["scales"], res["affine"]["constants"]
-        )
-        heatmaps = visualize.compact_heatmaps(loss=loss, **heatmap_kwargs)
-        figs.update(heatmaps)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-
-        return figs
+        return fig
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_divergence_heatmap_ex, "plot_divergence_heatmap")
+    script_utils.experiment_main(plot_gridworld_divergence_ex, "plot_gridworld_divergence")

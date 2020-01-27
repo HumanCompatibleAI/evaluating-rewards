@@ -26,10 +26,10 @@ from evaluating_rewards import serialize
 from evaluating_rewards.analysis import gridworld_heatmap, gridworld_rewards, stylesheets, visualize
 from evaluating_rewards.scripts import script_utils
 
-plot_gridworld_heatmap_ex = sacred.Experiment("plot_gridworld_heatmap")
+plot_gridworld_reward_ex = sacred.Experiment("plot_gridworld_reward")
 
 
-@plot_gridworld_heatmap_ex.config
+@plot_gridworld_reward_ex.config
 def default_config():
     """Default configuration values."""
     # Reward parameters
@@ -39,21 +39,21 @@ def default_config():
     discount = 0.99
 
     # Figure parameters
-    log_root = os.path.join(serialize.get_output_dir(), "plot_gridworld_heatmap")
+    log_root = os.path.join(serialize.get_output_dir(), "plot_gridworld_reward")
     styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-1col-narrow"]
     fmt = "pdf"  # file type
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
-@plot_gridworld_heatmap_ex.config
+@plot_gridworld_reward_ex.config
 def logging_config(log_root, exp_name):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root, exp_name, util.make_unique_timestamp(),
     )
 
 
-@plot_gridworld_heatmap_ex.named_config
+@plot_gridworld_reward_ex.named_config
 def test():
     """Small config, intended for tests / debugging."""
     # No changes from default, but we need this present for unit tests.
@@ -75,14 +75,14 @@ def _add_rewards():
     for exp_name, cfg in gridworld_rewards.REWARDS.items():
         cfg = cfg.copy()
         cfg["exp_name"] = exp_name
-        plot_gridworld_heatmap_ex.add_named_config(exp_name, cfg)
+        plot_gridworld_reward_ex.add_named_config(exp_name, cfg)
 
 
 _add_rewards()
 
 
-@plot_gridworld_heatmap_ex.main
-def plot_gridworld_heatmap(
+@plot_gridworld_reward_ex.main
+def plot_gridworld_reward(
     state_reward: np.ndarray,
     potential: np.ndarray,
     discount: float,
@@ -113,4 +113,4 @@ def plot_gridworld_heatmap(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_gridworld_heatmap_ex, "plot_gridworld_heatmap")
+    script_utils.experiment_main(plot_gridworld_reward_ex, "plot_gridworld_reward")
