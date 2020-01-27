@@ -63,12 +63,15 @@ OFFSETS = {
 OFFSETS[(0, 0)] = np.array([0.5, 0.5])
 
 
-def shape(state_reward: np.ndarray, state_potential: np.ndarray) -> np.ndarray:
+def shape(
+    state_reward: np.ndarray, state_potential: np.ndarray, discount: float = 0.99
+) -> np.ndarray:
     """Shape `state_reward` with `state_potential`.
 
     Args:
         state_reward: a two-dimensional array, indexed by `(i,j)`.
         state_potential: a two-dimensional array of the same shape as `state_reward`.
+        discount: discount rate of MDP.
 
     Returns:
         A state-action reward `sa_reward`. This is three-dimensional array,
@@ -90,7 +93,7 @@ def shape(state_reward: np.ndarray, state_potential: np.ndarray) -> np.ndarray:
     for x_delta, y_delta in ACTION_DELTA.values():
         axis = 0 if x_delta else 1
         delta = x_delta + y_delta
-        new_potential = np.roll(padded_potential, -delta, axis=axis)
+        new_potential = discount * np.roll(padded_potential, -delta, axis=axis)
         shaped = padded_reward + new_potential - padded_potential
         res.append(shaped[1:-1, 1:-1])
 
@@ -231,6 +234,7 @@ def _reward_draw_spline(
 
 def _reward_draw(
     state_action_reward: np.ndarray,
+    discount: float,
     fig: plt.Figure,
     ax: plt.Axes,
     mappable: matplotlib.cm.ScalarMappable,
@@ -238,7 +242,7 @@ def _reward_draw(
     edgecolor: str = "gray",
     hatchcolor: str = "white",
 ) -> None:
-    optimal_actions = optimal_mask(state_action_reward)
+    optimal_actions = optimal_mask(state_action_reward, discount)
 
     circle_area_pt = 200
     circle_radius_pt = math.sqrt(circle_area_pt / math.pi)
@@ -307,6 +311,7 @@ def _reward_draw(
 
 def plot_gridworld_reward(
     state_action_reward: np.ndarray,
+    discount: float = 0.99,
     from_dest: bool = False,
     cbar_format: str = "%.0f",
     cbar_fraction: float = 0.05,
@@ -331,6 +336,6 @@ def plot_gridworld_reward(
     assert num_actions == len(ACTION_DELTA)
     fig, ax = _reward_make_fig(xlen, ylen)
     mappable = _reward_make_color_map(state_action_reward)
-    _reward_draw(state_action_reward, fig, ax, mappable, from_dest)
+    _reward_draw(state_action_reward, discount, fig, ax, mappable, from_dest)
     fig.colorbar(mappable, format=cbar_format, fraction=cbar_fraction)
     return fig

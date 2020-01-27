@@ -23,7 +23,7 @@ import numpy as np
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import gridworld_heatmap, stylesheets, visualize
+from evaluating_rewards.analysis import gridworld_heatmap, gridworld_rewards, stylesheets, visualize
 from evaluating_rewards.scripts import script_utils
 
 plot_gridworld_heatmap_ex = sacred.Experiment("plot_gridworld_heatmap")
@@ -36,6 +36,7 @@ def default_config():
     exp_name = "default"
     state_reward = np.zeros((3, 3))
     potential = np.zeros((3, 3))
+    discount = 0.99
 
     # Figure parameters
     log_root = os.path.join(serialize.get_output_dir(), "plot_gridworld_heatmap")
@@ -59,113 +60,6 @@ def test():
     pass  # pylint:disable=unnecessary-pass
 
 
-SPARSE_GOAL = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 1]])
-
-OBSTACLE_COURSE = np.array([[0, -1, -1], [0, 0, 0], [-1, -1, 5]])
-
-CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-9, -9, 5]])
-
-MANHATTAN_FROM_GOAL = np.array([[4, 3, 2], [3, 2, 1], [2, 1, 0]])
-
-
-# Goal oriented and *equivalent* rewards
-@plot_gridworld_heatmap_ex.named_config
-def sparse_goal():
-    exp_name = "sparse_goal"
-    state_reward = SPARSE_GOAL
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def sparse_goal_shift():
-    exp_name = "sparse_goal_shift"
-    state_reward = SPARSE_GOAL + 1
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def sparse_goal_scale():
-    exp_name = "sparse_goal_scale"
-    state_reward = SPARSE_GOAL * 10
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def dense_goal():
-    exp_name = "dense_goal"
-    state_reward = SPARSE_GOAL
-    potential = -MANHATTAN_FROM_GOAL
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def antidense_goal():
-    exp_name = "antidense_goal"
-    state_reward = SPARSE_GOAL
-    potential = MANHATTAN_FROM_GOAL
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def transformed_goal():
-    """Shifted, rescaled and reshaped sparse goal."""
-    exp_name = "transformed_goal"
-    state_reward = SPARSE_GOAL * 10 - 1
-    potential = -MANHATTAN_FROM_GOAL * 10
-    _ = locals()
-    del _
-
-
-# Non-equivalent rewards
-@plot_gridworld_heatmap_ex.named_config
-def obstacle_course():
-    """Some minor penalties to avoid to reach goal.
-
-    Optimal policy for this is optimal in `SPARSE_GOAL`, but not equivalent.
-    Think may come apart in some dynamics but not particularly intuitively.
-    """
-    exp_name = "obstacle_course"
-    state_reward = OBSTACLE_COURSE
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def cliff_walk():
-    """Avoid cliff to reach goal.
-
-    Same set of optimal policies as `obstacle_course` in deterministic dynamics, but not equivalent.
-
-    Optimal policy differs in sufficiently slippery gridworlds as want to stay on top line
-    to avoid chance of falling off cliff.
-    """
-    exp_name = "cliff_walk"
-    state_reward = CLIFF_WALK
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def sparse_anti_goal():
-    """Negative of `sparse_goal`."""
-    exp_name = "sparse_anti_goal"
-    state_reward = -SPARSE_GOAL
-    _ = locals()
-    del _
-
-
-@plot_gridworld_heatmap_ex.named_config
-def all_zero():
-    """All zero reward function."""
-    # default state_reward and potential_reward are zero, nothing more to do
-    exp_name = "all_zero"  # noqa: F841  pylint:disable=unused-variable
-
-
 def _normalize(state_array: np.ndarray) -> np.ndarray:
     """Tranposes and flips array.
 
@@ -177,9 +71,24 @@ def _normalize(state_array: np.ndarray) -> np.ndarray:
     return state_array.T[:, ::-1]
 
 
+def _add_rewards():
+    for exp_name, cfg in gridworld_rewards.REWARDS.items():
+        cfg = cfg.copy()
+        cfg["exp_name"] = exp_name
+        plot_gridworld_heatmap_ex.add_named_config(exp_name, cfg)
+
+
+_add_rewards()
+
+
 @plot_gridworld_heatmap_ex.main
 def plot_gridworld_heatmap(
-    state_reward: np.ndarray, potential: np.ndarray, styles: Iterable[str], log_dir: str, fmt: str,
+    state_reward: np.ndarray,
+    potential: np.ndarray,
+    discount: float,
+    styles: Iterable[str],
+    log_dir: str,
+    fmt: str,
 ) -> plt.Figure:
     """Plots a heatmap of a reward for the gridworld.
 
@@ -193,9 +102,11 @@ def plot_gridworld_heatmap(
     Returns:
         The generated figure.
     """
-    state_action_reward = gridworld_heatmap.shape(_normalize(state_reward), _normalize(potential))
+    state_action_reward = gridworld_heatmap.shape(
+        _normalize(state_reward), _normalize(potential), discount
+    )
     with stylesheets.setup_styles(styles):
-        fig = gridworld_heatmap.plot_gridworld_reward(state_action_reward)
+        fig = gridworld_heatmap.plot_gridworld_reward(state_action_reward, discount)
         visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)
 
     return fig
