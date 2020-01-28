@@ -17,15 +17,15 @@
 This is currently only used for illustrative examples in the paper;
 none of the actual experiments are gridworlds."""
 
-import collections
 import enum
+import functools
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 from unittest import mock
 
 import matplotlib
-import matplotlib.collections as mcollections
 import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import mdptoolbox
 import numpy as np
@@ -63,12 +63,15 @@ OFFSETS = {
 OFFSETS[(0, 0)] = np.array([0.5, 0.5])
 
 
-def shape(state_reward: np.ndarray, state_potential: np.ndarray) -> np.ndarray:
+def shape(
+    state_reward: np.ndarray, state_potential: np.ndarray, discount: float = 0.99
+) -> np.ndarray:
     """Shape `state_reward` with `state_potential`.
 
     Args:
         state_reward: a two-dimensional array, indexed by `(i,j)`.
         state_potential: a two-dimensional array of the same shape as `state_reward`.
+        discount: discount rate of MDP.
 
     Returns:
         A state-action reward `sa_reward`. This is three-dimensional array,
@@ -90,7 +93,7 @@ def shape(state_reward: np.ndarray, state_potential: np.ndarray) -> np.ndarray:
     for x_delta, y_delta in ACTION_DELTA.values():
         axis = 0 if x_delta else 1
         delta = x_delta + y_delta
-        new_potential = np.roll(padded_potential, -delta, axis=axis)
+        new_potential = discount * np.roll(padded_potential, -delta, axis=axis)
         shaped = padded_reward + new_potential - padded_potential
         res.append(shaped[1:-1, 1:-1])
 
@@ -186,10 +189,14 @@ def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     return fig, ax
 
 
-def _reward_make_color_map(state_action_reward: np.ndarray) -> matplotlib.cm.ScalarMappable:
-    norm = mcolors.Normalize(
-        vmin=np.nanmin(state_action_reward), vmax=np.nanmax(state_action_reward)
-    )
+def _reward_make_color_map(
+    state_action_reward: np.ndarray, vmin: Optional[float], vmax: Optional[float]
+) -> matplotlib.cm.ScalarMappable:
+    if vmin is None:
+        vmin = np.nanmin(state_action_reward)
+    if vmax is None:
+        vmax = np.nanmin(state_action_reward)
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     return matplotlib.cm.ScalarMappable(norm=norm)
 
 
@@ -203,7 +210,7 @@ def _reward_draw_spline(
     mappable: matplotlib.cm.ScalarMappable,
     annot_padding: float,
     ax: plt.Axes,
-) -> Tuple[np.ndarray, Tuple[float, ...]]:
+) -> Tuple[np.ndarray, Tuple[float, ...], str]:
     # Compute shape position and color
     pos = np.array([x, y])
     direction = np.array(ACTION_DELTA[action])
@@ -217,6 +224,7 @@ def _reward_draw_spline(
     text = f"{reward:.0f}"
     lum = sns.utils.relative_luminance(color)
     text_color = ".15" if lum > 0.408 else "w"
+    hatch_color = ".5" if lum > 0.408 else "w"
     xy = pos + 0.5
 
     if tuple(direction) != (0, 0):
@@ -226,19 +234,27 @@ def _reward_draw_spline(
         text, xy=xy, ha="center", va="center", color=text_color, fontweight=fontweight,
     )
 
-    return vert, color
+    return vert, color, hatch_color
+
+
+def _make_triangle(vert, color, **kwargs):
+    return mpatches.Polygon(xy=vert, facecolor=color, **kwargs)
+
+
+def _make_circle(vert, color, radius, **kwargs):
+    return mpatches.Circle(xy=vert, radius=radius, facecolor=color, **kwargs)
 
 
 def _reward_draw(
     state_action_reward: np.ndarray,
+    discount: float,
     fig: plt.Figure,
     ax: plt.Axes,
     mappable: matplotlib.cm.ScalarMappable,
     from_dest: bool,
     edgecolor: str = "gray",
-    hatchcolor: str = "white",
 ) -> None:
-    optimal_actions = optimal_mask(state_action_reward)
+    optimal_actions = optimal_mask(state_action_reward, discount)
 
     circle_area_pt = 200
     circle_radius_pt = math.sqrt(circle_area_pt / math.pi)
@@ -248,8 +264,8 @@ def _reward_draw(
     circle_radius_data = ax.transData.inverted().transform(corner_display + circle_radius_display)
     annot_padding = 0.25 + 0.5 * circle_radius_data[0]
 
-    verts = collections.defaultdict(lambda: collections.defaultdict(list))
-    colors = collections.defaultdict(lambda: collections.defaultdict(list))
+    triangle_patches = []
+    circle_patches = []
 
     it = np.nditer(state_action_reward, flags=["multi_index"])
     while not it.finished:
@@ -262,54 +278,35 @@ def _reward_draw(
             assert action != 0
             continue
 
-        vert, color = _reward_draw_spline(
+        vert, color, hatch_color = _reward_draw_spline(
             x, y, action, optimal, reward, from_dest, mappable, annot_padding, ax
         )
 
-        geom = "circle" if action == 0 else "triangle"
-        verts[geom][optimal].append(vert)
-        colors[geom][optimal].append(color)
-
-    circle_collections = []
-    triangle_collections = []
-
-    def _make_triangle(optimal, **kwargs):
-        return mcollections.PolyCollection(
-            verts=verts["triangle"][optimal], facecolors=colors["triangle"][optimal], **kwargs,
-        )
-
-    def _make_circle(optimal, **kwargs):
-        circle_offsets = verts["circle"][optimal]
-        return mcollections.CircleCollection(
-            sizes=[circle_area_pt] * len(circle_offsets),
-            facecolors=colors["circle"][optimal],
-            offsets=circle_offsets,
-            transOffset=ax.transData,
-            **kwargs,
-        )
-
-    maker_collection_dict = {
-        _make_triangle: triangle_collections,
-        _make_circle: circle_collections,
-    }
-
-    for optimal in [False, True]:
         hatch = "xx" if optimal else None
+        if action == 0:
+            fn = functools.partial(_make_circle, radius=circle_radius_data[0])
+        else:
+            fn = _make_triangle
+        patches = circle_patches if action == 0 else triangle_patches
+        if hatch:  # draw the hatch using a different color
+            patches.append(fn(vert, tuple(color), linewidth=1, edgecolor=hatch_color, hatch=hatch))
+            patches.append(fn(vert, tuple(color), linewidth=1, edgecolor=edgecolor, fill=False))
+        else:
+            patches.append(fn(vert, tuple(color), linewidth=1, edgecolor=edgecolor))
 
-        for maker_fn, cols in maker_collection_dict.items():
-            cols.append(maker_fn(optimal, edgecolors=edgecolor))
-            if hatch:  # draw the hatch using a different color
-                cols.append(maker_fn(optimal, edgecolors=hatchcolor, linewidth=0, hatch=hatch))
-
-    for cols in triangle_collections + circle_collections:
-        ax.add_collection(cols)
+    for p in triangle_patches + circle_patches:
+        # need to draw circles on top of triangles
+        ax.add_patch(p)
 
 
 def plot_gridworld_reward(
     state_action_reward: np.ndarray,
+    discount: float = 0.99,
     from_dest: bool = False,
     cbar_format: str = "%.0f",
     cbar_fraction: float = 0.05,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
 ) -> plt.Figure:
     """
     Plots a heatmap of reward for the gridworld.
@@ -330,7 +327,7 @@ def plot_gridworld_reward(
     xlen, ylen, num_actions = state_action_reward.shape
     assert num_actions == len(ACTION_DELTA)
     fig, ax = _reward_make_fig(xlen, ylen)
-    mappable = _reward_make_color_map(state_action_reward)
-    _reward_draw(state_action_reward, fig, ax, mappable, from_dest)
+    mappable = _reward_make_color_map(state_action_reward, vmin, vmax)
+    _reward_draw(state_action_reward, discount, fig, ax, mappable, from_dest)
     fig.colorbar(mappable, format=cbar_format, fraction=cbar_fraction)
     return fig

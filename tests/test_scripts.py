@@ -21,7 +21,8 @@ import pandas as pd
 import xarray as xr
 
 from evaluating_rewards.analysis.plot_divergence_heatmap import plot_divergence_heatmap_ex
-from evaluating_rewards.analysis.plot_gridworld_heatmap import plot_gridworld_heatmap_ex
+from evaluating_rewards.analysis.plot_gridworld_divergence import plot_gridworld_divergence_ex
+from evaluating_rewards.analysis.plot_gridworld_reward import plot_gridworld_reward_ex
 from evaluating_rewards.analysis.plot_pm_reward import plot_pm_reward_ex
 from evaluating_rewards.scripts.model_comparison import model_comparison_ex
 from evaluating_rewards.scripts.train_preferences import train_preferences_ex
@@ -32,7 +33,8 @@ EXPERIMENTS = {
     # experiment, expected_type
     "plot_divergence": (plot_divergence_heatmap_ex, dict),
     "plot_pm": (plot_pm_reward_ex, xr.DataArray),
-    "plot_gridworld": (plot_gridworld_heatmap_ex, plt.Figure),
+    "plot_gridworld_divergence": (plot_gridworld_divergence_ex, dict),
+    "plot_gridworld_reward": (plot_gridworld_reward_ex, plt.Figure),
     "comparison": (model_comparison_ex, dict),
     "regress": (train_regress_ex, dict),
     "preferences": (train_preferences_ex, pd.DataFrame),

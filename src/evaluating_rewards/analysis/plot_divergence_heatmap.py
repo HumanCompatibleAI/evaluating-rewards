@@ -30,7 +30,6 @@ plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 
 def horizontal_ticks() -> None:
-    # lazy import to allow custom backend
     plt.xticks(rotation="horizontal")
     plt.yticks(rotation="horizontal")
 
@@ -50,10 +49,9 @@ def default_config():
     # Figure parameters
     heatmap_kwargs = {
         "masks": {"all": [visualize.always_true]},
-        "order": None,
         "after_plot": horizontal_ticks,
     }
-    styles = ["paper", "heatmap-1col", "tex"]
+    styles = ["paper", "heatmap", "heatmap-1col", "tex"]
     save_kwargs = {
         "fmt": "pdf",
     }
@@ -239,9 +237,6 @@ def plot_divergence_heatmap(
         stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
         res = results.pipeline(stats)
         loss = res["loss"]["loss"]
-        heatmap_kwargs = dict(heatmap_kwargs)
-        if heatmap_kwargs.get("order") is None:
-            heatmap_kwargs["order"] = loss.index.levels[0]
 
         figs = {}
         figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])

@@ -18,6 +18,7 @@ STYLES = {
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
     },
+    "huge": {"figure.figsize": (20, 10)},
     "pointmass-2col": {
         "figure.figsize": (6.75, 2.5),
         "figure.subplot.left": 0.2,
@@ -27,11 +28,15 @@ STYLES = {
         "figure.subplot.hspace": 0.2,
         "figure.subplot.wspace": 0.25,
     },
-    "heatmap-2col": {"figure.figsize": (6.75, 5.0625)},
+    "heatmap": {"font.size": 8, "xtick.labelsize": 8, "ytick.labelsize": 8},
+    "heatmap-2col": {
+        "figure.figsize": (6.75, 5.0625),
+        "figure.subplot.top": 0.99,
+        "figure.subplot.right": 0.93,
+        "figure.subplot.left": 0.06,
+        "figure.subplot.bottom": 0.09,
+    },
     "heatmap-1col": {
-        "font.size": 8,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
         "figure.figsize": (3.25, 2.4375),
         "figure.subplot.top": 0.99,
         "figure.subplot.bottom": 0.16,
@@ -56,7 +61,7 @@ STYLES = {
     },
     "gridworld-heatmap-1col-narrow": {
         "image.cmap": "RdBu",
-        "figure.figsize": (2.5, 2.07),
+        "figure.figsize": (2.44, 2.07),
         "font.size": 10,
         "axes.labelsize": 10,
         "xtick.labelsize": 10,
