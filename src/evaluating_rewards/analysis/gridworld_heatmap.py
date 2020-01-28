@@ -17,15 +17,15 @@
 This is currently only used for illustrative examples in the paper;
 none of the actual experiments are gridworlds."""
 
-import collections
 import enum
+import functools
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 from unittest import mock
 
 import matplotlib
-import matplotlib.collections as mcollections
 import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import mdptoolbox
 import numpy as np
@@ -206,7 +206,7 @@ def _reward_draw_spline(
     mappable: matplotlib.cm.ScalarMappable,
     annot_padding: float,
     ax: plt.Axes,
-) -> Tuple[np.ndarray, Tuple[float, ...]]:
+) -> Tuple[np.ndarray, Tuple[float, ...], str]:
     # Compute shape position and color
     pos = np.array([x, y])
     direction = np.array(ACTION_DELTA[action])
@@ -220,6 +220,7 @@ def _reward_draw_spline(
     text = f"{reward:.0f}"
     lum = sns.utils.relative_luminance(color)
     text_color = ".15" if lum > 0.408 else "w"
+    hatch_color = ".5" if lum > 0.408 else "w"
     xy = pos + 0.5
 
     if tuple(direction) != (0, 0):
@@ -229,7 +230,15 @@ def _reward_draw_spline(
         text, xy=xy, ha="center", va="center", color=text_color, fontweight=fontweight,
     )
 
-    return vert, color
+    return vert, color, hatch_color
+
+
+def _make_triangle(vert, color, **kwargs):
+    return mpatches.Polygon(xy=vert, facecolor=color, **kwargs)
+
+
+def _make_circle(vert, color, radius, **kwargs):
+    return mpatches.Circle(xy=vert, radius=radius, facecolor=color, **kwargs)
 
 
 def _reward_draw(
@@ -240,7 +249,6 @@ def _reward_draw(
     mappable: matplotlib.cm.ScalarMappable,
     from_dest: bool,
     edgecolor: str = "gray",
-    hatchcolor: str = "white",
 ) -> None:
     optimal_actions = optimal_mask(state_action_reward, discount)
 
@@ -252,8 +260,8 @@ def _reward_draw(
     circle_radius_data = ax.transData.inverted().transform(corner_display + circle_radius_display)
     annot_padding = 0.25 + 0.5 * circle_radius_data[0]
 
-    verts = collections.defaultdict(lambda: collections.defaultdict(list))
-    colors = collections.defaultdict(lambda: collections.defaultdict(list))
+    triangle_patches = []
+    circle_patches = []
 
     it = np.nditer(state_action_reward, flags=["multi_index"])
     while not it.finished:
@@ -266,47 +274,25 @@ def _reward_draw(
             assert action != 0
             continue
 
-        vert, color = _reward_draw_spline(
+        vert, color, hatch_color = _reward_draw_spline(
             x, y, action, optimal, reward, from_dest, mappable, annot_padding, ax
         )
 
-        geom = "circle" if action == 0 else "triangle"
-        verts[geom][optimal].append(vert)
-        colors[geom][optimal].append(color)
-
-    circle_collections = []
-    triangle_collections = []
-
-    def _make_triangle(optimal, **kwargs):
-        return mcollections.PolyCollection(
-            verts=verts["triangle"][optimal], facecolors=colors["triangle"][optimal], **kwargs,
-        )
-
-    def _make_circle(optimal, **kwargs):
-        circle_offsets = verts["circle"][optimal]
-        return mcollections.CircleCollection(
-            sizes=[circle_area_pt] * len(circle_offsets),
-            facecolors=colors["circle"][optimal],
-            offsets=circle_offsets,
-            transOffset=ax.transData,
-            **kwargs,
-        )
-
-    maker_collection_dict = {
-        _make_triangle: triangle_collections,
-        _make_circle: circle_collections,
-    }
-
-    for optimal in [False, True]:
         hatch = "xx" if optimal else None
+        if action == 0:
+            fn = functools.partial(_make_circle, radius=circle_radius_data[0])
+        else:
+            fn = _make_triangle
+        patches = circle_patches if action == 0 else triangle_patches
+        if hatch:  # draw the hatch using a different color
+            patches.append(fn(vert, tuple(color), linewidth=1, edgecolor=hatch_color, hatch=hatch))
+            patches.append(fn(vert, tuple(color), linewidth=1, edgecolor=edgecolor, fill=False))
+        else:
+            patches.append(fn(vert, tuple(color), linewidth=1, edgecolor=edgecolor))
 
-        for maker_fn, cols in maker_collection_dict.items():
-            cols.append(maker_fn(optimal, edgecolors=edgecolor))
-            if hatch:  # draw the hatch using a different color
-                cols.append(maker_fn(optimal, edgecolors=hatchcolor, linewidth=0, hatch=hatch))
-
-    for cols in triangle_collections + circle_collections:
-        ax.add_collection(cols)
+    for p in triangle_patches + circle_patches:
+        # need to draw circles on top of triangles
+        ax.add_patch(p)
 
 
 def plot_gridworld_reward(
