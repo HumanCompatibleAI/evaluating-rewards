@@ -189,10 +189,14 @@ def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     return fig, ax
 
 
-def _reward_make_color_map(state_action_reward: np.ndarray) -> matplotlib.cm.ScalarMappable:
-    norm = mcolors.Normalize(
-        vmin=np.nanmin(state_action_reward), vmax=np.nanmax(state_action_reward)
-    )
+def _reward_make_color_map(
+    state_action_reward: np.ndarray, vmin: Optional[float], vmax: Optional[float]
+) -> matplotlib.cm.ScalarMappable:
+    if vmin is None:
+        vmin = np.nanmin(state_action_reward)
+    if vmax is None:
+        vmax = np.nanmin(state_action_reward)
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     return matplotlib.cm.ScalarMappable(norm=norm)
 
 
@@ -301,6 +305,8 @@ def plot_gridworld_reward(
     from_dest: bool = False,
     cbar_format: str = "%.0f",
     cbar_fraction: float = 0.05,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
 ) -> plt.Figure:
     """
     Plots a heatmap of reward for the gridworld.
@@ -321,7 +327,7 @@ def plot_gridworld_reward(
     xlen, ylen, num_actions = state_action_reward.shape
     assert num_actions == len(ACTION_DELTA)
     fig, ax = _reward_make_fig(xlen, ylen)
-    mappable = _reward_make_color_map(state_action_reward)
+    mappable = _reward_make_color_map(state_action_reward, vmin, vmax)
     _reward_draw(state_action_reward, discount, fig, ax, mappable, from_dest)
     fig.colorbar(mappable, format=cbar_format, fraction=cbar_fraction)
     return fig

@@ -39,6 +39,8 @@ def default_config():
     discount = 0.99
 
     # Figure parameters
+    vmin = -5.0
+    vmax = 5.0
     log_root = os.path.join(serialize.get_output_dir(), "plot_gridworld_reward")
     styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-1col-narrow"]
     fmt = "pdf"  # file type
@@ -89,6 +91,8 @@ def plot_gridworld_reward(
     styles: Iterable[str],
     log_dir: str,
     fmt: str,
+    vmin: Optional[float],
+    vmax: Optional[float],
 ) -> plt.Figure:
     """Plots a heatmap of a reward for the gridworld.
 
@@ -106,7 +110,9 @@ def plot_gridworld_reward(
         _normalize(state_reward), _normalize(potential), discount
     )
     with stylesheets.setup_styles(styles):
-        fig = gridworld_heatmap.plot_gridworld_reward(state_action_reward, discount)
+        fig = gridworld_heatmap.plot_gridworld_reward(
+            state_action_reward, discount=discount, vmin=vmin, vmax=vmax
+        )
         visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)
 
     return fig
