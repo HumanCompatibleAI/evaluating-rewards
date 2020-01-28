@@ -55,7 +55,10 @@ def default_config():
 @plot_gridworld_divergence_ex.named_config
 def test():
     """Unit tests/debugging."""
-    reward_subset = ["sparse_goal", "dense_goal"]  # noqa: F841  pylint:disable=unused-variable
+    styles = ["paper", "heatmap", "heatmap-2col"]  # disable TeX
+    reward_subset = ["sparse_goal", "dense_goal"]
+    _ = locals()
+    del _
 
 
 @plot_gridworld_divergence_ex.named_config
