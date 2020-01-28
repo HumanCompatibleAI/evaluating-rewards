@@ -67,6 +67,7 @@ def paper():
     reward_subset = [
         "sparse_goal",
         "transformed_goal",
+        "center_goal",
         "sparse_penalty",
         "dirt_path",
         "cliff_walk",

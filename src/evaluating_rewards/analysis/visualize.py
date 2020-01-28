@@ -46,6 +46,7 @@ TRANSFORMATIONS = {
     r"^(.*)NoCtrl(.*)": r"\1\\nocontrolpenalty{}\2",
     "sparse_goal": r"\\sparsegoal{}",
     "transformed_goal": r"\\densegoal{}",
+    "center_goal": r"\\centergoal{}",
     "sparse_penalty": r"\\sparsepenalty{}",
     "all_zero": r"\\zeroreward{}",
     "dirt_path": r"\\dirtpath{}",
