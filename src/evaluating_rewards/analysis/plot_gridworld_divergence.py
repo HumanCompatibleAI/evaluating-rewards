@@ -127,7 +127,9 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float) -> pd.Series
         for target_name, target_reward in rewards.items():
             if target_name == "all_zero":
                 continue
-            closest_reward = tabular.closest_reward_em(src_reward, target_reward, discount=discount)
+            closest_reward = tabular.closest_reward_em(
+                src_reward, target_reward, n_iter=1000, discount=discount
+            )
             div = tabular.direct_sq_divergence(closest_reward, target_reward)
             divergence[target_name][src_name] = div
     divergence = pd.DataFrame(divergence)
@@ -160,7 +162,7 @@ def plot_gridworld_divergence(
             rewards = {k: rewards[k] for k in reward_subset}
         divergence = compute_divergence(rewards, discount)
 
-        figs = visualize.compact_heatmaps(loss=divergence, **heatmap_kwargs)
+        figs = visualize.compact_heatmaps(loss=divergence, fmt=visualize.short_e, **heatmap_kwargs)
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
         return figs

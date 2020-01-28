@@ -61,7 +61,7 @@ STYLES = {
     },
     "gridworld-heatmap-1col-narrow": {
         "image.cmap": "RdBu",
-        "figure.figsize": (2.5, 2.07),
+        "figure.figsize": (2.44, 2.07),
         "font.size": 10,
         "axes.labelsize": 10,
         "xtick.labelsize": 10,

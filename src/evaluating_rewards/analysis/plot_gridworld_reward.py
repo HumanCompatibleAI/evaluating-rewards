@@ -15,7 +15,7 @@
 """CLI script to visualize reward models for deterministic gridworlds."""
 
 import os
-from typing import Iterable
+from typing import Iterable, Optional
 
 from imitation.util import util
 import matplotlib.pyplot as plt
