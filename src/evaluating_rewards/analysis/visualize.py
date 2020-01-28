@@ -181,6 +181,7 @@ def _heatmap_reformat(series, preserve_order):
 
 def comparison_heatmap(
     vals: pd.Series,
+    ax: plt.Axes,
     log: bool = True,
     fmt: Callable[[float], str] = short_e,
     cbar_kws: Optional[Dict[str, Any]] = None,
@@ -224,7 +225,12 @@ def comparison_heatmap(
     if robust:
         flat = data.values.flatten()
         kwargs["vmin"], kwargs["vmax"] = np.quantile(flat, [0.25, 0.75])
-    sns.heatmap(data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws, mask=mask, **kwargs)
+    sns.heatmap(
+        data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws, mask=mask, ax=ax, **kwargs
+    )
+
+    ax.set_xlabel(r"Target $\targetreward{}$")
+    ax.set_ylabel(r"Source $\srcreward{}$")
 
 
 def median_seeds(series: pd.Series) -> pd.Series:
@@ -388,7 +394,7 @@ def compact_heatmaps(
     for name, matching in masks.items():
         fig, ax = plt.subplots(1, 1, squeeze=True)
         match_mask = compute_mask(loss, matching)
-        comparison_heatmap(loss, fmt=fmt, preserve_order=True, mask=match_mask, ax=ax, **kwargs)
+        comparison_heatmap(loss, ax=ax, fmt=fmt, preserve_order=True, mask=match_mask, **kwargs)
         # make room for multi-line xlabels
         after_plot()
         figs[name] = fig
