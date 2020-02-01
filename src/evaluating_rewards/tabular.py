@@ -141,12 +141,12 @@ def closest_affine(reward: np.ndarray, target: np.ndarray) -> Tuple[float, float
     return coefs
 
 
-def closest_reward_em(
+def closest_reward_am(
     source: np.ndarray, target: np.ndarray, n_iter: int = 100, discount: float = 0.99
 ) -> np.ndarray:
     """Finds the least squared-error reward to target that is equivalent to reward.
 
-    Alternates calls to `closest_potential` and `closest_affine`, in an EM-like approach.
+    Alternating minimization over `closest_potential` and `closest_affine`.
 
     Args:
         - source: the source reward.

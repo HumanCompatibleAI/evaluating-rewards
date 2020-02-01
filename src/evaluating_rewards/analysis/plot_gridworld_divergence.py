@@ -127,7 +127,7 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float) -> pd.Series
         for target_name, target_reward in rewards.items():
             if target_name == "all_zero":
                 continue
-            closest_reward = tabular.closest_reward_em(
+            closest_reward = tabular.closest_reward_am(
                 src_reward, target_reward, n_iter=1000, discount=discount
             )
             div = tabular.direct_sq_divergence(closest_reward, target_reward)
