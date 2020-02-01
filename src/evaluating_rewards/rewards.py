@@ -720,3 +720,27 @@ def evaluate_potentials(potentials: Iterable[PotentialShaping], batch: Batch) ->
     new_pots = [p.new_potential for p in potentials]
     feed_dict = make_feed_dict(potentials, batch)
     return tf.get_default_session().run([old_pots, new_pots], feed_dict=feed_dict)
+
+
+def least_l2_affine(source: np.ndarray, target: np.ndarray) -> AffineParameters:
+    """Finds the squared-error minimizing affine transform.
+
+    Args:
+        source: the reward to transform.
+        target: the target to match.
+
+    Returns:
+        (shift, scale) such that (scale * reward + shift) has minimal squared-error from target.
+    """
+    if source.ndim != 1:
+        raise ValueError("source must be vector.")
+    if target.ndim != 1:
+        raise ValueError("target must be vector.")
+
+    # Find x such that [1; reward].dot(x) has least-squared error from target
+    # x corresponds to a shift and scaling parameter.
+    a_vals = np.stack([np.ones_like(source), source], axis=1)
+    coefs, _, _, _ = np.linalg.lstsq(a_vals, target, rcond=None)
+    assert coefs.shape == (2,)
+
+    return AffineParameters(constant=coefs[0], scale=coefs[1])

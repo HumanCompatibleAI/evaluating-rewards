@@ -122,27 +122,6 @@ def closest_potential(reward: np.ndarray, target: np.ndarray, discount: float) -
     return potential
 
 
-def closest_affine(reward: np.ndarray, target: np.ndarray) -> rewards.AffineParameters:
-    """Finds the squared-error minimizing affine transform.
-
-    Args:
-        reward: the reward to transform.
-        target: the target to match.
-
-    Returns:
-        (shift, scale) such that (scale * reward + shift) has minimal squared-error from target.
-    """
-    reward = reward.flatten()
-    target = target.flatten()
-    # Find x such that [1; reward].dot(x) has least-squared error from target
-    # x corresponds to a shift and scaling parameter.
-    a_vals = np.stack([np.ones_like(reward), reward], axis=1)
-    coefs, _, _, _ = np.linalg.lstsq(a_vals, target, rcond=None)
-    assert coefs.shape == (2,)
-
-    return rewards.AffineParameters(constant=coefs[0], scale=coefs[1])
-
-
 def closest_reward_am(
     source: np.ndarray, target: np.ndarray, n_iter: int = 100, discount: float = 0.99
 ) -> np.ndarray:
@@ -163,7 +142,7 @@ def closest_reward_am(
     for _ in range(n_iter):
         potential = closest_potential(closest_reward, target, discount)
         closest_reward = shape(closest_reward, potential, discount)
-        params = closest_affine(closest_reward, target)
+        params = rewards.least_l2_affine(closest_reward.flatten(), target.flatten())
         closest_reward = closest_reward * params.scale + params.constant
     return closest_reward
 
