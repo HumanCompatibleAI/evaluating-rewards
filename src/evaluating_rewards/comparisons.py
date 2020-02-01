@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
 import numpy as np
 import tensorflow as tf
 
-from evaluating_rewards import rewards
+from evaluating_rewards import rewards, tabular
 
 FitStats = Mapping[str, List[Mapping[str, Any]]]
 
@@ -155,6 +155,70 @@ class RegressWrappedModel(RegressModel):
         return super().fit(dataset, **kwargs)
 
 
+class RegressAlternatingModel(RegressModel):
+    """TBC: docstring."""
+
+    def __init__(self, model: rewards.RewardModel, target: rewards.RewardModel, **kwargs):
+        """TBC: docstring."""
+        self.unwrapped_source = rewards.StopGradientsModelWrapper(model)
+        model, self.model_extra, metrics = equivalence_model_wrapper(
+            self.unwrapped_source, affine_stopgrad=True
+        )
+        super().__init__(model=model, target=target, loss_fn=tf.losses.mean_squared_error, **kwargs)
+        self.metrics["unwrapped_loss"] = tf.losses.mean_squared_error(
+            self.target.reward, self.unwrapped_source.reward
+        )
+        self.metrics.update(metrics)
+
+    def fit_affine(self, batch: rewards.Batch) -> rewards.AffineParameters:
+        """TBC: docstring."""
+        # TODO(adam): avoid this kind of model surgery! very hacky.
+        sess = tf.get_default_session()
+        source_model = self.model_extra["original"]
+        shaping_model = self.model_extra["shaping"].models["shaping"][0]
+        reward_tensors = [source_model.reward, shaping_model.reward, self.target.reward]
+        source, shaping, target = sess.run(reward_tensors, feed_dict=self.build_feed_dict(batch))
+
+        # TODO(adam): explain the math here
+        params = tabular.closest_affine(source, target - shaping)
+        affine_model = self.model_extra["affine"]
+        # TODO(adam): avoid private attribute
+        affine_model._log_scale_layer.set_constant(  # pylint:disable=protected-access
+            np.log(params.scale)
+        )
+        constant_model = affine_model.models["constant"][0]
+        constant_model.constant.set_constant(params.constant)
+
+        return params
+
+    def fit(
+        self,
+        dataset: Iterator[rewards.Batch],
+        pretrain: rewards.Batch,
+        minibatch: int = int(1e5),
+        **kwargs,
+    ) -> None:
+        # TODO(adam): change name pretrain
+        # TODO(adam): how long to do each step?
+        # TODO(adam): avoid separate affine batch?
+        stats = []
+        batches = []
+        # TODO(adam): this is ridiculously hacky, clean up dataset logic
+        i = 0
+        for batch in dataset:
+            batches.append(batch)
+            if len(batches) * len(batches[0].obs) >= minibatch:
+                iter_stats = {}
+                affine_stats = self.fit_affine(pretrain)
+                logging.info(f"{i}: {affine_stats}")
+                iter_stats["affine"] = affine_stats
+                iter_stats.update(super().fit(iter(batches), **kwargs))
+                stats.append(iter_stats)
+
+                i += 1
+                batches = []
+
+
 def _scaled_norm(x):
     """l2 norm, normalized to be invariant to length of vectors."""
     return np.linalg.norm(x) / np.sqrt(len(x))
@@ -204,6 +268,7 @@ def equivalence_model_wrapper(
     wrapped: rewards.RewardModel,
     potential: bool = True,
     affine: bool = True,
+    affine_stopgrad: bool = False,
     affine_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs,
 ) -> ModelWrapperRet:
@@ -215,6 +280,7 @@ def equivalence_model_wrapper(
         wrapped: The model to wrap.
         potential: If true, add potential shaping.
         affine: If true, add affine transformation.
+        affine_stopgrad: If true, do not propagate gradients to affine.
         affine_kwargs: Passed through to AffineTransform.
         **kwargs: Passed through to PotentialShapingWrapper.
 
@@ -232,6 +298,8 @@ def equivalence_model_wrapper(
         models["affine"] = model
         metrics["constant"] = model.constant
         metrics["scale"] = model.scale
+        if affine_stopgrad:
+            model = rewards.StopGradientsModelWrapper(model)
 
     if potential:
         model = rewards.PotentialShapingWrapper(model, **kwargs)

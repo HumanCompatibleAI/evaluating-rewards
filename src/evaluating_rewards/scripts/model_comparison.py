@@ -39,6 +39,7 @@ def default_config():
     source_reward_path = "dummy"
 
     # Model to train and hyperparameters
+    fit_kind = "standard"  # TODO(adam): temporary parameter, remove
     model_wrapper_fn = comparisons.equivalence_model_wrapper  # equivalence class
     model_wrapper_kwargs = dict()
     loss_fn = tf.losses.mean_squared_error
@@ -145,6 +146,7 @@ def model_comparison(
     target_reward_type: str,
     target_reward_path: str,
     # Model parameters
+    fit_kind: str,  # TODO(adam): temporary parameter, remove
     model_wrapper_fn: comparisons.ModelWrapperFn,
     model_wrapper_kwargs: Dict[str, Any],
     pretrain: bool,
@@ -164,10 +166,18 @@ def model_comparison(
 
         def make_trainer(model, model_scope, target):
             del model_scope
-            model_wrapper = functools.partial(model_wrapper_fn, **model_wrapper_kwargs)
-            return comparisons.RegressWrappedModel(
-                model, target, model_wrapper=model_wrapper, learning_rate=learning_rate
-            )
+            if fit_kind == "alternating":
+                return comparisons.RegressAlternatingModel(
+                    model, target, learning_rate=learning_rate
+                )
+            elif fit_kind == "standard":
+                model_wrapper = functools.partial(model_wrapper_fn, **model_wrapper_kwargs)
+                return comparisons.RegressWrappedModel(
+                    model, target, model_wrapper=model_wrapper, learning_rate=learning_rate
+                )
+            else:
+                assert False
+                return None
 
         def do_training(target, trainer):
             del target

@@ -19,6 +19,8 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from evaluating_rewards import rewards
+
 
 def random_state_only_reward(
     n_states: int, n_actions: int, rng: np.random.RandomState = np.random
@@ -120,7 +122,7 @@ def closest_potential(reward: np.ndarray, target: np.ndarray, discount: float) -
     return potential
 
 
-def closest_affine(reward: np.ndarray, target: np.ndarray) -> Tuple[float, float]:
+def closest_affine(reward: np.ndarray, target: np.ndarray) -> rewards.AffineParameters:
     """Finds the squared-error minimizing affine transform.
 
     Args:
@@ -138,7 +140,7 @@ def closest_affine(reward: np.ndarray, target: np.ndarray) -> Tuple[float, float
     coefs, _, _, _ = np.linalg.lstsq(a_vals, target, rcond=None)
     assert coefs.shape == (2,)
 
-    return coefs
+    return rewards.AffineParameters(constant=coefs[0], scale=coefs[1])
 
 
 def closest_reward_am(
@@ -161,8 +163,8 @@ def closest_reward_am(
     for _ in range(n_iter):
         potential = closest_potential(closest_reward, target, discount)
         closest_reward = shape(closest_reward, potential, discount)
-        shift, scale = closest_affine(closest_reward, target)
-        closest_reward = closest_reward * scale + shift
+        params = closest_affine(closest_reward, target)
+        closest_reward = closest_reward * params.scale + params.constant
     return closest_reward
 
 
