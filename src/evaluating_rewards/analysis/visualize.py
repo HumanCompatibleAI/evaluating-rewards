@@ -229,8 +229,8 @@ def comparison_heatmap(
         data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws, mask=mask, ax=ax, **kwargs
     )
 
-    ax.set_xlabel(r"Target $\targetreward{}$")
-    ax.set_ylabel(r"Source $\srcreward{}$")
+    ax.set_xlabel(r"Target $R_T$")
+    ax.set_ylabel(r"Source $R_S$")
 
 
 def median_seeds(series: pd.Series) -> pd.Series:
