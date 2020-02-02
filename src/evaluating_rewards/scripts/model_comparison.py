@@ -19,7 +19,6 @@ import os
 from typing import Any, Dict, Mapping, Type
 
 import sacred
-import tensorflow as tf
 
 from evaluating_rewards import comparisons, datasets, serialize
 from evaluating_rewards.scripts import regress_utils, script_utils
@@ -43,7 +42,6 @@ def default_config():
     comparison_kwargs = {
         "learning_rate": 1e-2,
     }
-    loss_fn = tf.losses.mean_squared_error
     affine_size = 16386  # number of timesteps to use in pretraining; set to None to disable
     total_timesteps = 1e6
     batch_size = 4096
@@ -122,7 +120,11 @@ def ellp_loss():
     p = 0.5
     # Note if p specified at CLI, it will take priority over p above here
     # (Sacred configuration scope magic).
-    loss_fn = functools.partial(comparisons.ellp_norm_loss, p=p)
+    comparison_class = comparisons.RegressWrappedModel
+    comparison_kwargs = {
+        "model_wrapper": comparisons.equivalence_model_wrapper,
+        "loss_fn": functools.partial(comparisons.ellp_norm_loss, p=p),
+    }
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
