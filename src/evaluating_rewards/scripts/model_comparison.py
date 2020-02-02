@@ -45,6 +45,7 @@ def default_config():
     affine_size = 16386  # number of timesteps to use in pretraining; set to None to disable
     total_timesteps = 1e6
     batch_size = 4096
+    fit_kwargs = {}
 
     # Logging
     log_root = os.path.join("output", "train_regress")  # output directory
@@ -138,8 +139,9 @@ def ellp_loss():
 @model_comparison_ex.named_config
 def test():
     """Small number of epochs, finish quickly, intended for tests / debugging."""
-    pretrain_size = 512
+    affine_size = 512
     total_timesteps = 8192
+    fit_kwargs = {"epoch_timesteps": 4096}
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -175,6 +177,7 @@ def model_comparison(
     affine_size: int,
     total_timesteps: int,
     batch_size: int,
+    fit_kwargs: Dict[str, Any],
     # Logging
     log_dir: str,
 ) -> Mapping[str, Any]:
@@ -195,6 +198,7 @@ def model_comparison(
                 total_timesteps=total_timesteps,
                 batch_size=batch_size,
                 affine_size=affine_size,
+                **fit_kwargs,
             )
 
         return regress_utils.regress(

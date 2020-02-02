@@ -17,7 +17,6 @@
 import collections
 import functools
 import logging
-import math
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Type, TypeVar
 
 import numpy as np
@@ -235,24 +234,26 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
 
         Returns:
             Training statistics.
-        """
-        stats = collections.defaultdict(list)
-        nepochs = math.ceil(total_timesteps / epoch_timesteps)
-        for epoch in range(nepochs):
-            epoch_stats = {}
 
+        Raises:
+            ValueError if total_timesteps < epoch_timesteps.
+        """
+        if total_timesteps < epoch_timesteps:
+            raise ValueError("total_timesteps must be at least as large as epoch_timesteps.")
+
+        stats = collections.defaultdict(list)
+        nepochs = total_timesteps // epoch_timesteps
+        for epoch in range(nepochs):
             affine_batch = dataset(affine_size)
             affine_stats = self.fit_affine(affine_batch)
-            logging.info(f"{epoch}: {affine_stats}")
-            epoch_stats["affine"] = affine_stats
+            logging.info(f"Epoch {epoch}: {affine_stats}")
 
-            grad_stats = super().fit(
+            epoch_stats = super().fit(
                 dataset, total_timesteps=epoch_timesteps, affine_size=None, **kwargs
             )
-            epoch_stats.update(grad_stats)
 
             for k, v in epoch_stats.items():
-                stats[k].append(v)
+                stats[k] += v
 
         return stats
 
@@ -368,13 +369,19 @@ def fit_models(
 
     Returns:
         Metrics from training.
+
+    Raises:
+        ValueError if total_timesteps < batch_size.
     """
+    if total_timesteps < batch_size:
+        raise ValueError("total_timesteps must be at least as larger as batch_size.")
+
     sess = tf.get_default_session()
     ops = {k: [p.opt_op, p.loss, p.metrics] for k, p in potentials.items()}
     losses = []
     metrics = []
 
-    nbatches = math.ceil(total_timesteps / batch_size)
+    nbatches = total_timesteps // batch_size
     for i in range(nbatches):
         batch = dataset(batch_size)
         feed_dict = {}
