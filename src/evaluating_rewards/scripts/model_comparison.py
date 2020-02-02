@@ -16,7 +16,7 @@
 
 import functools
 import os
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Type
 
 import sacred
 import tensorflow as tf
@@ -39,14 +39,14 @@ def default_config():
     source_reward_path = "dummy"
 
     # Model to train and hyperparameters
-    fit_kind = "standard"  # TODO(adam): temporary parameter, remove
-    model_wrapper_fn = comparisons.equivalence_model_wrapper  # equivalence class
-    model_wrapper_kwargs = dict()
+    comparison_class = comparisons.RegressEquivalentLeastSqModel
+    comparison_kwargs = {
+        "learning_rate": 1e-2,
+    }
     loss_fn = tf.losses.mean_squared_error
     affine_size = 16386  # number of timesteps to use in pretraining; set to None to disable
     total_timesteps = 1e6
     batch_size = 4096
-    learning_rate = 1e-2
 
     # Logging
     log_root = os.path.join("output", "train_regress")  # output directory
@@ -68,10 +68,26 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs):
 
 
 @model_comparison_ex.named_config
+def general_regress():
+    """Use more flexible (but less accurate) RegressWrappedModel optimizer.
+
+    This lets one use things other than least-squares loss, and have arbitrary
+    model wrappers."""
+    comparison_class = comparisons.RegressWrappedModel
+    comparison_kwargs = {
+        "model_wrapper": comparisons.equivalence_model_wrapper,
+    }
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
+@model_comparison_ex.named_config
 def affine_only():
     """Equivalence class consists of just affine transformations."""
-    model_wrapper_fn = comparisons.equivalence_model_wrapper
-    model_wrapper_kwargs = dict(potential=False)
+    comparison_class = comparisons.RegressWrappedModel
+    comparison_kwargs = {
+        "model_wrapper": functools.partial(comparisons.equivalence_model_wrapper, potential=False),
+    }
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -79,8 +95,12 @@ def affine_only():
 @model_comparison_ex.named_config
 def no_rescale():
     """Equivalence class are shifts plus potential shaping (no scaling)."""
-    model_wrapper_fn = comparisons.equivalence_model_wrapper
-    model_wrapper_kwargs = dict(affine_kwargs=dict(scale=False))
+    comparison_class = comparisons.RegressWrappedModel
+    comparison_kwargs = {
+        "model_wrapper": functools.partial(
+            comparisons.equivalence_model_wrapper, affine_kwargs=dict(scale=False)
+        ),
+    }
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -88,9 +108,11 @@ def no_rescale():
 @model_comparison_ex.named_config
 def shaping_only():
     """Equivalence class consists of just potential shaping."""
-    model_wrapper_fn = comparisons.equivalence_model_wrapper
-    model_wrapper_kwargs = dict(affine=False)
-    pretrain = False
+    comparison_class = comparisons.RegressWrappedModel
+    comparison_kwargs = {
+        "model_wrapper": functools.partial(comparisons.equivalence_model_wrapper, affine=False),
+    }
+    affine_size = None
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -145,13 +167,11 @@ def model_comparison(
     target_reward_type: str,
     target_reward_path: str,
     # Model parameters
-    fit_kind: str,  # TODO(adam): temporary parameter, remove
-    model_wrapper_fn: comparisons.ModelWrapperFn,
-    model_wrapper_kwargs: Dict[str, Any],
+    comparison_class: Type[comparisons.RegressModel],
+    comparison_kwargs: Dict[str, Any],
     affine_size: int,
     total_timesteps: int,
     batch_size: int,
-    learning_rate: float,
     # Logging
     log_dir: str,
 ) -> Mapping[str, Any]:
@@ -163,18 +183,7 @@ def model_comparison(
 
         def make_trainer(model, model_scope, target):
             del model_scope
-            if fit_kind == "alternating":
-                return comparisons.RegressEquivalentLeastSqModel(
-                    model, target, learning_rate=learning_rate
-                )
-            elif fit_kind == "standard":
-                model_wrapper = functools.partial(model_wrapper_fn, **model_wrapper_kwargs)
-                return comparisons.RegressWrappedModel(
-                    model, target, model_wrapper=model_wrapper, learning_rate=learning_rate
-                )
-            else:
-                assert False
-                return None
+            return comparison_class(model, target, **comparison_kwargs)
 
         def do_training(target, trainer):
             del target
