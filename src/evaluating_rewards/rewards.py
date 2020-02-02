@@ -35,11 +35,11 @@ class AffineParameters(NamedTuple):
     """Parameters of an affine transformation.
 
     Attributes:
-        constant: The additive shift.
+        shift: The additive shift.
         scale: The multiplicative dilation factor.
     """
 
-    constant: float
+    shift: float
     scale: float
 
 
@@ -535,11 +535,12 @@ class AffineTransform(LinearCombinationModelWrapper):
 
         models = {"wrapped": (wrapped, scale)}
 
+        self._shift = None
         if shift:
-            constant = ConstantReward(wrapped.observation_space, wrapped.action_space)
+            self._shift = shift = ConstantReward(wrapped.observation_space, wrapped.action_space)
         else:
-            constant = ZeroReward(wrapped.observation_space, wrapped.action_space)
-        models["constant"] = (constant, tf.constant(1.0))
+            shift = ZeroReward(wrapped.observation_space, wrapped.action_space)
+        models["constant"] = (shift, tf.constant(1.0))
 
         super().__init__(models)
 
@@ -583,7 +584,7 @@ class AffineTransform(LinearCombinationModelWrapper):
         if self._log_scale_layer is not None:
             log_scale = np.log(target_std) - np.log(original_std)
             logging.info("Assigning log scale: %f", log_scale)
-            self._log_scale_layer.set_constant(log_scale)
+            self.set_log_scale(log_scale)
         scale = np.exp(log_scale)
 
         constant = 0.0
@@ -591,12 +592,12 @@ class AffineTransform(LinearCombinationModelWrapper):
         if isinstance(constant_model, ConstantReward):
             constant = -original_mean * target_std / original_std + target_mean
             logging.info("Assigning shift: %f", constant)
-            constant_model.constant.set_constant(constant)
+            self.set_shift(constant)
 
-        return AffineParameters(constant=constant, scale=scale)
+        return AffineParameters(shift=constant, scale=scale)
 
     @property
-    def constant(self) -> tf.Tensor:
+    def shift(self) -> tf.Tensor:
         """The additive shift."""
         return self.models["constant"][0].constant.constant
 
@@ -605,7 +606,35 @@ class AffineTransform(LinearCombinationModelWrapper):
         """The multiplicative dilation."""
         return self.models["wrapped"][1]
 
-    def get_weights(self):
+    def set_shift(self, constant: float) -> None:
+        """Sets the constant shift.
+
+        Args:
+            constant: The shift factor.
+
+        Raises:
+            TypeError if the AffineTransform does not have a shift parameter.
+        """
+        if self._shift is not None:
+            return self._shift.constant.set_constant(constant)
+        else:
+            raise TypeError("Calling `set_shift` on AffineTransform with `shift=False`.")
+
+    def set_log_scale(self, log_scale: float) -> None:
+        """Sets the log of the scale factor.
+
+        Args:
+            log_scale: The log scale factor.
+
+        Raises:
+            TypeError if the AffineTransform does not have a scale parameter.
+        """
+        if self._log_scale_layer is not None:
+            return self._log_scale_layer.set_constant(log_scale)
+        else:
+            raise TypeError("Calling `set_log_scale` on AffineTransform with `scale=False`.")
+
+    def get_weights(self) -> AffineParameters:
         """Extract affine parameters from a model.
 
         Returns:
@@ -615,8 +644,8 @@ class AffineTransform(LinearCombinationModelWrapper):
             comparison with results returned by other methods.)
         """
         sess = tf.get_default_session()
-        const, scale = sess.run([self.constant, self.scale])
-        return AffineParameters(constant=const, scale=scale)
+        shift, scale = sess.run([self.shift, self.scale])
+        return AffineParameters(shift=shift, scale=scale)
 
     @classmethod
     def _load(cls, directory: str) -> "AffineTransform":
@@ -743,4 +772,7 @@ def least_l2_affine(source: np.ndarray, target: np.ndarray) -> AffineParameters:
     coefs, _, _, _ = np.linalg.lstsq(a_vals, target, rcond=None)
     assert coefs.shape == (2,)
 
-    return AffineParameters(constant=coefs[0], scale=coefs[1])
+    shift, scale = coefs
+    scale = max(scale, np.finfo(scale.dtype).eps)
+
+    return AffineParameters(shift=shift, scale=scale)

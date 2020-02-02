@@ -178,8 +178,8 @@ def _compare_synthetic_eval(
             if model_affine:
                 final = matched.model_extra["affine"].get_weights()
             else:
-                final = rewards.AffineParameters(constant=0, scale=1.0)
-            final_constants[(rew_nm, pot_nm)] = final.constant
+                final = rewards.AffineParameters(shift=0, scale=1.0)
+            final_constants[(rew_nm, pot_nm)] = final.shift
             final_scales[(rew_nm, pot_nm)] = final.scale
 
     res = {
@@ -338,8 +338,8 @@ def compare_synthetic(
             logging.info(f"Pretraining {key}")
             initial = matched.pretrain(pretrain_set)
         else:
-            initial = rewards.AffineParameters(constant=0, scale=1)
-        initial_constants[key] = initial.constant
+            initial = rewards.AffineParameters(shift=0, scale=1)
+        initial_constants[key] = initial.shift
         initial_scales[key] = initial.scale
 
     # Train potential shaping and other parameters

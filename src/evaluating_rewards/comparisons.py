@@ -296,7 +296,7 @@ def equivalence_model_wrapper(
         affine_kwargs = affine_kwargs or {}
         model = rewards.AffineTransform(model, **affine_kwargs)
         models["affine"] = model
-        metrics["constant"] = model.constant
+        metrics["constant"] = model.shift
         metrics["scale"] = model.scale
         if affine_stopgrad:
             model = rewards.StopGradientsModelWrapper(model)

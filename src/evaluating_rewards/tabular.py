@@ -143,7 +143,7 @@ def closest_reward_am(
         potential = closest_potential(closest_reward, target, discount)
         closest_reward = shape(closest_reward, potential, discount)
         params = rewards.least_l2_affine(closest_reward.flatten(), target.flatten())
-        closest_reward = closest_reward * params.scale + params.constant
+        closest_reward = closest_reward * params.scale + params.shift
     return closest_reward
 
 
