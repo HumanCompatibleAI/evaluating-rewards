@@ -43,8 +43,7 @@ def default_config():
     model_wrapper_fn = comparisons.equivalence_model_wrapper  # equivalence class
     model_wrapper_kwargs = dict()
     loss_fn = tf.losses.mean_squared_error
-    pretrain = True  # set initial scale and constant to match target
-    pretrain_size = 16386  # number of timesteps to use in pretraining
+    affine_size = 16386  # number of timesteps to use in pretraining; set to None to disable
     total_timesteps = 1e6
     batch_size = 4096
     learning_rate = 1e-2
@@ -149,8 +148,7 @@ def model_comparison(
     fit_kind: str,  # TODO(adam): temporary parameter, remove
     model_wrapper_fn: comparisons.ModelWrapperFn,
     model_wrapper_kwargs: Dict[str, Any],
-    pretrain: bool,
-    pretrain_size: int,
+    affine_size: int,
     total_timesteps: int,
     batch_size: int,
     learning_rate: float,
@@ -158,8 +156,7 @@ def model_comparison(
     log_dir: str,
 ) -> Mapping[str, Any]:
     """Entry-point into script to regress source onto target reward model."""
-    with dataset_factory(env_name, seed=_seed, **dataset_factory_kwargs) as dataset_callable:
-        dataset = dataset_callable(total_timesteps, batch_size)
+    with dataset_factory(env_name, seed=_seed, **dataset_factory_kwargs) as dataset_generator:
 
         def make_source(venv):
             return serialize.load_reward(source_reward_type, source_reward_path, venv)
@@ -181,10 +178,12 @@ def model_comparison(
 
         def do_training(target, trainer):
             del target
-            pretrain_set = None
-            if pretrain:
-                pretrain_set = next(dataset_callable(pretrain_size, pretrain_size))
-            return trainer.fit(dataset, affine_dataset=pretrain_set)
+            return trainer.fit(
+                dataset_generator,
+                total_timesteps=total_timesteps,
+                batch_size=batch_size,
+                affine_size=affine_size,
+            )
 
         return regress_utils.regress(
             seed=_seed,

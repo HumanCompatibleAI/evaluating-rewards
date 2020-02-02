@@ -14,14 +14,16 @@
 
 """Methods to compare reward models."""
 
+import collections
 import functools
 import logging
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, Type, TypeVar
+import math
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Type, TypeVar
 
 import numpy as np
 import tensorflow as tf
 
-from evaluating_rewards import rewards
+from evaluating_rewards import datasets, rewards
 
 FitStats = Mapping[str, List[Mapping[str, Any]]]
 
@@ -84,17 +86,31 @@ class RegressModel:
         models = [self.model, self.target]
         return rewards.make_feed_dict(models, batch)
 
-    def fit(self, dataset: Iterator[rewards.Batch], log_interval: int = 10) -> FitStats:
+    def fit(
+        self,
+        dataset: datasets.BatchCallable,
+        total_timesteps: int = int(1e6),
+        batch_size: int = 4096,
+        log_interval: int = 10,
+    ) -> FitStats:
         """Fits shaping to target.
 
         Args:
-            dataset: iterator of batches of data to fit to.
+            dataset: a callable returning batches of the specified size.
+            total_timesteps: the total number of timesteps to train for.
+            batch_size: the number of timesteps in each training batch.
             log_interval: reports statistics every log_interval batches.
 
         Returns:
             Training statistics.
         """
-        return fit_models({"singleton": self}, dataset=dataset, log_interval=log_interval)
+        return fit_models(
+            {"singleton": self},
+            dataset=dataset,
+            total_timesteps=total_timesteps,
+            batch_size=batch_size,
+            log_interval=log_interval,
+        )
 
 
 ModelWrapperRet = Tuple[rewards.RewardModel, Any, Mapping[str, tf.Tensor]]
@@ -138,22 +154,20 @@ class RegressWrappedModel(RegressModel):
         return affine_model.pretrain(batch, target=self.target, original=self.unwrapped_source)
 
     def fit(
-        self, dataset: Iterator[rewards.Batch], affine_dataset: Optional[rewards.Batch], **kwargs
+        self, dataset: datasets.BatchCallable, affine_size: Optional[int] = 4096, **kwargs,
     ) -> FitStats:
         """Fits shaping to target.
 
         Args:
-            dataset: iterator of batches of data to fit to.
-            affine_dataset: if provided, warm-start affine parameters from estimates
-                    computed from this batch. (Requires that model_wrapper adds
-                    affine parameters.)
-            **kwargs: passed through to super().fit.
+            dataset: a callable returning batches of the specified size.
+            affine_size: the size of the batch to pretrain affine parameters.
 
         Returns:
             Training statistics.
         """
-        if affine_dataset:
-            self.pretrain(affine_dataset)
+        if affine_size:
+            affine_batch = dataset(affine_size)
+            self.pretrain(affine_batch)
         return super().fit(dataset, **kwargs)
 
 
@@ -216,31 +230,43 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
 
     def fit(
         self,
-        dataset: Iterator[rewards.Batch],
-        affine_dataset: rewards.Batch,
-        minibatch: int = int(1e5),
+        dataset: datasets.BatchCallable,
+        total_timesteps: int = int(1e6),
+        epoch_timesteps: int = int(1e5),
+        affine_size: int = 4096,
         **kwargs,
-    ) -> None:
-        """TBC: docstring."""
-        # TODO(adam): change name pretrain
-        # TODO(adam): how long to do each step?
-        # TODO(adam): avoid separate affine batch?
-        stats = []
-        batches = []
-        # TODO(adam): this is ridiculously hacky, clean up dataset logic
-        i = 0
-        for batch in dataset:
-            batches.append(batch)
-            if len(batches) * len(batches[0].obs) >= minibatch:
-                iter_stats = {}
-                affine_stats = self.fit_affine(affine_dataset)
-                logging.info(f"{i}: {affine_stats}")
-                iter_stats["affine"] = affine_stats
-                iter_stats.update(super().fit(iter(batches), **kwargs))
-                stats.append(iter_stats)
+    ) -> FitStats:
+        """Fits shaping to target.
 
-                i += 1
-                batches = []
+        Args:
+            dataset: a callable returning batches of the specified size.
+            total_timesteps: the total number of timesteps to train for.
+            epoch_timesteps: the number of timesteps to train shaping for; the optimal affine
+                parameters are set analytically at the start of each epoch.
+            affine_size: the size of the batch to pretrain affine parameters.
+
+        Returns:
+            Training statistics.
+        """
+        stats = collections.defaultdict(list)
+        nepochs = math.ceil(total_timesteps / epoch_timesteps)
+        for epoch in range(nepochs):
+            epoch_stats = {}
+
+            affine_batch = dataset(affine_size)
+            affine_stats = self.fit_affine(affine_batch)
+            logging.info(f"{epoch}: {affine_stats}")
+            epoch_stats["affine"] = affine_stats
+
+            grad_stats = super().fit(
+                dataset, total_timesteps=epoch_timesteps, affine_size=None, **kwargs
+            )
+            epoch_stats.update(grad_stats)
+
+            for k, v in epoch_stats.items():
+                stats[k].append(v)
+
+        return stats
 
 
 def _scaled_norm(x):
@@ -336,7 +362,11 @@ K = TypeVar("K")
 
 
 def fit_models(
-    potentials: Mapping[K, RegressModel], dataset: Iterator[rewards.Batch], log_interval: int = 10
+    potentials: Mapping[K, RegressModel],
+    dataset: datasets.BatchCallable,
+    total_timesteps: int,
+    batch_size: int,
+    log_interval: int = 10,
 ) -> Mapping[str, List[Mapping[K, Any]]]:
     """Regresses model(s).
 
@@ -355,7 +385,10 @@ def fit_models(
     ops = {k: [p.opt_op, p.loss, p.metrics] for k, p in potentials.items()}
     losses = []
     metrics = []
-    for i, batch in enumerate(dataset):
+
+    nbatches = math.ceil(total_timesteps / batch_size)
+    for i in range(nbatches):
+        batch = dataset(batch_size)
         feed_dict = {}
         for potential in potentials.values():
             feed_dict.update(potential.build_feed_dict(batch))

@@ -63,7 +63,7 @@ def constant_baseline(
     Returns:
         A dictionary containing summary statistics.
     """
-    test_set = next(dataset(test_size, test_size))
+    test_set = dataset(test_size)
     models = {"matched": match.model, "target": target}
     preds = rewards.evaluate_models(models, test_set)
 

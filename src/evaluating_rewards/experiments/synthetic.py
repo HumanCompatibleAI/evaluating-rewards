@@ -326,13 +326,12 @@ def compare_synthetic(
     sess.run(tf.global_variables_initializer())
 
     # Datasets
-    training_generator = dataset_generator(total_timesteps, batch_size)
-    test_set = next(dataset_generator(test_size, test_size))
+    test_set = dataset_generator(test_size)
 
     # Pre-train to initialize affine parameters
     initial_constants = {}
     initial_scales = {}
-    pretrain_set = next(dataset_generator(pretrain_size, pretrain_size))
+    pretrain_set = dataset_generator(pretrain_size)
     for key, matched in matchings.items():
         if model_affine and pretrain:
             logging.info(f"Pretraining {key}")
@@ -343,7 +342,7 @@ def compare_synthetic(
         initial_scales[key] = initial.scale
 
     # Train potential shaping and other parameters
-    metrics = comparisons.fit_models(matchings, training_generator)
+    metrics = comparisons.fit_models(matchings, dataset_generator, total_timesteps, batch_size)
 
     return _compare_synthetic_eval(
         metrics=metrics,
