@@ -167,7 +167,7 @@ def model_comparison(
         def make_trainer(model, model_scope, target):
             del model_scope
             if fit_kind == "alternating":
-                return comparisons.RegressAlternatingModel(
+                return comparisons.RegressEquivalentLeastSqModel(
                     model, target, learning_rate=learning_rate
                 )
             elif fit_kind == "standard":
@@ -184,7 +184,7 @@ def model_comparison(
             pretrain_set = None
             if pretrain:
                 pretrain_set = next(dataset_callable(pretrain_size, pretrain_size))
-            return trainer.fit(dataset, pretrain=pretrain_set)
+            return trainer.fit(dataset, affine_dataset=pretrain_set)
 
         return regress_utils.regress(
             seed=_seed,

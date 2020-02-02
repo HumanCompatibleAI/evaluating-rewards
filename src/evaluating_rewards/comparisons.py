@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """Methods to compare reward models."""
+
+import functools
 import logging
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, Type, TypeVar
 
@@ -136,13 +138,13 @@ class RegressWrappedModel(RegressModel):
         return affine_model.pretrain(batch, target=self.target, original=self.unwrapped_source)
 
     def fit(
-        self, dataset: Iterator[rewards.Batch], pretrain: Optional[rewards.Batch], **kwargs
+        self, dataset: Iterator[rewards.Batch], affine_dataset: Optional[rewards.Batch], **kwargs
     ) -> FitStats:
         """Fits shaping to target.
 
         Args:
             dataset: iterator of batches of data to fit to.
-            pretrain: if provided, warm-start affine parameters from estimates
+            affine_dataset: if provided, warm-start affine parameters from estimates
                     computed from this batch. (Requires that model_wrapper adds
                     affine parameters.)
             **kwargs: passed through to super().fit.
@@ -150,54 +152,75 @@ class RegressWrappedModel(RegressModel):
         Returns:
             Training statistics.
         """
-        if pretrain:
-            self.pretrain(pretrain)
+        if affine_dataset:
+            self.pretrain(affine_dataset)
         return super().fit(dataset, **kwargs)
 
 
-class RegressAlternatingModel(RegressModel):
-    """TBC: docstring."""
+class RegressEquivalentLeastSqModel(RegressWrappedModel):
+    """Least-squares regression from source model wrapped with affine and potential shaping.
+
+    Positive affine transformations and potential shaping are optimal policy preserving
+    transformations, and so the rewards are considered equivalent (in the sense of Ng et al, 1999).
+
+    The regression is solved via alternating minimization. Since the regression is least-squares,
+    the affine parameters can be computed analytically. The potential shaping must be computed
+    with gradient descent.
+
+    Does not change the source model: only the wrapper.
+    """
 
     def __init__(self, model: rewards.RewardModel, target: rewards.RewardModel, **kwargs):
-        """TBC: docstring."""
-        self.unwrapped_source = rewards.StopGradientsModelWrapper(model)
-        model, self.model_extra, metrics = equivalence_model_wrapper(
-            self.unwrapped_source, affine_stopgrad=True
+        """Constructs RegressEquivalentLeastSqModel.
+
+        Args:
+            model: The original model to wrap.
+            target: The model we want to match.
+            **kwargs: Passed through to super-class.
+        """
+        model_wrapper = functools.partial(equivalence_model_wrapper, affine_stopgrad=True)
+        super().__init__(
+            model=model,
+            target=target,
+            model_wrapper=model_wrapper,
+            loss_fn=tf.losses.mean_squared_error,
         )
-        super().__init__(model=model, target=target, loss_fn=tf.losses.mean_squared_error, **kwargs)
-        self.metrics["unwrapped_loss"] = tf.losses.mean_squared_error(
-            self.target.reward, self.unwrapped_source.reward
-        )
-        self.metrics.update(metrics)
 
     def fit_affine(self, batch: rewards.Batch) -> rewards.AffineParameters:
-        """TBC: docstring."""
-        # TODO(adam): avoid this kind of model surgery! very hacky.
+        """
+        Set affine transformation parameters to analytic least-squares solution.
+
+        Does not update potential parameters.
+
+        Args:
+            batch: The batch to compute the affine parameters over.
+
+        Returns:
+            The optimal affine parameters (also updates as side-effect).
+        """
         sess = tf.get_default_session()
         source_model = self.model_extra["original"]
         shaping_model = self.model_extra["shaping"].models["shaping"][0]
         reward_tensors = [source_model.reward, shaping_model.reward, self.target.reward]
         source, shaping, target = sess.run(reward_tensors, feed_dict=self.build_feed_dict(batch))
 
-        # TODO(adam): explain the math here
+        # Find affine parameters minimizing L2 distance of
+        # `scale * source + shift + shaping` to `target`.
         params = rewards.least_l2_affine(source, target - shaping)
         affine_model = self.model_extra["affine"]
-        # TODO(adam): avoid private attribute
-        affine_model._log_scale_layer.set_constant(  # pylint:disable=protected-access
-            np.log(params.scale)
-        )
-        constant_model = affine_model.models["constant"][0]
-        constant_model.constant.set_constant(params.constant)
+        affine_model.set_log_scale(np.log(params.scale))
+        affine_model.set_shift(params.shift)
 
         return params
 
     def fit(
         self,
         dataset: Iterator[rewards.Batch],
-        pretrain: rewards.Batch,
+        affine_dataset: rewards.Batch,
         minibatch: int = int(1e5),
         **kwargs,
     ) -> None:
+        """TBC: docstring."""
         # TODO(adam): change name pretrain
         # TODO(adam): how long to do each step?
         # TODO(adam): avoid separate affine batch?
@@ -209,7 +232,7 @@ class RegressAlternatingModel(RegressModel):
             batches.append(batch)
             if len(batches) * len(batches[0].obs) >= minibatch:
                 iter_stats = {}
-                affine_stats = self.fit_affine(pretrain)
+                affine_stats = self.fit_affine(affine_dataset)
                 logging.info(f"{i}: {affine_stats}")
                 iter_stats["affine"] = affine_stats
                 iter_stats.update(super().fit(iter(batches), **kwargs))
