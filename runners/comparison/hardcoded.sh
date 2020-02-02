@@ -26,13 +26,20 @@ for env_name in "${!REWARDS_BY_ENV[@]}"; do
   types=${REWARDS_BY_ENV[$env_name]}
   env_name_sanitized=$(echo ${env_name} | sed -e 's/\//_/g')
   types_sanitized=$(echo ${types} | sed -e 's/\//_/g')
+
+  named_configs=""
+  if [[ ${env_name} == "evaluating_rewards/PointMassLine-v0" ]]; then
+    named_configs="dataset_random_transition"
+  fi
+
   parallel --header : --results $HOME/output/parallel/comparison/hardcoded_mujoco \
-           ${TRAIN_CMD} env_name=${env_name} \
-           {fit_kind} seed={seed} \
+           ${TRAIN_CMD} env_name=${env_name} ${named_configs} \
+           fit_kwargs.epoch_timesteps={epoch_timesteps} \
+           seed={seed} \
            source_reward_type={source_reward_type} \
            target_reward_type={target_reward_type} \
            log_dir=${HOME}/output/comparison/hardcoded_{fit_kind}/${env_name_sanitized}/{source_reward_type_sanitized}_vs_{target_reward_type_sanitized}_seed{seed} \
-           ::: fit_kind "" general_regress \
+           ::: epoch_timesteps 4096 16384 65536 131072 \
            ::: source_reward_type ${types} \
            :::+ source_reward_type_sanitized ${types_sanitized} \
            ::: target_reward_type ${types} \
