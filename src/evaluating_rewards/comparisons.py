@@ -208,7 +208,8 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
         # `scale * source + shift + shaping` to `target`.
         params = rewards.least_l2_affine(source, target - shaping)
         affine_model = self.model_extra["affine"]
-        affine_model.set_log_scale(np.log(params.scale))
+        scale = max(params.scale, np.finfo(params.scale).eps)  # ensure strictly positive
+        affine_model.set_log_scale(np.log(scale))
         affine_model.set_shift(params.shift)
 
         return params

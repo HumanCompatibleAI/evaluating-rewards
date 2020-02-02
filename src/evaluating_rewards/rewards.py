@@ -25,6 +25,7 @@ import gym
 from imitation.rewards import reward_net
 from imitation.util import rollout, serialize
 import numpy as np
+import scipy.optimize
 from stable_baselines.common import input as env_in  # avoid name clash
 import tensorflow as tf
 
@@ -766,13 +767,14 @@ def least_l2_affine(source: np.ndarray, target: np.ndarray) -> AffineParameters:
     if target.ndim != 1:
         raise ValueError("target must be vector.")
 
-    # Find x such that [1; reward].dot(x) has least-squared error from target
-    # x corresponds to a shift and scaling parameter.
-    a_vals = np.stack([np.ones_like(source), source], axis=1)
-    coefs, _, _, _ = np.linalg.lstsq(a_vals, target, rcond=None)
-    assert coefs.shape == (2,)
+    # Find x such that [1; -1; reward].dot(x) has least-squared error from target, where
+    # x >= 0. This ensures the scaling parameter is non-negative, but allows shifting in positive
+    # and negative directions.
+    a_vals = np.stack([np.ones_like(source), -np.ones_like(source), source], axis=1)
+    coefs, _ = scipy.optimize.nnls(a_vals, target)
+    assert coefs.shape == (3,)
 
-    shift, scale = coefs
-    scale = max(scale, np.finfo(scale.dtype).eps)
+    shift_pos, shift_neg, scale = coefs
+    shift = shift_pos - shift_neg
 
     return AffineParameters(shift=shift, scale=scale)
