@@ -117,6 +117,7 @@ def shaping_only():
 
 @model_comparison_ex.named_config
 def ellp_loss():
+    """Use mean (x-y)^p loss, default to p=0.5 (sparsity inducing)"""
     p = 0.5
     # Note if p specified at CLI, it will take priority over p above here
     # (Sacred configuration scope magic).

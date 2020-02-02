@@ -335,7 +335,7 @@ def compare_synthetic(
     for key, matched in matchings.items():
         if model_affine and pretrain:
             logging.info(f"Pretraining {key}")
-            initial = matched.pretrain(pretrain_set)
+            initial = matched.fit_affine(pretrain_set)
         else:
             initial = rewards.AffineParameters(shift=0, scale=1)
         initial_constants[key] = initial.shift

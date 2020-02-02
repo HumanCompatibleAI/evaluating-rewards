@@ -149,9 +149,9 @@ class RegressWrappedModel(RegressModel):
         self.metrics["unwrapped_loss"] = loss_fn(self.target.reward, self.unwrapped_source.reward)
         self.metrics.update(metrics)
 
-    def pretrain(self, batch: rewards.Batch):
+    def fit_affine(self, batch: rewards.Batch):
         affine_model = self.model_extra["affine"]
-        return affine_model.pretrain(batch, target=self.target, original=self.unwrapped_source)
+        return affine_model.fit_lstsq(batch, target=self.target, shaping=None)
 
     def fit(
         self, dataset: datasets.BatchCallable, affine_size: Optional[int] = 4096, **kwargs,
@@ -167,7 +167,7 @@ class RegressWrappedModel(RegressModel):
         """
         if affine_size:
             affine_batch = dataset(affine_size)
-            self.pretrain(affine_batch)
+            self.fit_affine(affine_batch)
         return super().fit(dataset, **kwargs)
 
 
@@ -212,21 +212,9 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
         Returns:
             The optimal affine parameters (also updates as side-effect).
         """
-        sess = tf.get_default_session()
-        source_model = self.model_extra["original"]
-        shaping_model = self.model_extra["shaping"].models["shaping"][0]
-        reward_tensors = [source_model.reward, shaping_model.reward, self.target.reward]
-        source, shaping, target = sess.run(reward_tensors, feed_dict=self.build_feed_dict(batch))
-
-        # Find affine parameters minimizing L2 distance of
-        # `scale * source + shift + shaping` to `target`.
-        params = rewards.least_l2_affine(source, target - shaping)
         affine_model = self.model_extra["affine"]
-        scale = max(params.scale, np.finfo(params.scale).eps)  # ensure strictly positive
-        affine_model.set_log_scale(np.log(scale))
-        affine_model.set_shift(params.shift)
-
-        return params
+        shaping_model = self.model_extra["shaping"].models["shaping"][0]
+        return affine_model.fit_lstsq(batch, target=self.target, shaping=shaping_model)
 
     def fit(
         self,

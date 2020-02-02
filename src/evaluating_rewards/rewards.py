@@ -16,7 +16,6 @@
 
 import abc
 import itertools
-import logging
 import os
 import pickle
 from typing import Dict, Iterable, Mapping, NamedTuple, Optional, Sequence, Tuple, Type, TypeVar
@@ -545,57 +544,50 @@ class AffineTransform(LinearCombinationModelWrapper):
 
         super().__init__(models)
 
-    def pretrain(
-        self, batch: Batch, target: RewardModel, original: Optional[RewardModel] = None, eps=1e-8
+    def fit_lstsq(
+        self, batch: Batch, target: RewardModel, shaping: Optional[RewardModel]
     ) -> AffineParameters:
-        """Initializes the shift and scale parameter to try to match target.
+        """Sets the shift and scale parameters to try and match target, given shaping.
 
-        Computes the mean and standard deviation of the wrapped reward model
-        and target on batch, and sets the shift and scale parameters so that the
-        output of this model has the same mean and standard deviation as target.
+        Uses `least_l2_affine` to find the least-squares affine parameters between
+        `scale * source + shift + shaping` and `target`.
 
-        If the wrapped model is just an affine transformation of target, this
-        should get the correct values (given adequate data). However, if they differ
-        -- even if just by potential shaping -- it can deviate substantially. It's
-        generally still better than just the identity initialization.
+        If one of `scale` or `shift` is not present in this `AffineParameter`, it will be skipped,
+        and the value corresponding to the identify transformation will be returned.
 
         Args:
-            batch: Data to evaluate the reward models on.
-            target: A RewardModel to match the mean and standard deviation of.
-            original: If specified, a RewardModel to rescale to match target.
-                Defaults to using the reward model this object wraps, `self.wrapped`.
-                This can be undesirable if `self.wrapped` includes some randomly
-                initialized model elements, such as potential shaping, that would
-                be better to treat as mean-zero.
-            eps: Minimum standard deviation (for numerical stability).
+            batch: A batch of data to estimate the affine parameters on.
+            target: The reward model to try and match.
+            shaping: Optionally, potential shaping to add to the source. If omitted, will default
+                to all-zero.
 
         Returns:
-            The initial shift and scale parameters.
+            The least-squares affine parameters. They will also be set as a side-effect.
         """
-        if original is None:
-            original = self.models["wrapped"][0]
-
-        feed_dict = make_feed_dict([original, target], batch)
         sess = tf.get_default_session()
-        preds = sess.run([original.reward, target.reward], feed_dict=feed_dict)
-        original_mean, target_mean = np.mean(preds, axis=-1)
-        original_std, target_std = np.clip(np.std(preds, axis=-1), eps, None)
+        source = self.models["wrapped"][0]
+        target_tensor = target.reward
+        models = [source, target]
+        if shaping is not None:
+            target_tensor -= shaping.reward
+            models.append(shaping)
 
-        log_scale = 0.0
-        if self._log_scale_layer is not None:
-            log_scale = np.log(target_std) - np.log(original_std)
-            logging.info("Assigning log scale: %f", log_scale)
-            self.set_log_scale(log_scale)
-        scale = np.exp(log_scale)
+        reward_tensors = [source.reward, target_tensor]
+        feed_dict = make_feed_dict(models, batch)
+        source_reward, target_reward = sess.run(reward_tensors, feed_dict=feed_dict)
 
-        constant = 0.0
-        constant_model = self.models["constant"][0]
-        if isinstance(constant_model, ConstantReward):
-            constant = -original_mean * target_std / original_std + target_mean
-            logging.info("Assigning shift: %f", constant)
-            self.set_shift(constant)
+        has_shift = self._shift is not None
+        has_scale = self._log_scale_layer is not None
+        # Find affine parameters minimizing L2 distance of `scale * source + shift + shaping`
+        # to `target`. Note if `shaping` is present, have subtracted it from `target` above.
+        params = least_l2_affine(source_reward, target_reward, shift=has_shift, scale=has_scale)
+        scale = max(params.scale, np.finfo(params.scale).eps)  # ensure strictly positive
+        if has_shift:
+            self.set_shift(params.shift)
+        if has_scale:
+            self.set_log_scale(np.log(scale))
 
-        return AffineParameters(shift=constant, scale=scale)
+        return params
 
     @property
     def shift(self) -> tf.Tensor:
@@ -752,29 +744,49 @@ def evaluate_potentials(potentials: Iterable[PotentialShaping], batch: Batch) ->
     return tf.get_default_session().run([old_pots, new_pots], feed_dict=feed_dict)
 
 
-def least_l2_affine(source: np.ndarray, target: np.ndarray) -> AffineParameters:
+def least_l2_affine(
+    source: np.ndarray, target: np.ndarray, shift: bool = True, scale: bool = True
+) -> AffineParameters:
     """Finds the squared-error minimizing affine transform.
 
     Args:
-        source: the reward to transform.
-        target: the target to match.
+        source: a 1D array consisting of the reward to transform.
+        target: a 1D array consisting of the target to match.
+        shift: affine includes constant shift.
+        scale: affine includes rescale.
 
     Returns:
         (shift, scale) such that (scale * reward + shift) has minimal squared-error from target.
+
+    Raises:
+        ValueError if source or target are not 1D arrays, or if neither shift or scale are True.
     """
     if source.ndim != 1:
         raise ValueError("source must be vector.")
     if target.ndim != 1:
         raise ValueError("target must be vector.")
+    if not (shift or scale):
+        raise ValueError("At least one of shift and scale must be True.")
 
-    # Find x such that [1; -1; reward].dot(x) has least-squared error from target, where
-    # x >= 0. This ensures the scaling parameter is non-negative, but allows shifting in positive
-    # and negative directions.
-    a_vals = np.stack([np.ones_like(source), -np.ones_like(source), source], axis=1)
+    a_vals = []
+    if shift:
+        # Positive and negative constant.
+        # The shift will be the sum of the coefficients of these terms.
+        a_vals += [np.ones_like(source), -np.ones_like(source)]
+    if scale:
+        a_vals += [source]
+    a_vals = np.stack(a_vals, axis=1)
+    # Find x such that a_vals.dot(x) has least-squared error from target, where x >= 0.
     coefs, _ = scipy.optimize.nnls(a_vals, target)
-    assert coefs.shape == (3,)
 
-    shift_pos, shift_neg, scale = coefs
-    shift = shift_pos - shift_neg
+    shift_param = 0.0
+    scale_idx = 0
+    if shift:
+        shift_param = coefs[0] - coefs[1]
+        scale_idx = 2
 
-    return AffineParameters(shift=shift, scale=scale)
+    scale_param = 1.0
+    if scale:
+        scale_param = coefs[scale_idx]
+
+    return AffineParameters(shift=shift_param, scale=scale_param)
