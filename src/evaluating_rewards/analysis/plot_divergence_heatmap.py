@@ -43,7 +43,6 @@ def default_config():
     data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
     search = {  # parameters to filter by in datasets
         "env_name": "evaluating_rewards/Hopper-v3",
-        "model_wrapper_kwargs": {},
     }
 
     # Figure parameters
@@ -94,6 +93,17 @@ def dataset_transition():
             ),
         },
     }
+
+
+@plot_divergence_heatmap_ex.named_config
+def large():
+    """Large output size, high precision."""
+    styles = ["paper", "heatmap", "heatmap-2col", "tex"]
+    heatmap_kwargs = {
+        "fmt": visualize.short_e,
+    }
+    _ = locals()
+    del _
 
 
 def _norm(args: Iterable[str]) -> bool:

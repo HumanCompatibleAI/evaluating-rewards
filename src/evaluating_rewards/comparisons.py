@@ -365,6 +365,8 @@ def fit_models(
     Args:
         potentials: A mapping from strings to a potential-shaped reward model.
         dataset: An iterator returning batches of old obs-act-next obs tuples.
+        total_timesteps: the total number of timesteps to train for.
+        batch_size: the number of timesteps in each training batch.
         log_interval: The frequency with which to print.
 
     Returns:
