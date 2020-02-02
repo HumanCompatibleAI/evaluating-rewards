@@ -342,7 +342,9 @@ def compare_synthetic(
         initial_scales[key] = initial.scale
 
     # Train potential shaping and other parameters
-    metrics = comparisons.fit_models(matchings, dataset_generator, total_timesteps, batch_size)
+    metrics = None
+    if total_timesteps > 0:
+        metrics = comparisons.fit_models(matchings, dataset_generator, total_timesteps, batch_size)
 
     return _compare_synthetic_eval(
         metrics=metrics,
