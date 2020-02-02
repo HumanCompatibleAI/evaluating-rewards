@@ -31,7 +31,7 @@ for env_name in "${!REWARDS_BY_ENV[@]}"; do
            fit_kind={fit_kind} seed={seed} \
            source_reward_type={source_reward_type} \
            target_reward_type={target_reward_type} \
-           log_dir=${HOME}/output/comparison/hardcoded/${env_name_sanitized}/{source_reward_type_sanitized}_vs_{target_reward_type_sanitized}_seed{seed} \
+           log_dir=${HOME}/output/comparison/hardcoded_{fit_kind}/${env_name_sanitized}/{source_reward_type_sanitized}_vs_{target_reward_type_sanitized}_seed{seed} \
            ::: fit_kind standard alternating \
            ::: source_reward_type ${types} \
            :::+ source_reward_type_sanitized ${types_sanitized} \
