@@ -43,7 +43,7 @@ def default_config():
         "learning_rate": 1e-2,
     }
     affine_size = 16386  # number of timesteps to use in pretraining; set to None to disable
-    total_timesteps = 1e6
+    total_timesteps = int(1e6)
     batch_size = 4096
     fit_kwargs = {}
 

@@ -242,7 +242,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
             raise ValueError("total_timesteps must be at least as large as epoch_timesteps.")
 
         stats = collections.defaultdict(list)
-        nepochs = total_timesteps // epoch_timesteps
+        nepochs = int(total_timesteps) // int(epoch_timesteps)
         for epoch in range(nepochs):
             affine_batch = dataset(affine_size)
             affine_stats = self.fit_affine(affine_batch)
@@ -381,7 +381,7 @@ def fit_models(
     losses = []
     metrics = []
 
-    nbatches = total_timesteps // batch_size
+    nbatches = int(total_timesteps) // int(batch_size)
     for i in range(nbatches):
         batch = dataset(batch_size)
         feed_dict = {}
