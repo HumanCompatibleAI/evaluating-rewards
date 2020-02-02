@@ -128,7 +128,7 @@ class HopperGroundTruthReward(MujocoHardcodedReward):
         action_space: gym.Space,
         alive_bonus: float = 1.0,
         forward: bool = True,
-        ctrl_coef: float = 1e-3,
+        ctrl_coef: float = 1e-2,
     ):
         """Constructs the reward model.
 
