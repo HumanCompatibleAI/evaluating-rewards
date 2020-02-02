@@ -23,7 +23,7 @@ PointMassDense-v0
 PointMassSparse-v0
 "
 
-parallel --header : --results $HOME/output/parallel/train_preferences_hyper \
+parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/train_preferences_hyper \
          ${TRAIN_CMD} env_name=evaluating_rewards/PointMassLine-v0 \
          seed={seed} target_reward_type=evaluating_rewards/{target_reward} \
          batch_timesteps={batch_timesteps} trajectory_length={trajectory_length} \

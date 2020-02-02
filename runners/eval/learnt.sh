@@ -18,12 +18,12 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [[ $# -ne 1 ]]; then
   echo "usage: $0 <policy prefix>"
-  echo "policy prefix must be relative to ${OUTPUT_ROOT}"
+  echo "policy prefix must be relative to ${EVAL_OUTPUT_ROOT}"
   exit 1
 fi
 
 policy_prefix=$1
-policy_dir=${OUTPUT_ROOT}/${policy_prefix}
+policy_dir=${EVAL_OUTPUT_ROOT}/${policy_prefix}
 model_name="policies/final"
 
 for env_name in ${ENVS}; do
@@ -38,11 +38,11 @@ for env_name in ${ENVS}; do
   echo "Policies: ${policies}"
   echo "Hardcoded rewards: ${types}"
 
-  parallel --header : --results $HOME/output/parallel/learnt \
+  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/learnt \
            ${EVAL_POLICY_CMD} env_name=${env_name} policy_type=ppo2 \
            reward_type={reward_type} \
            policy_path=${policy_dir}/${env_name_sanitized}/{policy_path}/${model_name} \
-           log_dir=${OUTPUT_ROOT}/eval/${policy_prefix}/${env_name_sanitized}/{policy_path}/eval_under_{reward_type_sanitized} \
+           log_dir=${EVAL_OUTPUT_ROOT}/eval/${policy_prefix}/${env_name_sanitized}/{policy_path}/eval_under_{reward_type_sanitized} \
            ::: reward_type ${types} \
            :::+ reward_type_sanitized ${types_sanitized} \
            ::: policy_path ${policies}
