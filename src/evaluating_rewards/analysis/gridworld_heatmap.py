@@ -114,11 +114,9 @@ def _make_transitions(
     transitions[high_action, states[idx < n - 1], states[idx > 0]] = 1
 
 
-def build_mdp(state_action_reward: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Create transition matrix for deterministic gridworld and reshape reward."""
-    xlen, ylen, na = state_action_reward.shape
+def build_transitions(xlen: int, ylen: int, na: int) -> np.ndarray:
+    """Create transition matrix for deterministic gridworld."""
     ns = xlen * ylen
-
     transitions = np.zeros((na, ns, ns))
     transitions[Actions.STAY.value, :, :] = np.eye(ns, ns)
     states = np.arange(ns)
@@ -127,8 +125,16 @@ def build_mdp(state_action_reward: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     _make_transitions(transitions, Actions.LEFT.value, Actions.RIGHT.value, states, ys, ylen)
     _make_transitions(transitions, Actions.DOWN.value, Actions.UP.value, states, xs, xlen)
 
+    return transitions
+
+
+def build_reward(state_action_reward: np.ndarray) -> np.ndarray:
+    """Reshape reward and fill in NaNs."""
+    xlen, ylen, na = state_action_reward.shape
+    ns = xlen * ylen
     reward = state_action_reward.copy()
     reward = reward.reshape(ns, na)
+
     # We use NaN for transitions that would go outside the gridworld.
     # But in above transition dynamics these are equivalent to stay, so rewrite.
     mask = np.isnan(reward)
@@ -137,7 +143,7 @@ def build_mdp(state_action_reward: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     reward[mask] = stay_tiled[mask]
     assert np.isfinite(reward).all()
 
-    return transitions, reward
+    return reward
 
 
 def _no_op_iter(*args, **kwargs):
@@ -147,7 +153,8 @@ def _no_op_iter(*args, **kwargs):
 
 def compute_qvalues(state_action_reward: np.ndarray, discount: float) -> np.ndarray:
     """Computes the Q-values of `state_action_reward` under deterministic dynamics."""
-    transitions, reward = build_mdp(state_action_reward)
+    transitions = build_transitions(*state_action_reward.shape)
+    reward = build_reward(state_action_reward)
 
     # TODO(adam): remove this workaround once GH pymdptoolbox #32 merged.
     with mock.patch("mdptoolbox.mdp.ValueIteration._boundIter", new=_no_op_iter):
