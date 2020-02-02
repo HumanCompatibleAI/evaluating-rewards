@@ -199,3 +199,46 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
 
     # Are the predictions close to true Gym reward?
     np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)
+
+
+REWARD_LEN = 10000
+NUM_SAMPLES = 10
+
+
+def test_least_l2_affine_random():
+    """Check least_l2_affine recovers random affine transformations."""
+    source = np.random.randn(REWARD_LEN)
+
+    shifts = np.random.randn(NUM_SAMPLES)
+    scales = np.exp(np.random.randn(NUM_SAMPLES))
+
+    for shift, scale in zip(shifts, scales):
+        target = source * scale + shift
+        params = rewards.least_l2_affine(source, target)
+        assert np.allclose([shift, scale], [params.shift, params.scale])
+        assert params.scale >= 0
+
+        for has_shift in [False, True]:
+            target = source * scale
+            params = rewards.least_l2_affine(source, target, shift=has_shift)
+            assert np.allclose([0.0, scale], [params.shift, params.scale])
+
+        for has_scale in [False, True]:
+            target = source + shift
+            params = rewards.least_l2_affine(source, target, scale=has_scale)
+            assert np.allclose([shift, 1.0], [params.shift, params.scale], atol=0.1)
+
+
+def test_least_l2_affine_zero():
+    """Check least_l2_affine finds zero scale and shift for negative and zero target."""
+    for _ in range(NUM_SAMPLES):
+        source = np.random.randn(REWARD_LEN)
+
+        params = rewards.least_l2_affine(source, -source)
+        assert np.allclose([0.0], [params.scale])
+        assert params.scale >= 0
+        assert np.allclose([0.0], [params.shift], atol=0.1)
+
+        params = rewards.least_l2_affine(source, np.zeros_like(source))
+        assert np.allclose([0.0, 0.0], [params.shift, params.scale])
+        assert params.scale >= 0
