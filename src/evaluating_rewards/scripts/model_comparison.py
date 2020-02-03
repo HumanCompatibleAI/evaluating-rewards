@@ -38,7 +38,7 @@ def default_config():
     source_reward_path = "dummy"
 
     # Model to train and hyperparameters
-    comparison_class = comparisons.RegressEquivalentLeastSqModel
+    comparison_class = comparisons.RegressWrappedModel
     comparison_kwargs = {
         "learning_rate": 1e-2,
     }
@@ -54,7 +54,7 @@ def default_config():
 
 
 @model_comparison_ex.config
-def default_kwargs(dataset_factory, dataset_factory_kwargs):
+def default_kwargs(dataset_factory, dataset_factory_kwargs, comparison_class, comparison_kwargs):
     """Sets dataset_factory_kwargs to defaults when dataset_factory not overridden."""
     # TODO(): remove this function when Sacred issue #238 is fixed
     if (  # pylint:disable=comparison-with-callable
@@ -62,20 +62,22 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs):
         and not dataset_factory_kwargs
     ):
         dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
+    if (
+        comparison_class == comparisons.RegressWrappedModel
+        and "model_wrapper" not in comparison_kwargs
+    ):
+        comparison_kwargs["model_wrapper"] = comparisons.equivalence_model_wrapper
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
 @model_comparison_ex.named_config
-def general_regress():
-    """Use more flexible (but less accurate) RegressWrappedModel optimizer.
+def alternating_maximization():
+    """Use less flexible (but sometimes more accurate) RegressEquivalentLeastSq.
 
-    This lets one use things other than least-squares loss, and have arbitrary
-    model wrappers."""
-    comparison_class = comparisons.RegressWrappedModel
-    comparison_kwargs = {
-        "model_wrapper": comparisons.equivalence_model_wrapper,
-    }
+    Uses least-squares loss and affine + potential shaping wrapping.
+    """
+    comparison_class = comparisons.RegressEquivalentLeastSqModel
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -83,31 +85,24 @@ def general_regress():
 @model_comparison_ex.named_config
 def affine_only():
     """Equivalence class consists of just affine transformations."""
-    comparison_class = comparisons.RegressWrappedModel
-    comparison_kwargs = {
+    comparison_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "model_wrapper": functools.partial(comparisons.equivalence_model_wrapper, potential=False),
     }
-    _ = locals()  # quieten flake8 unused variable warning
-    del _
 
 
 @model_comparison_ex.named_config
 def no_rescale():
     """Equivalence class are shifts plus potential shaping (no scaling)."""
-    comparison_class = comparisons.RegressWrappedModel
-    comparison_kwargs = {
+    comparison_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "model_wrapper": functools.partial(
             comparisons.equivalence_model_wrapper, affine_kwargs=dict(scale=False)
         ),
     }
-    _ = locals()  # quieten flake8 unused variable warning
-    del _
 
 
 @model_comparison_ex.named_config
 def shaping_only():
     """Equivalence class consists of just potential shaping."""
-    comparison_class = comparisons.RegressWrappedModel
     comparison_kwargs = {
         "model_wrapper": functools.partial(comparisons.equivalence_model_wrapper, affine=False),
     }
@@ -122,9 +117,7 @@ def ellp_loss():
     p = 0.5
     # Note if p specified at CLI, it will take priority over p above here
     # (Sacred configuration scope magic).
-    comparison_class = comparisons.RegressWrappedModel
     comparison_kwargs = {
-        "model_wrapper": comparisons.equivalence_model_wrapper,
         "loss_fn": functools.partial(comparisons.ellp_norm_loss, p=p),
     }
     _ = locals()  # quieten flake8 unused variable warning
@@ -141,7 +134,6 @@ def test():
     """Small number of epochs, finish quickly, intended for tests / debugging."""
     affine_size = 512
     total_timesteps = 8192
-    fit_kwargs = {"epoch_timesteps": 4096}
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
