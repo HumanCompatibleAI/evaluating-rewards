@@ -30,20 +30,28 @@ from evaluating_rewards.scripts.train_regress import train_regress_ex
 from tests import common
 
 EXPERIMENTS = {
-    # experiment, expected_type
-    "plot_divergence": (plot_divergence_heatmap_ex, dict),
-    "plot_pm": (plot_pm_reward_ex, xr.DataArray),
-    "plot_gridworld_divergence": (plot_gridworld_divergence_ex, dict),
-    "plot_gridworld_reward": (plot_gridworld_reward_ex, plt.Figure),
-    "comparison": (model_comparison_ex, dict),
-    "regress": (train_regress_ex, dict),
-    "preferences": (train_preferences_ex, pd.DataFrame),
+    # experiment, expected_type, extra_named_configs, config_updates
+    "plot_divergence": (plot_divergence_heatmap_ex, dict, [], {}),
+    "plot_pm": (plot_pm_reward_ex, xr.DataArray, [], {}),
+    "plot_gridworld_divergence": (plot_gridworld_divergence_ex, dict, [], {}),
+    "plot_gridworld_reward": (plot_gridworld_reward_ex, plt.Figure, [], {}),
+    "comparison": (model_comparison_ex, dict, [], {}),
+    "comparison_alternating": (
+        model_comparison_ex,
+        dict,
+        ["alternating_maximization"],
+        {"fit_kwargs": {"epoch_timesteps": 4096}},
+    ),
+    "regress": (train_regress_ex, dict, [], {}),
+    "preferences": (train_preferences_ex, pd.DataFrame, [], {}),
 }
 
 
-@common.mark_parametrize_dict("experiment,expected_type", EXPERIMENTS)
-def test_experiment(experiment, expected_type):
+@common.mark_parametrize_dict("experiment,expected_type,named_configs,config_updates", EXPERIMENTS)
+def test_experiment(experiment, expected_type, named_configs, config_updates):
+    named_configs = ["test"] + named_configs
     with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
-        run = experiment.run(named_configs=["test"], config_updates=dict(log_root=tmpdir))
+        config_updates["log_root"] = tmpdir
+        run = experiment.run(named_configs=named_configs, config_updates=config_updates)
     assert run.status == "COMPLETED"
     assert isinstance(run.result, expected_type)

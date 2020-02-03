@@ -219,7 +219,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
         self,
         dataset: datasets.BatchCallable,
         total_timesteps: int = int(1e6),
-        epoch_timesteps: int = int(1e5),
+        epoch_timesteps: int = 16384,
         affine_size: int = 4096,
         **kwargs,
     ) -> FitStats:
