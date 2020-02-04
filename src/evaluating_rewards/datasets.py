@@ -20,7 +20,6 @@ can be taken with respect to.
 """
 
 import contextlib
-import math
 from typing import Callable, ContextManager, Iterator, Union
 
 import gym
@@ -31,7 +30,7 @@ from stable_baselines.common import base_class, policies, vec_env
 
 from evaluating_rewards import rewards
 
-BatchCallable = Callable[[int, int], Iterator[rewards.Batch]]
+BatchCallable = Callable[[int], rewards.Batch]
 # Expect DatasetFactory to accept a str specifying env_name as first argument,
 # int specifying seed as second argument and factory-specific keyword arguments
 # after this. There is no way to specify this in Python type annotations yet :(
@@ -45,14 +44,13 @@ def rollout_policy_generator(
 ) -> Iterator[BatchCallable]:
     """Generator returning rollouts from a policy in a given environment."""
 
-    def f(total_timesteps: int, batch_size: int) -> Iterator[rewards.Batch]:
-        nbatch = math.ceil(total_timesteps / batch_size)
-        for _ in range(nbatch):
-            transitions = rollout.generate_transitions(policy, venv, n_timesteps=batch_size)
-            # TODO(): can we switch to rollout.Transition?
-            yield rewards.Batch(
-                obs=transitions.obs, actions=transitions.acts, next_obs=transitions.next_obs
-            )
+    def f(total_timesteps: int) -> rewards.Batch:
+        # TODO(adam): inefficient -- discards partial trajectories and resets environment
+        transitions = rollout.generate_transitions(policy, venv, n_timesteps=total_timesteps)
+        # TODO(): can we switch to rollout.Transition?
+        return rewards.Batch(
+            obs=transitions.obs, actions=transitions.acts, next_obs=transitions.next_obs
+        )
 
     yield f
 
@@ -83,33 +81,29 @@ def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[BatchC
         seed: Used to seed the dynamics.
 
     Yields:
-        A function that, when called with timesteps and batch size, will perform
-        the sampling process described above.
+        A function that will perform the sampling process described above for a
+        number of timesteps specified in the argument.
     """
     env = gym.make(env_name)
     env.seed(seed)
-    # TODO(): why is total_timesteps specified here?
-    # Could instead make it endless, or specify nbatch directly.
 
-    def f(total_timesteps: int, batch_size: int) -> Iterator[rewards.Batch]:
+    def f(total_timesteps: int) -> rewards.Batch:
         """Helper function."""
-        nbatch = math.ceil(total_timesteps / batch_size)
-        for _ in range(nbatch):
-            obses = []
-            acts = []
-            next_obses = []
-            for _ in range(batch_size):
-                old_state = env.state_space.sample()
-                obs = env.obs_from_state(old_state)
-                act = env.action_space.sample()
-                new_state = env.transition(old_state, act)  # may be non-deterministic
-                next_obs = env.obs_from_state(new_state)
+        obses = []
+        acts = []
+        next_obses = []
+        for _ in range(total_timesteps):
+            old_state = env.state_space.sample()
+            obs = env.obs_from_state(old_state)
+            act = env.action_space.sample()
+            new_state = env.transition(old_state, act)  # may be non-deterministic
+            next_obs = env.obs_from_state(new_state)
 
-                obses.append(obs)
-                acts.append(act)
-                next_obses.append(next_obs)
-            yield rewards.Batch(
-                obs=np.array(obses), actions=np.array(acts), next_obs=np.array(next_obses)
-            )
+            obses.append(obs)
+            acts.append(act)
+            next_obses.append(next_obs)
+        return rewards.Batch(
+            obs=np.array(obses), actions=np.array(acts), next_obs=np.array(next_obses)
+        )
 
     yield f

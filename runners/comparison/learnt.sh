@@ -35,12 +35,12 @@ for env_name in ${ENVS}; do
   echo "Models: ${MODELS}"
   echo "Hardcoded rewards: ${types}"
 
-  parallel --header : --results ${OUTPUT_ROOT}/parallel/comparison/learnt/${env_name_sanitized} \
+  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/comparison/learnt/${env_name_sanitized} \
     ${TRAIN_CMD} env_name=${env_name} seed={seed}  \
     source_reward_type=${source_reward_type} \
     source_reward_path=${learnt_model_dir}/${env_name_sanitized}/{source_reward}/${model_name} \
     target_reward_type={target_reward} {named_config} \
-    log_dir=${OUTPUT_ROOT}/comparison/${model_prefix}/${env_name_sanitized}/{source_reward}/match_{named_config}_to_{target_reward_sanitized}_seed{seed} \
+    log_dir=${EVAL_OUTPUT_ROOT}/comparison/${model_prefix}/${env_name_sanitized}/{source_reward}/match_{named_config}_to_{target_reward_sanitized}_seed{seed} \
     ::: source_reward ${MODELS} \
     ::: target_reward ${types} \
     :::+ target_reward_sanitized ${types_sanitized} \

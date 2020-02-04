@@ -38,11 +38,11 @@ for env_name in "${!TRANSFER_ENVS[@]}"; do
   transfer_envs="${env_name} ${TRANSFER_ENVS[$env_name]}"
   transfer_envs_sanitized=$(echo ${transfer_envs} | sed -e 's/\//_/g')
 
-  parallel --header : --results $HOME/output/parallel/expert_demos \
+  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/expert_demos \
            ${EXPERT_DEMOS_CMD} env_name={env_name} \
            reward_type=${source_reward_type} seed={seed} \
            reward_path=${learnt_model_dir}/${env_name_sanitized}/{reward_path}/${model_name} \
-           log_dir=${OUTPUT_ROOT}/expert_transfer/${model_prefix}/${env_name_sanitized}/{env_name_sanitized}/{reward_path}/{seed} \
+           log_dir=${EVAL_OUTPUT_ROOT}/expert_transfer/${model_prefix}/${env_name_sanitized}/{env_name_sanitized}/{reward_path}/{seed} \
            ::: env_name ${transfer_envs} \
            :::+ env_name_sanitized ${transfer_envs_sanitized} \
            ::: reward_path ${MODELS} \

@@ -90,9 +90,7 @@ def train_regress(
     log_dir: str,
 ) -> Mapping[str, Any]:
     """Entry-point into script to regress source onto target reward model."""
-    with dataset_factory(env_name, seed=_seed, **dataset_factory_kwargs) as dataset_callable:
-        dataset = dataset_callable(total_timesteps, batch_size)
-
+    with dataset_factory(env_name, seed=_seed, **dataset_factory_kwargs) as dataset_generator:
         make_source = functools.partial(regress_utils.make_model, model_reward_type)
 
         def make_trainer(model, model_scope, target):
@@ -101,7 +99,9 @@ def train_regress(
 
         def do_training(target, trainer):
             del target
-            return trainer.fit(dataset)
+            return trainer.fit(
+                dataset_generator, total_timesteps=total_timesteps, batch_size=batch_size
+            )
 
         return regress_utils.regress(
             seed=_seed,

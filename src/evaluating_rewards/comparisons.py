@@ -13,13 +13,16 @@
 # limitations under the License.
 
 """Methods to compare reward models."""
+
+import collections
+import functools
 import logging
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, Type, TypeVar
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Type, TypeVar
 
 import numpy as np
 import tensorflow as tf
 
-from evaluating_rewards import rewards
+from evaluating_rewards import datasets, rewards
 
 FitStats = Mapping[str, List[Mapping[str, Any]]]
 
@@ -82,17 +85,31 @@ class RegressModel:
         models = [self.model, self.target]
         return rewards.make_feed_dict(models, batch)
 
-    def fit(self, dataset: Iterator[rewards.Batch], log_interval: int = 10) -> FitStats:
+    def fit(
+        self,
+        dataset: datasets.BatchCallable,
+        total_timesteps: int = int(1e6),
+        batch_size: int = 4096,
+        log_interval: int = 10,
+    ) -> FitStats:
         """Fits shaping to target.
 
         Args:
-            dataset: iterator of batches of data to fit to.
+            dataset: a callable returning batches of the specified size.
+            total_timesteps: the total number of timesteps to train for.
+            batch_size: the number of timesteps in each training batch.
             log_interval: reports statistics every log_interval batches.
 
         Returns:
             Training statistics.
         """
-        return fit_models({"singleton": self}, dataset=dataset, log_interval=log_interval)
+        return fit_models(
+            {"singleton": self},
+            dataset=dataset,
+            total_timesteps=total_timesteps,
+            batch_size=batch_size,
+            log_interval=log_interval,
+        )
 
 
 ModelWrapperRet = Tuple[rewards.RewardModel, Any, Mapping[str, tf.Tensor]]
@@ -131,28 +148,118 @@ class RegressWrappedModel(RegressModel):
         self.metrics["unwrapped_loss"] = loss_fn(self.target.reward, self.unwrapped_source.reward)
         self.metrics.update(metrics)
 
-    def pretrain(self, batch: rewards.Batch):
+    def fit_affine(self, batch: rewards.Batch):
+        """Fits affine parameters only (not e.g. potential)."""
         affine_model = self.model_extra["affine"]
-        return affine_model.pretrain(batch, target=self.target, original=self.unwrapped_source)
+        return affine_model.fit_lstsq(batch, target=self.target, shaping=None)
 
     def fit(
-        self, dataset: Iterator[rewards.Batch], pretrain: Optional[rewards.Batch], **kwargs
+        self, dataset: datasets.BatchCallable, affine_size: Optional[int] = 4096, **kwargs,
     ) -> FitStats:
         """Fits shaping to target.
 
+        If `affine_size` is specified, initializes affine parameters using `self.fit_affine`.
+
         Args:
-            dataset: iterator of batches of data to fit to.
-            pretrain: if provided, warm-start affine parameters from estimates
-                    computed from this batch. (Requires that model_wrapper adds
-                    affine parameters.)
-            **kwargs: passed through to super().fit.
+            dataset: a callable returning batches of the specified size.
+            affine_size: the size of the batch to pretrain affine parameters.
 
         Returns:
             Training statistics.
         """
-        if pretrain:
-            self.pretrain(pretrain)
+        if affine_size:
+            affine_batch = dataset(affine_size)
+            self.fit_affine(affine_batch)
         return super().fit(dataset, **kwargs)
+
+
+class RegressEquivalentLeastSqModel(RegressWrappedModel):
+    """Least-squares regression from source model wrapped with affine and potential shaping.
+
+    Positive affine transformations and potential shaping are optimal policy preserving
+    transformations, and so the rewards are considered equivalent (in the sense of Ng et al, 1999).
+
+    The regression is solved via alternating minimization. Since the regression is least-squares,
+    the affine parameters can be computed analytically. The potential shaping must be computed
+    with gradient descent.
+
+    Does not change the source model: only the wrapper.
+    """
+
+    def __init__(self, model: rewards.RewardModel, target: rewards.RewardModel, **kwargs):
+        """Constructs RegressEquivalentLeastSqModel.
+
+        Args:
+            model: The original model to wrap.
+            target: The model we want to match.
+            **kwargs: Passed through to super-class.
+        """
+        model_wrapper = functools.partial(equivalence_model_wrapper, affine_stopgrad=True)
+        super().__init__(
+            model=model,
+            target=target,
+            model_wrapper=model_wrapper,
+            loss_fn=tf.losses.mean_squared_error,
+            **kwargs,
+        )
+
+    def fit_affine(self, batch: rewards.Batch) -> rewards.AffineParameters:
+        """
+        Set affine transformation parameters to analytic least-squares solution.
+
+        Does not update potential parameters.
+
+        Args:
+            batch: The batch to compute the affine parameters over.
+
+        Returns:
+            The optimal affine parameters (also updates as side-effect).
+        """
+        affine_model = self.model_extra["affine"]
+        shaping_model = self.model_extra["shaping"].models["shaping"][0]
+        return affine_model.fit_lstsq(batch, target=self.target, shaping=shaping_model)
+
+    def fit(
+        self,
+        dataset: datasets.BatchCallable,
+        total_timesteps: int = int(1e6),
+        epoch_timesteps: int = 16384,
+        affine_size: int = 4096,
+        **kwargs,
+    ) -> FitStats:
+        """Fits shaping to target.
+
+        Args:
+            dataset: a callable returning batches of the specified size.
+            total_timesteps: the total number of timesteps to train for.
+            epoch_timesteps: the number of timesteps to train shaping for; the optimal affine
+                parameters are set analytically at the start of each epoch.
+            affine_size: the size of the batch to pretrain affine parameters.
+
+        Returns:
+            Training statistics.
+
+        Raises:
+            ValueError if total_timesteps < epoch_timesteps.
+        """
+        if total_timesteps < epoch_timesteps:
+            raise ValueError("total_timesteps must be at least as large as epoch_timesteps.")
+
+        stats = collections.defaultdict(list)
+        nepochs = int(total_timesteps) // int(epoch_timesteps)
+        for epoch in range(nepochs):
+            affine_batch = dataset(affine_size)
+            affine_stats = self.fit_affine(affine_batch)
+            logging.info(f"Epoch {epoch}: {affine_stats}")
+
+            epoch_stats = super().fit(
+                dataset, total_timesteps=epoch_timesteps, affine_size=None, **kwargs
+            )
+
+            for k, v in epoch_stats.items():
+                stats[k] += v
+
+        return stats
 
 
 def _scaled_norm(x):
@@ -204,6 +311,7 @@ def equivalence_model_wrapper(
     wrapped: rewards.RewardModel,
     potential: bool = True,
     affine: bool = True,
+    affine_stopgrad: bool = False,
     affine_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs,
 ) -> ModelWrapperRet:
@@ -215,6 +323,7 @@ def equivalence_model_wrapper(
         wrapped: The model to wrap.
         potential: If true, add potential shaping.
         affine: If true, add affine transformation.
+        affine_stopgrad: If true, do not propagate gradients to affine.
         affine_kwargs: Passed through to AffineTransform.
         **kwargs: Passed through to PotentialShapingWrapper.
 
@@ -230,8 +339,10 @@ def equivalence_model_wrapper(
         affine_kwargs = affine_kwargs or {}
         model = rewards.AffineTransform(model, **affine_kwargs)
         models["affine"] = model
-        metrics["constant"] = model.constant
+        metrics["constant"] = model.shift
         metrics["scale"] = model.scale
+        if affine_stopgrad:
+            model = rewards.StopGradientsModelWrapper(model)
 
     if potential:
         model = rewards.PotentialShapingWrapper(model, **kwargs)
@@ -244,7 +355,11 @@ K = TypeVar("K")
 
 
 def fit_models(
-    potentials: Mapping[K, RegressModel], dataset: Iterator[rewards.Batch], log_interval: int = 10
+    potentials: Mapping[K, RegressModel],
+    dataset: datasets.BatchCallable,
+    total_timesteps: int,
+    batch_size: int,
+    log_interval: int = 10,
 ) -> Mapping[str, List[Mapping[K, Any]]]:
     """Regresses model(s).
 
@@ -254,16 +369,27 @@ def fit_models(
     Args:
         potentials: A mapping from strings to a potential-shaped reward model.
         dataset: An iterator returning batches of old obs-act-next obs tuples.
+        total_timesteps: the total number of timesteps to train for.
+        batch_size: the number of timesteps in each training batch.
         log_interval: The frequency with which to print.
 
     Returns:
         Metrics from training.
+
+    Raises:
+        ValueError if total_timesteps < batch_size.
     """
+    if total_timesteps < batch_size:
+        raise ValueError("total_timesteps must be at least as larger as batch_size.")
+
     sess = tf.get_default_session()
     ops = {k: [p.opt_op, p.loss, p.metrics] for k, p in potentials.items()}
     losses = []
     metrics = []
-    for i, batch in enumerate(dataset):
+
+    nbatches = int(total_timesteps) // int(batch_size)
+    for i in range(nbatches):
+        batch = dataset(batch_size)
         feed_dict = {}
         for potential in potentials.values():
             feed_dict.update(potential.build_feed_dict(batch))

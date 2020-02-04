@@ -23,19 +23,19 @@ VISUALIZE_CMD=$(call_script "visualize_pm_reward" "with")
 
 if [[ $# -ne 1 ]]; then
   echo "usage: $0 <model prefix>"
-  echo "model prefix must be relative to ${OUTPUT_ROOT}"
+  echo "model prefix must be relative to ${EVAL_OUTPUT_ROOT}"
   exit 1
 fi
 
 MODEL_PREFIX=$1
-LEARNT_MODEL_DIR=${OUTPUT_ROOT}/${MODEL_PREFIX}
+LEARNT_MODEL_DIR=${EVAL_OUTPUT_ROOT}/${MODEL_PREFIX}
 
 MODELS=$(find ${LEARNT_MODEL_DIR} -name model -printf "%P\n" | xargs dirname)
 
 echo "Visualizing models:"
 echo ${MODELS}
 
-parallel --header : --results ${OUTPUT_ROOT}/parallel/visualize_pm_reward/ \
+parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/visualize_pm_reward/ \
     ${VISUALIZE_CMD} env_name=evaluating_rewards/PointMassLine-v0 \
     reward_type=evaluating_rewards/RewardModel-v0 \
     reward_path=${LEARNT_MODEL_DIR}/{reward_path}/model \

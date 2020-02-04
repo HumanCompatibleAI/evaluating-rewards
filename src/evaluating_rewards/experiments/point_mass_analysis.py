@@ -177,8 +177,8 @@ def plot_state_density(
         nsamples: The number of points to sample.
         **kwargs: Passed through to `sns.jointplot`.
     """
-    batch = next(dataset_generator(nsamples, nsamples))
-    obs, _, _ = batch
+    batch = dataset_generator(nsamples)
+    obs = batch.obs
     sns.jointplot(y=obs[:, 0], x=obs[:, 1], kind="hex", xlim=(-1, 1), ylim=(-1, 1), **kwargs)
     plt.xlabel("Velocity")
     plt.ylabel("Position")

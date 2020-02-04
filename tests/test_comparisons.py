@@ -63,8 +63,6 @@ def test_regress(
     venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
 
     with datasets.random_transition_generator(env_name) as dataset_generator:
-        dataset = dataset_generator(1e5, 512)
-
         with graph.as_default():
             with session.as_default():
                 with tf.variable_scope("source") as source_scope:
@@ -79,7 +77,7 @@ def test_regress(
                 init_vars = source_scope.global_variables() + match_scope.global_variables()
                 session.run(tf.initializers.variables(init_vars))
 
-                stats = match.fit(dataset)
+                stats = match.fit(dataset_generator, total_timesteps=1e5, batch_size=512)
 
         loss = pd.DataFrame(stats["loss"])["singleton"]
         logging.info(f"Loss: {loss.iloc[::10]}")
