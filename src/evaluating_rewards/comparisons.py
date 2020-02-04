@@ -149,6 +149,7 @@ class RegressWrappedModel(RegressModel):
         self.metrics.update(metrics)
 
     def fit_affine(self, batch: rewards.Batch):
+        """Fits affine parameters only (not e.g. potential)."""
         affine_model = self.model_extra["affine"]
         return affine_model.fit_lstsq(batch, target=self.target, shaping=None)
 
@@ -156,6 +157,8 @@ class RegressWrappedModel(RegressModel):
         self, dataset: datasets.BatchCallable, affine_size: Optional[int] = 4096, **kwargs,
     ) -> FitStats:
         """Fits shaping to target.
+
+        If `affine_size` is specified, initializes affine parameters using `self.fit_affine`.
 
         Args:
             dataset: a callable returning batches of the specified size.
@@ -197,6 +200,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
             target=target,
             model_wrapper=model_wrapper,
             loss_fn=tf.losses.mean_squared_error,
+            **kwargs,
         )
 
     def fit_affine(self, batch: rewards.Batch) -> rewards.AffineParameters:
