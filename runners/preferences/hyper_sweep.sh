@@ -28,7 +28,7 @@ parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/train_preferences_hyp
          seed={seed} target_reward_type=evaluating_rewards/{target_reward} \
          batch_timesteps={batch_timesteps} trajectory_length={trajectory_length} \
          learning_rate={lr} total_timesteps=5e6 \
-         log_dir=${HOME}/output/train_preferences_hyper/{target_reward}/batch{batch_timesteps}_of_{trajectory_length}_lr{lr}/{seed} \
+         log_dir=${EVAL_OUTPUT_ROOT}/train_preferences_hyper/{target_reward}/batch{batch_timesteps}_of_{trajectory_length}_lr{lr}/{seed} \
          ::: target_reward ${TARGET_REWARDS} \
          ::: batch_timesteps 500 2500 10000 50000 250000 \
          ::: trajectory_length 1 5 25 100 \

@@ -28,7 +28,7 @@ for env_name in "${!REWARDS_BY_ENV[@]}"; do
   parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/train_regress/${env_name_sanitized} \
          ${TRAIN_CMD} env_name=${env_name} \
          seed={seed} target_reward_type={target_reward} \
-         log_dir=${HOME}/output/train_regress/${env_name_sanitized}/{target_reward_sanitized}/{seed} \
+         log_dir=${EVAL_OUTPUT_ROOT}/train_regress/${env_name_sanitized}/{target_reward_sanitized}/{seed} \
          ::: target_reward ${types} \
          :::+ target_reward_sanitized ${types_sanitized} \
          ::: seed 0 1 2

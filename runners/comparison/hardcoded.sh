@@ -37,7 +37,7 @@ for env_name in "${!REWARDS_BY_ENV[@]}"; do
            seed={seed} \
            source_reward_type={source_reward_type} \
            target_reward_type={target_reward_type} \
-           log_dir=${HOME}/output/comparison/hardcoded/${env_name_sanitized}/{source_reward_type_sanitized}_vs_{target_reward_type_sanitized}_seed{seed} \
+           log_dir=${EVAL_OUTPUT_ROOT}/comparison/hardcoded/${env_name_sanitized}/{source_reward_type_sanitized}_vs_{target_reward_type_sanitized}_seed{seed} \
            ::: source_reward_type ${types} \
            :::+ source_reward_type_sanitized ${types_sanitized} \
            ::: target_reward_type ${types} \
