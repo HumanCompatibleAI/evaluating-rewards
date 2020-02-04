@@ -62,6 +62,9 @@ LEVEL_NAMES = {
     "target_reward_path": "Target",
 }
 
+WHITELISTED_LEVELS = ["source_reward_type", "target_reward_type"]  # never remove these levels
+
+
 # Saving figures
 
 
@@ -117,9 +120,6 @@ def short_e(x: float, precision: int = 2) -> str:
     base, exponent = formatted.split("e")
     exponent = int(exponent)
     return f"{base}e{exponent}"
-
-
-WHITELISTED_LEVELS = ["source_reward_type", "target_reward_type"]
 
 
 def remove_constant_levels(index: pd.MultiIndex) -> pd.MultiIndex:
