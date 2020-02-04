@@ -30,6 +30,6 @@ docker run -it --rm \
        -v ${LOCAL_MNT}/data:/mnt/eval_reward/data \
        -v ${LOCAL_MNT}/src:/evaluating-rewards \
        -v ${LOCAL_MNT}/mjkey.txt:/root/.mujoco/mjkey.txt \
-       --env EVAL_EVAL_OUTPUT_ROOT=/mnt/eval_reward/data \
+       --env EVAL_OUTPUT_ROOT=/mnt/eval_reward/data \
        ${FLAGS} ${DOCKER_IMAGE} \
        /bin/bash -c "pip install -e . && ${CMD}"
