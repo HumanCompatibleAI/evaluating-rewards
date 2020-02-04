@@ -14,6 +14,7 @@
 
 """CLI script to plot heatmap of divergence between pairs of reward models."""
 
+import functools
 import itertools
 import os
 from typing import Any, Iterable, Mapping, Optional
@@ -189,6 +190,7 @@ def hopper():
         for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
     ]
     heatmap_kwargs["after_plot"] = horizontal_ticks
+    heatmap_kwargs["fmt"] = functools.partial(visualize.short_e, precision=0)
     del activities
 
 

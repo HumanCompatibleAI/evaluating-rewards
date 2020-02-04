@@ -349,7 +349,7 @@ def compute_mask(
     return res
 
 
-short_fmt = functools.partial(short_e, precision=0)
+short_fmt = functools.partial(short_e, precision=1)
 
 
 def compact_heatmaps(
