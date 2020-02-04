@@ -90,6 +90,7 @@ def large():
     styles = ["paper", "heatmap", "heatmap-2col", "tex"]
     heatmap_kwargs = {
         "fmt": visualize.short_e,
+        "cbar_kws": dict(fraction=0.05),
     }
     _ = locals()
     del _
