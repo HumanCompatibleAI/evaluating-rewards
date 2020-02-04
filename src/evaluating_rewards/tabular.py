@@ -19,6 +19,8 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from evaluating_rewards import rewards
+
 
 def random_state_only_reward(
     n_states: int, n_actions: int, rng: np.random.RandomState = np.random
@@ -120,33 +122,12 @@ def closest_potential(reward: np.ndarray, target: np.ndarray, discount: float) -
     return potential
 
 
-def closest_affine(reward: np.ndarray, target: np.ndarray) -> Tuple[float, float]:
-    """Finds the squared-error minimizing affine transform.
-
-    Args:
-        reward: the reward to transform.
-        target: the target to match.
-
-    Returns:
-        (shift, scale) such that (scale * reward + shift) has minimal squared-error from target.
-    """
-    reward = reward.flatten()
-    target = target.flatten()
-    # Find x such that [1; reward].dot(x) has least-squared error from target
-    # x corresponds to a shift and scaling parameter.
-    a_vals = np.stack([np.ones_like(reward), reward], axis=1)
-    coefs, _, _, _ = np.linalg.lstsq(a_vals, target, rcond=None)
-    assert coefs.shape == (2,)
-
-    return coefs
-
-
-def closest_reward_em(
+def closest_reward_am(
     source: np.ndarray, target: np.ndarray, n_iter: int = 100, discount: float = 0.99
 ) -> np.ndarray:
     """Finds the least squared-error reward to target that is equivalent to reward.
 
-    Alternates calls to `closest_potential` and `closest_affine`, in an EM-like approach.
+    Alternating minimization over `closest_potential` and `closest_affine`.
 
     Args:
         - source: the source reward.
@@ -161,8 +142,8 @@ def closest_reward_em(
     for _ in range(n_iter):
         potential = closest_potential(closest_reward, target, discount)
         closest_reward = shape(closest_reward, potential, discount)
-        shift, scale = closest_affine(closest_reward, target)
-        closest_reward = closest_reward * scale + shift
+        params = rewards.least_l2_affine(closest_reward.flatten(), target.flatten())
+        closest_reward = closest_reward * params.scale + params.shift
     return closest_reward
 
 

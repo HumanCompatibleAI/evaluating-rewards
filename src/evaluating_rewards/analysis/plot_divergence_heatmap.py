@@ -43,7 +43,6 @@ def default_config():
     data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
     search = {  # parameters to filter by in datasets
         "env_name": "evaluating_rewards/Hopper-v3",
-        "model_wrapper_kwargs": {},
     }
 
     # Figure parameters
@@ -85,15 +84,14 @@ def test():
 
 
 @plot_divergence_heatmap_ex.named_config
-def dataset_transition():
-    """Searches for comparisons using `random_transition_generator`."""
-    search = {  # noqa: F841  pylint:disable=unused-variable
-        "dataset_factory": {
-            "escape/py/function": (
-                "evaluating_rewards.experiments.datasets.random_transition_generator"
-            ),
-        },
+def large():
+    """Large output size, high precision."""
+    styles = ["paper", "heatmap", "heatmap-2col", "tex"]
+    heatmap_kwargs = {
+        "fmt": visualize.short_e,
     }
+    _ = locals()
+    del _
 
 
 def _norm(args: Iterable[str]) -> bool:
@@ -105,9 +103,6 @@ def point_mass():
     """Heatmaps for evaluating_rewards/PointMass* environments."""
     search = {  # noqa: F841  pylint:disable=unused-variable
         "env_name": "evaluating_rewards/PointMassLine-v0",
-        "dataset_factory": {
-            "escape/py/function": "evaluating_rewards.experiments.datasets.random_policy_generator",
-        },
     }
     heatmap_kwargs = {}
     heatmap_kwargs["masks"] = {

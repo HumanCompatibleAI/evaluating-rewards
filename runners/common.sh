@@ -23,12 +23,12 @@ function call_script {
 function learnt_model {
   if [[ $# -ne 1 ]]; then
     echo "usage: $0 <model prefix>"
-    echo "model prefix must be relative to ${OUTPUT_ROOT}"
+    echo "model prefix must be relative to ${EVAL_OUTPUT_ROOT}"
     exit 1
   fi
 
   model_prefix=$1
-  learnt_model_dir=${OUTPUT_ROOT}/${model_prefix}
+  learnt_model_dir=${EVAL_OUTPUT_ROOT}/${model_prefix}
 
   case ${model_prefix} in
   train_adversarial)
@@ -53,4 +53,6 @@ eval "$(${ENV_REWARD_CMD} 2>/dev/null)"
 ENVS="${!REWARDS_BY_ENV[@]}"
 echo "Loaded mappings for environments ${ENVS}"
 
-OUTPUT_ROOT=/mnt/eval_reward/data
+if [[ "${EVAL_OUTPUT_ROOT}" == "" ]]; then
+  EVAL_OUTPUT_ROOT=$HOME/output
+fi

@@ -20,11 +20,11 @@ TRAIN_CMD=$(call_script "train_adversarial" "with")
 
 for env in ${ENVS}; do
   env_sanitized=$(echo ${env} | sed -e 's/\//_/g')
-  parallel --header : --results $HOME/output/parallel/train_irl \
+  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/train_irl \
            ${TRAIN_CMD} env_name=${env} seed={seed} \
            init_trainer_kwargs.reward_kwargs.state_only={state_only} \
            rollout_path={data_path}/rollouts/final.pkl \
-           ::: data_path $HOME/output/expert_demos/${env_sanitized}/* \
+           ::: data_path ${EVAL_OUTPUT_ROOT}/expert_demos/${env_sanitized}/* \
            ::: state_only True False \
            ::: seed 0 1 2
 done

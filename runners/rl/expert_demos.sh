@@ -20,7 +20,7 @@ EXPERT_DEMOS_CMD=$(call_script "expert_demos" "with")
 
 for env_name in ${ENVS}; do
   types=${REWARDS_BY_ENV[$env_name]}
-  parallel --header : --results $HOME/output/parallel/expert_demos \
+  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/expert_demos \
            ${EXPERT_DEMOS_CMD} env_name=${env_name} \
            reward_type={type} seed={seed} \
            ::: type ${types} \

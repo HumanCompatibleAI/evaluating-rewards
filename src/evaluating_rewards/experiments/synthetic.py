@@ -178,8 +178,8 @@ def _compare_synthetic_eval(
             if model_affine:
                 final = matched.model_extra["affine"].get_weights()
             else:
-                final = rewards.AffineParameters(constant=0, scale=1.0)
-            final_constants[(rew_nm, pot_nm)] = final.constant
+                final = rewards.AffineParameters(shift=0, scale=1.0)
+            final_constants[(rew_nm, pot_nm)] = final.shift
             final_scales[(rew_nm, pot_nm)] = final.scale
 
     res = {
@@ -326,24 +326,25 @@ def compare_synthetic(
     sess.run(tf.global_variables_initializer())
 
     # Datasets
-    training_generator = dataset_generator(total_timesteps, batch_size)
-    test_set = next(dataset_generator(test_size, test_size))
+    test_set = dataset_generator(test_size)
 
     # Pre-train to initialize affine parameters
     initial_constants = {}
     initial_scales = {}
-    pretrain_set = next(dataset_generator(pretrain_size, pretrain_size))
+    pretrain_set = dataset_generator(pretrain_size)
     for key, matched in matchings.items():
         if model_affine and pretrain:
             logging.info(f"Pretraining {key}")
-            initial = matched.pretrain(pretrain_set)
+            initial = matched.fit_affine(pretrain_set)
         else:
-            initial = rewards.AffineParameters(constant=0, scale=1)
-        initial_constants[key] = initial.constant
+            initial = rewards.AffineParameters(shift=0, scale=1)
+        initial_constants[key] = initial.shift
         initial_scales[key] = initial.scale
 
     # Train potential shaping and other parameters
-    metrics = comparisons.fit_models(matchings, training_generator)
+    metrics = None
+    if total_timesteps > 0:
+        metrics = comparisons.fit_models(matchings, dataset_generator, total_timesteps, batch_size)
 
     return _compare_synthetic_eval(
         metrics=metrics,

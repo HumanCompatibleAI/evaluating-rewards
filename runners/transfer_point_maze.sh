@@ -36,7 +36,7 @@ if [[ ${fast} == "true" ]]; then
   REGRESS_TIMESTEPS="fast"
   COMPARISON_TIMESTEPS="fast"
   EVAL_TIMESTEPS=4096
-  PM_OUTPUT=${OUTPUT_ROOT}/transfer_point_maze_fast
+  PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze_fast
 else
   RL_TIMESTEPS=""
   IRL_EPOCHS=""
@@ -44,7 +44,7 @@ else
   REGRESS_TIMESTEPS=""
   COMPARISON_TIMESTEPS=""
   EVAL_TIMESTEPS=100000
-  PM_OUTPUT=${OUTPUT_ROOT}/transfer_point_maze
+  PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze
 fi
 
 
@@ -142,7 +142,7 @@ wait
 
 for env in ${ENVS}; do
   env_sanitized=$(echo ${env} | sed -e 's/\//_/g')
-  parallel --header : --results $HOME/output/parallel/learnt \
+  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/learnt \
            $(call_script "eval_policy" "with") render=False num_vec=8 \
            eval_n_timesteps=${EVAL_TIMESTEPS} policy_type=ppo2 env_name=${env} \
            reward_type=${TARGET_REWARD_TYPE} \

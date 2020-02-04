@@ -202,7 +202,7 @@ class HopperBackflipReward(MujocoHardcodedReward):
         observation_space: gym.Space,
         action_space: gym.Space,
         forward: bool = True,
-        ctrl_coef: float = 0.1,
+        ctrl_coef: float = 1e-2,
     ):
         """Constructs the reward model.
 

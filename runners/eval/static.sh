@@ -18,7 +18,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 POLICY_TYPES="random zero"
 
-parallel --header : --results $HOME/output/parallel/static \
+parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/static \
          ${EVAL_POLICY_CMD} env_name={env} policy_type={policy_type} \
          ::: env ${ENVS} \
          ::: policy_type ${POLICY_TYPES}

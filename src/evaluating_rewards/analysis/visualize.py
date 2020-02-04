@@ -62,6 +62,9 @@ LEVEL_NAMES = {
     "target_reward_path": "Target",
 }
 
+WHITELISTED_LEVELS = ["source_reward_type", "target_reward_type"]  # never remove these levels
+
+
 # Saving figures
 
 
@@ -123,7 +126,7 @@ def remove_constant_levels(index: pd.MultiIndex) -> pd.MultiIndex:
     index = index.copy()
     levels = index.names
     for level in levels:
-        if len(index.get_level_values(level).unique()) == 1:
+        if len(index.get_level_values(level).unique()) == 1 and level not in WHITELISTED_LEVELS:
             index = index.droplevel(level=level)
     return index
 

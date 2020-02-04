@@ -19,7 +19,6 @@ evaluating_rewards.util.
 """
 
 import logging
-import math
 
 import gym
 from imitation import util
@@ -39,13 +38,11 @@ def dummy_env_and_dataset(dims: int = 5):
     obs_space = gym.spaces.Box(low=np.repeat(0.0, dims), high=np.repeat(1.0, dims))
     act_space = gym.spaces.Box(low=np.repeat(0.0, dims), high=np.repeat(1.0, dims))
 
-    def dataset_generator(total_timesteps, batch_size):
-        nbatches = math.ceil(total_timesteps / batch_size)
-        for _ in range(nbatches):
-            obs = np.array([obs_space.sample() for _ in range(batch_size)])
-            actions = np.array([act_space.sample() for _ in range(batch_size)])
-            next_obs = (obs + actions).clip(0.0, 1.0)
-            yield rewards.Batch(obs=obs, actions=actions, next_obs=next_obs)
+    def dataset_generator(total_timesteps):
+        obs = np.array([obs_space.sample() for _ in range(total_timesteps)])
+        actions = np.array([act_space.sample() for _ in range(total_timesteps)])
+        next_obs = (obs + actions).clip(0.0, 1.0)
+        return rewards.Batch(obs=obs, actions=actions, next_obs=next_obs)
 
     return {
         "observation_space": obs_space,

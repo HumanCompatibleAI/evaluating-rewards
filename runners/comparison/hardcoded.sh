@@ -26,12 +26,18 @@ for env_name in "${!REWARDS_BY_ENV[@]}"; do
   types=${REWARDS_BY_ENV[$env_name]}
   env_name_sanitized=$(echo ${env_name} | sed -e 's/\//_/g')
   types_sanitized=$(echo ${types} | sed -e 's/\//_/g')
-  parallel --header : --results $HOME/output/parallel/comparison/hardcoded_mujoco \
-           ${TRAIN_CMD} env_name=${env_name} \
+
+  named_configs=""
+  if [[ ${env_name} == "evaluating_rewards/PointMassLine-v0" ]]; then
+    named_configs="dataset_random_transition"
+  fi
+
+  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/comparison/hardcoded_mujoco \
+           ${TRAIN_CMD} env_name=${env_name} ${named_configs} \
            seed={seed} \
            source_reward_type={source_reward_type} \
            target_reward_type={target_reward_type} \
-           log_dir=${HOME}/output/comparison/hardcoded/${env_name_sanitized}/{source_reward_type_sanitized}_vs_{target_reward_type_sanitized}_seed{seed} \
+           log_dir=${EVAL_OUTPUT_ROOT}/comparison/hardcoded/${env_name_sanitized}/{source_reward_type_sanitized}_vs_{target_reward_type_sanitized}_seed{seed} \
            ::: source_reward_type ${types} \
            :::+ source_reward_type_sanitized ${types_sanitized} \
            ::: target_reward_type ${types} \
