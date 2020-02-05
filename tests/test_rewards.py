@@ -90,6 +90,10 @@ GROUND_TRUTH = {
         "evaluating_rewards/Hopper-v3",
         "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
     ),
+    "point_mass": (
+        "evaluating_rewards/PointMassLine-v0",
+        "evaluating_rewards/PointMassGroundTruth-v0",
+    ),
     "point_maze": (
         "imitation/PointMazeLeftVel-v0",
         "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",

@@ -155,8 +155,8 @@ class PointMassGroundTruth(core.HardcodedReward):
 
     def build_reward(self):
         """Computes reward from observation and action in PointMass environment."""
-        pos = self._proc_obs[:, 0 : self.ndim]
-        goal = self._proc_obs[:, 2 * self.ndim : 3 * self.ndim]
+        pos = self._proc_next_obs[:, 0 : self.ndim]
+        goal = self._proc_next_obs[:, (2 * self.ndim) : (3 * self.ndim)]
         dist = tf.norm(pos - goal, axis=-1)
         ctrl_cost = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
         return -dist - self.ctrl_coef * ctrl_cost
