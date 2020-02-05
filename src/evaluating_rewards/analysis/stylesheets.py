@@ -32,8 +32,8 @@ STYLES = {
     "heatmap-2col": {
         "figure.figsize": (6.75, 5.0625),
         "figure.subplot.top": 0.99,
-        "figure.subplot.right": 0.93,
-        "figure.subplot.left": 0.06,
+        "figure.subplot.right": 0.92,
+        "figure.subplot.left": 0.08,
         "figure.subplot.bottom": 0.09,
     },
     "heatmap-1col": {

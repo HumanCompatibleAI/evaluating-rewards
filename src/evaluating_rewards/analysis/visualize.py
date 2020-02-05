@@ -219,11 +219,12 @@ def comparison_heatmap(
         mask = _heatmap_reformat(mask, preserve_order)
 
     data = np.log10(vals) if log else vals
-    cbar_kws = dict(cbar_kws or {})
-    if log:
-        cbar_kws.setdefault("label", r"$-\log_{10}(q)$")
-
     annot = vals.applymap(fmt)
+    cbar_kws = dict(cbar_kws or {})
+    label = "D(R_S, R_T)"
+    if log:
+        label = r"\log_{10}(" + label + ")"
+    cbar_kws.setdefault("label", f"${label}$")
 
     if robust:
         flat = data.values.flatten()
@@ -349,7 +350,7 @@ def compute_mask(
     return res
 
 
-short_fmt = functools.partial(short_e, precision=0)
+short_fmt = functools.partial(short_e, precision=1)
 
 
 def compact_heatmaps(
