@@ -82,21 +82,31 @@ REWARD_WRAPPERS = [
 ]
 
 GROUND_TRUTH = {
+    # id: (env_name, reward_name, absolute_tolerance)
     "half_cheetah": (
         "evaluating_rewards/HalfCheetah-v3",
         "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
+        5e-5,
     ),
     "hopper": (
         "evaluating_rewards/Hopper-v3",
         "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
+        5e-5,
+    ),
+    "lunar_lander": (
+        "evaluating_rewards/LunarLanderContinuous-v0",
+        "evaluating_rewards/LunarLanderContinuousGroundTruth-v0",
+        2e-4,
     ),
     "point_mass": (
         "evaluating_rewards/PointMassLine-v0",
         "evaluating_rewards/PointMassGroundTruth-v0",
+        5e-5,
     ),
     "point_maze": (
         "imitation/PointMazeLeftVel-v0",
         "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
+        5e-5,
     ),
 }
 
@@ -185,8 +195,10 @@ def test_serialize_identity_reward_net(helper_serialize_identity, use_test):
     return helper_serialize_identity(make_model)
 
 
-@pytest.mark.parametrize("env_name,reward_id", GROUND_TRUTH.values(), ids=list(GROUND_TRUTH.keys()))
-def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
+@pytest.mark.parametrize(
+    "env_name,reward_id,atol", GROUND_TRUTH.values(), ids=list(GROUND_TRUTH.keys())
+)
+def test_ground_truth_similar_to_gym(graph, session, venv, reward_id, atol):
     """Checks that reward models predictions match those of Gym reward."""
     # Generate rollouts, recording Gym reward
     policy = base.RandomPolicy(venv.observation_space, venv.action_space)
@@ -202,7 +214,7 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
         pred_reward = rewards.evaluate_models({"m": reward_model}, batch)["m"]
 
     # Are the predictions close to true Gym reward?
-    np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)
+    np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=atol)
 
 
 REWARD_LEN = 10000

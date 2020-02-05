@@ -1,4 +1,4 @@
-gym[mujoco]
+gym[box2d,mujoco]
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@e99844
 matplotlib
 numpy
