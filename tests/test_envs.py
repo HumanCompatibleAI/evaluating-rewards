@@ -18,8 +18,9 @@ Runs simple smoke tests against any environments registered starting with
 "evaluating_rewards/".
 """
 
+from benchmark_environments.testing import envs as bench_test
 import gym
-from imitation.testing import envs as test_envs
+from imitation.testing import envs as imitation_test
 import pytest
 
 from evaluating_rewards import envs  # noqa: F401 pylint:disable=unused-import
@@ -38,16 +39,22 @@ class TestEnvs:
     """Simple smoke tests for custom environments."""
 
     def test_seed(self, env, env_name):
-        test_envs.test_seed(env, env_name, DETERMINISTIC_ENVS)
+        bench_test.test_seed(env, env_name, DETERMINISTIC_ENVS)
 
-    def test_rollout(self, env):
-        test_envs.test_rollout(env)
+    def test_premature_step(self, env):
+        """Test that you must call reset() before calling step()."""
+        bench_test.test_premature_step(
+            env, skip_fn=pytest.skip, raises_fn=pytest.raises,
+        )
+
+    def test_rollout_schema(self, env):
+        bench_test.test_rollout_schema(env)
 
     def test_model_based(self, env):
         """Smoke test for each of the ModelBasedEnv methods with type checks."""
         if not hasattr(env, "state_space"):  # pragma: no cover
             pytest.skip("This test is only for subclasses of ModelBasedEnv.")
-        test_envs.test_model_based(env)
+        imitation_test.test_model_based(env)
 
 
 # pylint:enable=no-self-use

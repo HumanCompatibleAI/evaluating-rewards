@@ -17,7 +17,7 @@ import contextlib
 import copy
 from typing import Dict, Iterator, Tuple, TypeVar
 
-from imitation.testing import envs as test_envs
+from benchmark_environments.testing import envs as test_envs
 import pytest
 from stable_baselines.common import vec_env
 

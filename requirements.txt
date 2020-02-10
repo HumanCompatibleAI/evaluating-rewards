@@ -1,3 +1,4 @@
+benchmark-environments @ git+https://github.com/HumanCompatibleAI/benchmark-environments.git
 gym[mujoco]
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@e99844
 matplotlib
