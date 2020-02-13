@@ -54,7 +54,7 @@ REWARDS = {
         "state_reward": -SPARSE_GOAL,
         "potential": ZERO,
     },
-    "all_zero": {
+    "evaluating_rewards/Zero-v0": {
         # All zero reward function
         "state_reward": ZERO,
         "potential": ZERO,

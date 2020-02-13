@@ -85,6 +85,13 @@ def test():
 
 
 @plot_divergence_heatmap_ex.named_config
+def normalize():
+    heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
+        "normalize": True,
+    }
+
+
+@plot_divergence_heatmap_ex.named_config
 def large():
     """Large output size, high precision."""
     styles = ["paper", "heatmap", "heatmap-2col", "tex"]
