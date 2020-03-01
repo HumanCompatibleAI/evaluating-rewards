@@ -23,16 +23,7 @@ import tensorflow as tf
 from evaluating_rewards import serialize as reward_serialize
 from evaluating_rewards.envs import core
 
-
-def _potential(obs: tf.Tensor) -> tf.Tensor:
-    """Potential function used to compute shaping.
-
-    Based on `shaping` variable in `LunarLander.step()`.
-    """
-    leg_contact = obs[:, 6] + obs[:, 7]
-    l2 = tf.sqrt(tf.math.square(obs[:, 0]) + tf.math.square(obs[:, 1]))
-    l2 += tf.sqrt(tf.math.square(obs[:, 2]) + tf.math.square(obs[:, 3]))
-    return 10 * leg_contact - 100 * l2 - 100 * tf.abs(obs[:, 4])
+TERMINAL_POTENTIAL = -174  # chosen to be similar to initial potential value
 
 
 class LunarLanderContinuousObservable(lunar_lander.LunarLanderContinuous):
@@ -48,28 +39,77 @@ class LunarLanderContinuousObservable(lunar_lander.LunarLanderContinuous):
          (see https://box2d.org/documentation/md__d_1__git_hub_box2d_docs_dynamics.html).
     """
 
-    def __init__(self):
+    def __init__(self, time_limit: int = 1000, fix_shaping: bool = True):
         super().__init__()
-        self.observation_space = spaces.Box(-np.inf, np.inf, shape=(10,), dtype=np.float32)
+        self.observation_space = spaces.Box(-np.inf, np.inf, shape=(11,), dtype=np.float32)
+        self.fix_shaping = fix_shaping
+        self.time_remaining = None
+        self.time_limit = time_limit
 
     def step(self, action):
         prev_shaping = self.prev_shaping
+        self.time_remaining -= 1
         obs, rew, done, info = super().step(action)
-        shaping = self.prev_shaping
-        extra_obs = [1.0 if self.game_over else 0.0, 1.0 if self.lander.awake else 0.0]
+        time_up = self.time_remaining <= 0
+        extra_obs = [
+            1.0 if self.game_over else 0.0,
+            1.0 if self.lander.awake else 0.0,
+            1.0 if time_up else 0.0,
+        ]
         obs = np.concatenate((obs, extra_obs))
 
-        if done:
+        done = done | time_up
+        if done and self.fix_shaping:
             # Gym does not apply shaping or control cost to final reward.
             # No control cost is weird but harmless. No shaping is problematic though so we fix
             # it to satisfy Ng et al (1999)'s conditions.
-            rew += shaping - prev_shaping
+            # Take final state to always have potential TERMINAL_POTENTIAL.
+            # This constant doesn't actually effect RL policy, but makes reward look less odd.
+            rew += TERMINAL_POTENTIAL - prev_shaping
 
         return obs, rew, done, info
+
+    def reset(self):
+        self.time_remaining = self.time_limit + 1  # step() gets called once during reset
+        # NOTE: do not need to change observations here since super().reset() calls step()
+        return super().reset()
+
+
+def _potential(obs: tf.Tensor) -> tf.Tensor:
+    """Potential function used to compute shaping.
+
+    Based on `shaping` variable in `LunarLander.step()`.
+    """
+    leg_contact = obs[:, 6] + obs[:, 7]
+    l2 = tf.sqrt(tf.math.square(obs[:, 0]) + tf.math.square(obs[:, 1]))
+    l2 += tf.sqrt(tf.math.square(obs[:, 2]) + tf.math.square(obs[:, 3]))
+    return 10 * leg_contact - 100 * l2 - 100 * tf.abs(obs[:, 4])
 
 
 class LunarLanderContinuousGroundTruthReward(core.HardcodedReward):
     """Reward for LunarLanderContinuousObservable. Matches ground truth with default settings."""
+
+    def __init__(
+        self,
+        observation_space: spaces.Space,
+        action_space: spaces.Space,
+        ctrl_coef: float = 1.0,
+        shaping_coef: float = 1.0,
+    ):
+        """Constructs the reward model.
+
+        Args:
+            observation_space: The observation space of the environment.
+            action_space: The action space of the environment.
+            ctrl_coef: Multiplier for the control cost. 1.0 equals ground truth; 0.0 disables.
+            shaping_coef: Multiplier for potential shaping. 1.0 equals ground truth; 0.0 disables.
+        """
+        super().__init__(
+            observation_space=observation_space,
+            action_space=action_space,
+            ctrl_coef=ctrl_coef,
+            shaping_coef=shaping_coef,
+        )
 
     def build_reward(self) -> tf.Tensor:
         """Intended to match the reward returned by gym.LunarLander.
@@ -84,7 +124,9 @@ class LunarLanderContinuousGroundTruthReward(core.HardcodedReward):
         # Sparse reward
         game_over = (tf.abs(self._proc_next_obs[:, 0]) >= 1.0) | (self._proc_next_obs[:, 8] > 0)
         landed_safely = self._proc_next_obs[:, 9] == 0.0
-        done = game_over | landed_safely
+        time_up = self._proc_next_obs[:, 10] == 0.0
+        done = game_over | landed_safely | time_up
+        # Note time out is neither penalized nor rewarded by sparse_reward
         sparse_reward = -100.0 * tf.cast(game_over, tf.float32)
         sparse_reward += 100.0 * tf.cast(landed_safely, tf.float32)
 
@@ -103,12 +145,24 @@ class LunarLanderContinuousGroundTruthReward(core.HardcodedReward):
         # Shaping
         # Note this assumes no discount (matching Gym implementation), which will make it
         # not *quite* potential shaping for any RL algorithm using discounting.
-        shaping = _potential(self._proc_next_obs) - _potential(self._proc_obs)
+        shaping = (1 - tf.cast(done, tf.float32)) * _potential(self._proc_next_obs)
+        shaping += TERMINAL_POTENTIAL * tf.cast(done, tf.float32)
+        shaping -= _potential(self._proc_obs)
 
-        return sparse_reward + shaping + ctrl_cost
+        return sparse_reward + self.shaping_coef * shaping + self.ctrl_coef * ctrl_cost
 
 
-reward_serialize.reward_registry.register(
-    key="evaluating_rewards/LunarLanderContinuousGroundTruth-v0",
-    value=registry.build_loader_fn_require_space(LunarLanderContinuousGroundTruthReward),
-)
+def _register_rewards():
+    density = {"Dense": {}, "Sparse": {"shaping_coef": 0.0}}
+    control = {"WithCtrl": {}, "NoCtrl": {"ctrl_coef": 0.0}}
+    for k1, cfg1 in density.items():
+        for k2, cfg2 in control.items():
+            fn = registry.build_loader_fn_require_space(
+                LunarLanderContinuousGroundTruthReward, **cfg1, **cfg2,
+            )
+            reward_serialize.reward_registry.register(
+                key=f"evaluating_rewards/LunarLanderContinuous{k1}{k2}-v0", value=fn,
+            )
+
+
+_register_rewards()

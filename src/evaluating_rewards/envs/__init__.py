@@ -82,6 +82,11 @@ register_mujoco()
 gym.register(
     id="evaluating_rewards/LunarLanderContinuous-v0",
     entry_point=f"{PROJECT_ROOT}.lunar_lander:LunarLanderContinuousObservable",
-    max_episode_steps=1000,
+    reward_threshold=200,
+)
+gym.register(
+    id="evaluating_rewards/LunarLanderContinuousOriginalShaping-v0",
+    entry_point=f"{PROJECT_ROOT}.lunar_lander:LunarLanderContinuousObservable",
+    kwargs=dict(fix_shaping=False),
     reward_threshold=200,
 )
