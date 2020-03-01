@@ -48,7 +48,6 @@ TRANSFORMATIONS = {
     "transformed_goal": r"\\densegoal{}",
     "center_goal": r"\\centergoal{}",
     "sparse_penalty": r"\\sparsepenalty{}",
-    "all_zero": r"\\zeroreward{}",
     "dirt_path": r"\\dirtpath{}",
     "cliff_walk": r"\\cliffwalk{}",
 }
@@ -63,7 +62,7 @@ LEVEL_NAMES = {
 }
 
 WHITELISTED_LEVELS = ["source_reward_type", "target_reward_type"]  # never remove these levels
-
+ZERO_REWARD = "evaluating_rewards/Zero-v0"
 
 # Saving figures
 
@@ -182,6 +181,12 @@ def _heatmap_reformat(series, preserve_order):
     return df
 
 
+def _drop_zero_reward(s: pd.Series) -> pd.Series:
+    """Exclude rows for Zero source reward type."""
+    zero_source = s.index.get_level_values("source_reward_type") == ZERO_REWARD
+    return s[~zero_source]
+
+
 def comparison_heatmap(
     vals: pd.Series,
     ax: plt.Axes,
@@ -191,6 +196,7 @@ def comparison_heatmap(
     cmap: str = "GnBu",
     robust: bool = False,
     preserve_order: bool = False,
+    normalize: bool = False,
     mask: Optional[pd.Series] = None,
     **kwargs,
 ) -> None:
@@ -206,24 +212,35 @@ def comparison_heatmap(
         fmt: format string for annotated values.
         cmap: color map.
         robust: If true, set vmin and vmax to 25th and 75th quantiles.
-                This makes the color scale robust to outliers, but will compress it
-                more than is desirable if the data does not contain outliers.
-        preserve_order: If true, retains the same order as the input index
-                after rewriting the index values for readability. If false,
-                sorts the rewritten values alphabetically.
+            This makes the color scale robust to outliers, but will compress it
+            more than is desirable if the data does not contain outliers.
+        preserve_order: If True, retains the same order as the input index
+            after rewriting the index values for readability. If false,
+            sorts the rewritten values alphabetically.
+        normalize: If True, divides by distance from Zero reward to target, rescaling
+            all values between 0 and 1. (Values may exceed 1 due to optimisation error.)
         mask: If provided, only display cells where mask is True.
         **kwargs: passed through to sns.heatmap.
     """
+    if normalize:
+        vals = vals / vals.loc[ZERO_REWARD]
+        vals = _drop_zero_reward(vals)
+        if mask is not None:
+            mask = _drop_zero_reward(mask)
+
     vals = _heatmap_reformat(vals, preserve_order)
     if mask is not None:
         mask = _heatmap_reformat(mask, preserve_order)
 
     data = np.log10(vals) if log else vals
-    cbar_kws = dict(cbar_kws or {})
-    if log:
-        cbar_kws.setdefault("label", r"$-\log_{10}(q)$")
-
     annot = vals.applymap(fmt)
+    cbar_kws = dict(cbar_kws or {})
+
+    label = r"D_{\mathrm{norm}}" if normalize else "D"
+    label += "(R_S, R_T)"
+    if log:
+        label = r"\log_{10}(" + label + ")"
+    cbar_kws.setdefault("label", f"${label}$")
 
     if robust:
         flat = data.values.flatten()
@@ -250,7 +267,7 @@ def compact(series: pd.Series) -> pd.Series:
     series = median_seeds(series)
     if "target_reward_type" in series.index.names:
         targets = series.index.get_level_values("target_reward_type")
-        series = series.loc[targets != "evaluating_rewards/Zero-v0"]
+        series = series.loc[targets != ZERO_REWARD]
     return series
 
 
@@ -282,7 +299,7 @@ def match(pattern: str) -> Callable[[Iterable[str]], Iterable[bool]]:
 
 def zero(args: Iterable[str]) -> bool:
     """Are any of the arguments the Zero reward function."""
-    return any(arg == "evaluating_rewards/Zero-v0" for arg in args)
+    return any(arg == ZERO_REWARD for arg in args)
 
 
 def control(args: Iterable[str]) -> bool:
@@ -349,7 +366,7 @@ def compute_mask(
     return res
 
 
-short_fmt = functools.partial(short_e, precision=0)
+short_fmt = functools.partial(short_e, precision=1)
 
 
 def compact_heatmaps(
@@ -386,10 +403,9 @@ def compact_heatmaps(
     loss = compact(loss)
 
     source_order = list(order)
-    zero_type = "evaluating_rewards/Zero-v0"
-    if zero_type in loss.index.get_level_values("source_reward_type"):
-        if zero_type not in source_order:
-            source_order.append(zero_type)
+    if ZERO_REWARD in loss.index.get_level_values("source_reward_type"):
+        if ZERO_REWARD not in source_order:
+            source_order.append(ZERO_REWARD)
     loss = loss.reindex(index=source_order, level="source_reward_type")
     loss = loss.reindex(index=order, level="target_reward_type")
 

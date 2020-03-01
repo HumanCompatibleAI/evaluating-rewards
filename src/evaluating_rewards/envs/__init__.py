@@ -52,7 +52,7 @@ def register_similar(existing_name: str, new_name: str, **kwargs_delta):
         **kwargs_delta: Arguments to override the specification from existing_id.
     """
     existing_spec = gym.spec(existing_name)
-    fields = ["entry_point", "reward_threshold", "nondeterministic", "tags", "max_episode_steps"]
+    fields = ["entry_point", "reward_threshold", "nondeterministic", "max_episode_steps"]
     kwargs = {k: getattr(existing_spec, k) for k in fields}
     kwargs["kwargs"] = existing_spec._kwargs  # pylint:disable=protected-access
     kwargs.update(**kwargs_delta)

@@ -1,5 +1,7 @@
-gym[box2d,mujoco]
+benchmark-environments @ git+https://github.com/HumanCompatibleAI/benchmark-environments.git
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@e99844
+stable-baselines @ git+https://github.com/hill-a/stable-baselines.git
+gym[box2d,mujoco]
 matplotlib
 numpy
 pandas
@@ -7,7 +9,6 @@ pymdptoolbox
 seaborn
 setuptools
 scipy
-stable-baselines @ git+https://github.com/hill-a/stable-baselines.git
 #TODO(adam): upgrade to 1.15?
 tensorflow>=1.13,<1.14
 xarray

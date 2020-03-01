@@ -62,6 +62,13 @@ def test():
 
 
 @plot_gridworld_divergence_ex.named_config
+def normalize():
+    heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
+        "normalize": True,
+    }
+
+
+@plot_gridworld_divergence_ex.named_config
 def paper():
     """Figure for paper appendix."""
     reward_subset = [
@@ -71,7 +78,7 @@ def paper():
         "sparse_penalty",
         "dirt_path",
         "cliff_walk",
-        "all_zero",
+        "evaluating_rewards/Zero-v0",
     ]
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "order": reward_subset,
@@ -151,7 +158,7 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float) -> pd.Series
     divergence = collections.defaultdict(dict)
     for src_name, src_reward in rewards.items():
         for target_name, target_reward in rewards.items():
-            if target_name == "all_zero":
+            if target_name == "evaluating_rewards/Zero-v0":
                 continue
             closest_reward = tabular.closest_reward_am(
                 src_reward, target_reward, n_iter=1000, discount=discount
