@@ -8,5 +8,6 @@ seaborn
 setuptools
 scipy
 stable-baselines @ git+https://github.com/hill-a/stable-baselines.git
+#TODO(adam): upgrade to 1.15?
 tensorflow>=1.13,<1.14
 xarray

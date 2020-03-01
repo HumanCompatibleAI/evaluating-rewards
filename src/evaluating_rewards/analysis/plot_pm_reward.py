@@ -68,7 +68,7 @@ script_utils.add_logging_config(plot_pm_reward_ex, "plot_pm_reward")
 
 @plot_pm_reward_ex.config
 def logging_config(log_root, models, reward_type, reward_path):
-    data_root = os.path.join(log_root, "model_comparison")
+    data_root = os.path.join(serialize.get_output_dir(), "model_comparison")
     if models is None:
         log_dir = os.path.join(
             log_root, reward_type.replace("/", "_"), reward_path.replace("/", "_")
