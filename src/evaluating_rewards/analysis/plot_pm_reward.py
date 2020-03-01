@@ -101,9 +101,9 @@ def dense_no_ctrl_sparsified():
     pos_lim = 0.15
     # Use lists of tuples rather than OrderedDict as Sacred reorders dictionaries
     models = [
-        ("Dense", "evaluating_rewards/PointMassDenseNoCtrl-v0", "dummy"),
+        ("Dense\n(Manual)", "evaluating_rewards/PointMassDenseNoCtrl-v0", "dummy"),
         (
-            "Sparsified",
+            "Sparsified\n(Learned)",
             "evaluating_rewards/RewardModel-v0",
             os.path.join(
                 "evaluating_rewards_PointMassLine-v0",
@@ -111,7 +111,7 @@ def dense_no_ctrl_sparsified():
                 "model",
             ),
         ),
-        ("Sparse", "evaluating_rewards/PointMassSparseNoCtrl-v0", "dummy"),
+        ("Sparse\n(Manual)", "evaluating_rewards/PointMassSparseNoCtrl-v0", "dummy"),
     ]
     _ = locals()  # quieten flake8 unused variable warning
     del _
