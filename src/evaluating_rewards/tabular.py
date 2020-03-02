@@ -147,6 +147,81 @@ def closest_reward_am(
     return closest_reward
 
 
+def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
+    mean = np.average(x, weights=weights)
+    return x - mean
+
+
+def pearson_distance(
+    rewa: np.ndarray, rewb: np.ndarray, dist: Optional[np.ndarray] = None
+) -> float:
+    """Computes pseudometric derived from the Pearson correlation coefficient.
+
+    It is invariant to positive affine transformations like the Pearson correlation coefficient.
+
+    Args:
+        rewa: One three-dimensional reward array.
+        rewb: One three-dimensional reward array.
+        dist: Optionally, a probability distribution of the same shape as rewa and rewb.
+
+    Returns:
+        Computes the Pearson correlation coefficient rho, optionally weighted by dist.
+        Returns the square root of 1 minus rho.
+    """
+    if dist is None:
+        dist = np.ones_like(rewa) / np.product(rewa.shape)
+
+    assert rewa.shape == rewb.shape
+    assert rewa.shape == dist.shape
+    assert np.allclose(np.sum(dist), 1)
+    assert np.all(dist >= 0)
+
+    dist = dist.flatten()
+    rewa = _center(rewa.flatten(), dist)
+    rewb = _center(rewb.flatten(), dist)
+
+    vara = np.average(np.square(rewa), weights=dist)
+    varb = np.average(np.square(rewb), weights=dist)
+    cov = np.average(rewa * rewb, weights=dist)
+    corr = cov / (np.sqrt(vara) * np.sqrt(varb))
+
+    return np.sqrt(1 - corr)
+
+
+def asymmetric_distance(
+    source: np.ndarray, target: np.ndarray, dist: Optional[np.ndarray] = None, **kwargs
+) -> float:
+    """Minimal Pearson distance over rewards equivalent to source. This is a premetric.
+
+    Args:
+        source: The three-dimensional source reward array.
+        target: The three-dimensional target reward array.
+        dist: Optionally, a probability distribution of the same shape as source and target.
+        **kwargs: Passed through to `closest_reward_am`.
+
+    Returns:
+        The minimal distance to target over rewards equivalent to source.
+    """
+    source_matched = closest_reward_am(source, target, **kwargs)
+    return pearson_distance(source_matched, target, dist)
+
+
+def symmetric_distance(rewa: np.ndarray, rewb: np.ndarray, **kwargs) -> float:
+    """Symmetric version of `asymmetric_distance`. This is a pseudosemimetric.
+
+    Args:
+        rewa: One three-dimensional reward array.
+        rewb: One three-dimensional reward array.
+        **kwargs: Passed through to `asymmetric_distance`.
+
+    Returns:
+         The mean of `asymmetric_distance` from `rewa` to `rewb` and `rewb` to `rewa`.
+    """
+    dista = asymmetric_distance(rewa, rewb, **kwargs)
+    distb = asymmetric_distance(rewb, rewa, **kwargs)
+    return 0.5 * (dista + distb)
+
+
 def direct_sq_divergence(source: np.ndarray, target: np.ndarray) -> float:
     """Direct divergence over uniform transition distribution with squared-error loss."""
     return np.linalg.norm(source - target) / np.product(source.shape)
