@@ -160,20 +160,28 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
                 continue
             xlen, ylen = reward_cfg[src_name]["state_reward"].shape
             dist = build_dist(src_reward, xlen, ylen)
-            diva = tabular.asymmetric_distance(src_reward, target_reward, dist=dist)
-            divb = tabular.asymmetric_distance(target_reward, src_reward, dist=dist)
 
             if kind == "direct_divergence":
-                closest_reward = tabular.closest_reward_am(
-                    src_reward, target_reward, n_iter=1000, discount=discount
+                div = tabular.epic_distance(
+                    src_reward, target_reward, dist=dist, n_iter=1000, discount=discount
                 )
-                div = tabular.direct_sq_divergence(src_reward * dist, closest_reward * dist)
             elif kind == "asymmetric":
-                div = diva
-            elif kind == "symmetric":
-                div = 0.5 * diva + 0.5 * divb
-            elif kind == "symmetric_min":
-                div = min(diva, divb)
+                div = tabular.asymmetric_distance(
+                    src_reward, target_reward, dist=dist, n_iter=1000, discount=discount
+                )
+            elif kind in ["symmetric", "symmetric_min"]:
+                diva = tabular.asymmetric_distance(
+                    src_reward, target_reward, dist=dist, n_iter=1000, discount=discount
+                )
+                divb = tabular.asymmetric_distance(
+                    target_reward, src_reward, dist=dist, n_iter=1000, discount=discount
+                )
+                if kind == "symmetric":
+                    div = 0.5 * diva + 0.5 * divb
+                else:
+                    div = min(diva, divb)
+            else:
+                raise ValueError(f"Unrecognized kind '{kind}'")
 
             divergence[target_name][src_name] = div
     divergence = pd.DataFrame(divergence)

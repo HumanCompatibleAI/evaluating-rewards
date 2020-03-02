@@ -147,6 +147,30 @@ def closest_reward_am(
     return closest_reward
 
 
+def _check_rews_dist(rewa: np.ndarray, rewb: np.ndarray, dist: np.ndarray) -> None:
+    assert rewa.shape == rewb.shape
+    assert rewa.shape == dist.shape
+    assert np.allclose(np.sum(dist), 1)
+    assert np.all(dist >= 0)
+
+
+def direct_sq_divergence(rewa: np.ndarray, rewb: np.ndarray, dist: Optional[np.ndarray]) -> float:
+    """Direct divergence over uniform transition distribution with squared-error loss."""
+    if dist is None:
+        dist = np.ones_like(rewa) / np.product(rewa.shape)
+    _check_rews_dist(rewa, rewb, dist)
+    squared_error = np.square(rewa - rewb)
+    weighted_sse = np.sum(squared_error * dist)
+    return np.sqrt(weighted_sse)
+
+
+def epic_distance(
+    src_reward: np.ndarray, target_reward: np.ndarray, dist: Optional[np.ndarray] = None, **kwargs
+) -> float:
+    closest = closest_reward_am(src_reward, target_reward, **kwargs)
+    return direct_sq_divergence(closest, target_reward, dist)
+
+
 def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
     mean = np.average(x, weights=weights)
     return x - mean
@@ -170,11 +194,7 @@ def pearson_distance(
     """
     if dist is None:
         dist = np.ones_like(rewa) / np.product(rewa.shape)
-
-    assert rewa.shape == rewb.shape
-    assert rewa.shape == dist.shape
-    assert np.allclose(np.sum(dist), 1)
-    assert np.all(dist >= 0)
+    _check_rews_dist(rewa, rewb, dist)
 
     dist = dist.flatten()
     rewa = _center(rewa.flatten(), dist)
@@ -220,11 +240,6 @@ def symmetric_distance(rewa: np.ndarray, rewb: np.ndarray, **kwargs) -> float:
     dista = asymmetric_distance(rewa, rewb, **kwargs)
     distb = asymmetric_distance(rewb, rewa, **kwargs)
     return 0.5 * (dista + distb)
-
-
-def direct_sq_divergence(source: np.ndarray, target: np.ndarray) -> float:
-    """Direct divergence over uniform transition distribution with squared-error loss."""
-    return np.linalg.norm(source - target) / np.product(source.shape)
 
 
 def summary_comparison(
