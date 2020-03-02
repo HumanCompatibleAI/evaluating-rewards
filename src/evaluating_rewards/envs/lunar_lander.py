@@ -40,11 +40,12 @@ class LunarLanderContinuousObservable(lunar_lander.LunarLanderContinuous):
     """
 
     def __init__(self, time_limit: int = 1000, fix_shaping: bool = True):
+        # Need to set self.time_limit before super().__init__() since __init__() calls reset()
+        self.time_limit = time_limit
         super().__init__()
         self.observation_space = spaces.Box(-np.inf, np.inf, shape=(11,), dtype=np.float32)
         self.fix_shaping = fix_shaping
         self.time_remaining = None
-        self.time_limit = time_limit
 
     def step(self, action):
         prev_shaping = self.prev_shaping
