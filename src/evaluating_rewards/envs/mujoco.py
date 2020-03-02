@@ -12,63 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Reward functions for Gym environments."""
-
-import abc
+"""Reward functions for Gym MuJoCo environments."""
 
 import gym
-from imitation.util import registry, serialize
+from imitation.util import registry
 import numpy as np
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import rewards
 from evaluating_rewards import serialize as reward_serialize
+from evaluating_rewards.envs import core
 
 
-class MujocoHardcodedReward(rewards.BasicRewardModel, serialize.LayersSerializable):
-    """Hardcoded (non-trainable) reward model for a MuJoCo environment."""
-
-    def __init__(self, observation_space: gym.Space, action_space: gym.Space, **kwargs):
-        """Constructs the reward model.
-
-        Args:
-            observation_space: The observation space of the environment.
-            action_space: The action space of the environment.
-            **kwargs: Extra parameters to serialize and store in the instance,
-                    accessible as attributes.
-        """
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
-        serialize.LayersSerializable.__init__(
-            self,
-            layers={},
-            observation_space=observation_space,
-            action_space=action_space,
-            **kwargs,
-        )
-        self._reward = self.build_reward()
-
-    def __getattr__(self, name):
-        try:
-            return self._kwargs[name]
-        except KeyError:
-            raise AttributeError(f"Attribute '{name}' not present in self._kwargs")
-
-    @abc.abstractmethod
-    def build_reward(self) -> tf.Tensor:
-        """Computes reward from observation, action and next observation.
-
-        Returns:
-            A tensor containing reward, shape (batch_size,).
-        """
-
-    @property
-    def reward(self):
-        """Reward tensor, shape (batch_size,)."""
-        return self._reward
-
-
-class HalfCheetahGroundTruthReward(MujocoHardcodedReward):
+class HalfCheetahGroundTruthReward(core.HardcodedReward):
     """Reward for HalfCheetah-v2. Matches ground truth with default settings."""
 
     def __init__(
@@ -119,7 +75,7 @@ class HalfCheetahGroundTruthReward(MujocoHardcodedReward):
         return reward
 
 
-class HopperGroundTruthReward(MujocoHardcodedReward):
+class HopperGroundTruthReward(core.HardcodedReward):
     """Reward for Hopper-v2. Matches ground truth with default settings."""
 
     def __init__(
@@ -190,7 +146,7 @@ class HopperGroundTruthReward(MujocoHardcodedReward):
         return reward
 
 
-class HopperBackflipReward(MujocoHardcodedReward):
+class HopperBackflipReward(core.HardcodedReward):
     """Reward for Hopper-v2 to make it do a backflip, rather than hop forward.
 
     Based on reward function in footnote of:
@@ -248,7 +204,7 @@ class HopperBackflipReward(MujocoHardcodedReward):
         return reward
 
 
-class PointMazeReward(MujocoHardcodedReward):
+class PointMazeReward(core.HardcodedReward):
     """Reward for imitation/PointMaze{Left,Right}Vel-v0.
 
     This in turn is based on on Fu et al (2018)'s PointMaze environment:

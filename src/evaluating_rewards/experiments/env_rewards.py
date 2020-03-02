@@ -22,6 +22,9 @@ from evaluating_rewards import serialize
 REWARDS_BY_ENV = {
     "evaluating_rewards/HalfCheetah-v3": ["evaluating_rewards/HalfCheetahGroundTruth.*-v0"],
     "evaluating_rewards/Hopper-v3": ["evaluating_rewards/Hopper.*-v0"],
+    "evaluating_rewards/LunarLanderContinuous-v0": [
+        "evaluating_rewards/LunarLanderContinuous.*-v0"
+    ],
     "evaluating_rewards/PointMassLine-v0": ["evaluating_rewards/PointMass.*-v0"],
     "imitation/PointMazeLeftVel-v0": ["evaluating_rewards/PointMaze.*-v0"],
     "imitation/PointMazeRightVel-v0": ["evaluating_rewards/PointMaze.*-v0"],

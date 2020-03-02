@@ -17,7 +17,11 @@
 import gym
 import imitation.envs.examples  # noqa: F401  pylint:disable=unused-import
 
-from evaluating_rewards.envs import mujoco, point_mass  # noqa: F401  pylint:disable=unused-import
+from evaluating_rewards.envs import (  # noqa: F401  pylint:disable=unused-import
+    lunar_lander,
+    mujoco,
+    point_mass,
+)
 
 PROJECT_ROOT = "evaluating_rewards.envs"
 PM_ROOT = f"{PROJECT_ROOT}.point_mass"
@@ -74,3 +78,15 @@ def register_mujoco():
 
 
 register_mujoco()
+
+gym.register(
+    id="evaluating_rewards/LunarLanderContinuous-v0",
+    entry_point=f"{PROJECT_ROOT}.lunar_lander:LunarLanderContinuousObservable",
+    reward_threshold=200,
+)
+gym.register(
+    id="evaluating_rewards/LunarLanderContinuousOriginalShaping-v0",
+    entry_point=f"{PROJECT_ROOT}.lunar_lander:LunarLanderContinuousObservable",
+    kwargs=dict(fix_shaping=False),
+    reward_threshold=200,
+)

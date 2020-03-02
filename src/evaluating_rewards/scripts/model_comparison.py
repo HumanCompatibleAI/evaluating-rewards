@@ -83,6 +83,14 @@ def alternating_maximization():
 
 
 @model_comparison_ex.named_config
+def undiscounted():
+    """Undiscounted potential shaping."""
+    comparison_kwargs = {  # noqa: F841  pylint:disable=unused-variable
+        "model_wrapper": functools.partial(comparisons.equivalence_model_wrapper, discount=1.0),
+    }
+
+
+@model_comparison_ex.named_config
 def affine_only():
     """Equivalence class consists of just affine transformations."""
     comparison_kwargs = {  # noqa: F841  pylint:disable=unused-variable

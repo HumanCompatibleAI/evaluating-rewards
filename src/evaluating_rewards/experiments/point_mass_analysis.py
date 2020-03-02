@@ -57,7 +57,16 @@ def plot_reward(rew: xarray.DataArray, cmap: str = "RdBu", **kwargs) -> plt.Figu
         )
         # By default xarray ignores figsize and does its own size calculation. Override.
         figsize = mpl.rcParams.get("figure.figsize")
-        facet = rew.plot(x="Accel.", y="Velocity", col="Pos.", cmap=cmap, figsize=figsize, **kwargs)
+        facet = rew.plot(
+            x="Accel.",
+            y="Velocity",
+            col="Pos.",
+            cmap=cmap,
+            figsize=figsize,
+            linewidth=0.1,
+            edgecolor="k",
+            **kwargs,
+        )
 
         if "row" in kwargs:
             # xarray adds row labels in a hard-to-spot far-right side.

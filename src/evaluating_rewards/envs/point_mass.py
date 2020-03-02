@@ -19,13 +19,14 @@ from typing import Optional
 import gym
 from imitation.envs import resettable_env
 from imitation.policies import serialize as policy_serialize
-from imitation.util import registry, serialize
+from imitation.util import registry
 import numpy as np
 from stable_baselines.common import policies
 import tensorflow as tf
 
 from evaluating_rewards import rewards
 from evaluating_rewards import serialize as reward_serialize
+from evaluating_rewards.envs import core
 
 
 class PointMassEnv(resettable_env.ResettableEnv):
@@ -140,36 +141,28 @@ class PointMassEnv(resettable_env.ResettableEnv):
             self.viewer = None
 
 
-class PointMassGroundTruth(rewards.BasicRewardModel, serialize.LayersSerializable):
+class PointMassGroundTruth(core.HardcodedReward):
     """RewardModel representing the true (dense) reward in PointMass."""
 
     def __init__(
         self, observation_space: gym.Space, action_space: gym.Space, ctrl_coef: float = 1.0
     ):
-        serialize.LayersSerializable.__init__(**locals(), layers={})
-
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
-        self.ctrl_coef = ctrl_coef
-
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
-        self._reward = self.build_reward()
+        super().__init__(
+            observation_space=observation_space, action_space=action_space, ctrl_coef=ctrl_coef
+        )
 
     def build_reward(self):
         """Computes reward from observation and action in PointMass environment."""
-        pos = self._proc_obs[:, 0 : self.ndim]
-        goal = self._proc_obs[:, 2 * self.ndim : 3 * self.ndim]
+        pos = self._proc_next_obs[:, 0 : self.ndim]
+        goal = self._proc_next_obs[:, (2 * self.ndim) : (3 * self.ndim)]
         dist = tf.norm(pos - goal, axis=-1)
         ctrl_cost = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
         return -dist - self.ctrl_coef * ctrl_cost
 
-    @property
-    def reward(self):
-        """Reward tensor."""
-        return self._reward
 
-
-class PointMassSparseReward(rewards.BasicRewardModel, serialize.LayersSerializable):
+class PointMassSparseReward(core.HardcodedReward):
     """A sparse reward for the point mass being close to the goal.
 
     Should produce similar behavior to PointMassGroundTruth. However, it is not
@@ -195,16 +188,15 @@ class PointMassSparseReward(rewards.BasicRewardModel, serialize.LayersSerializab
                     The larger this is, the more dissimilar the reward model and resulting
                     policy will be from PointMassGroundTruth.
         """
-        serialize.LayersSerializable.__init__(**locals(), layers={})
-
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
-        self.ctrl_coef = ctrl_coef
-        self.threshold = threshold
-        self.goal_offset = goal_offset
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
-
-        self._reward = self.build_reward()
+        super().__init__(
+            observation_space=observation_space,
+            action_space=action_space,
+            ctrl_coef=ctrl_coef,
+            threshold=threshold,
+            goal_offset=goal_offset,
+        )
 
     def build_reward(self):
         """Computes reward from observation and action in PointMass environment."""
@@ -217,23 +209,14 @@ class PointMassSparseReward(rewards.BasicRewardModel, serialize.LayersSerializab
         ctrl_cost = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
         return goal_reward - self.ctrl_coef * ctrl_cost
 
-    @property
-    def reward(self):
-        """Reward tensor."""
-        return self._reward
 
-
-class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
+class PointMassShaping(core.HardcodedReward):
     """Potential shaping term, based on distance to goal."""
 
     def __init__(self, observation_space: gym.Space, action_space: gym.Space):
-        serialize.LayersSerializable.__init__(**locals(), layers={})
-
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
-
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
-        self._reward = self.build_reward()
+        super().__init__(observation_space=observation_space, action_space=action_space)
 
     def build_reward(self):
         """Computes shaping from current and next observations."""
@@ -247,11 +230,6 @@ class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
         new_dist = dist(self._proc_next_obs)
 
         return old_dist - new_dist
-
-    @property
-    def reward(self):
-        """Reward tensor."""
-        return self._reward
 
 
 class PointMassDenseReward(rewards.LinearCombinationModelWrapper):

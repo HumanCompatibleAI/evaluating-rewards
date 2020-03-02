@@ -15,8 +15,42 @@
 """Thin wrapper around imitation.scripts.expert_demos."""
 
 from imitation.scripts import expert_demos
+import stable_baselines
 
 from evaluating_rewards.scripts import script_utils
+
+
+@expert_demos.expert_demos_ex.named_config
+def lunar_lander():
+    """PPO on LunarLander"""
+    env_name = "evaluating_rewards/LunarLanderContinuous-v0"
+    # Hyperparams from https://github.com/araffin/rl-baselines-zoo/blob/master/hyperparams/ppo2.yml
+    num_vec = 16
+    init_rl_kwargs = dict(
+        n_steps=1024, nminibatches=32, lam=0.98, gamma=0.999, noptepochs=4, ent_coef=0.01,
+    )
+    _ = locals()
+    del _
+
+
+@expert_demos.expert_demos_ex.named_config
+def lunar_lander_sac():
+    """SAC on LunarLander"""
+    env_name = "evaluating_rewards/LunarLanderContinuous-v0"
+    # Hyperparams from https://github.com/araffin/rl-baselines-zoo/blob/master/hyperparams/sac.yml
+    num_vec = 1
+    total_timesteps = int(5e5)
+    init_rl_kwargs = dict(
+        model_class=stable_baselines.SAC,
+        policy_class=stable_baselines.sac.policies.MlpPolicy,
+        batch_size=256,
+        learning_starts=1000,
+    )
+    log_interval = 10000
+    policy_save_interval = 10000
+    _ = locals()
+    del _
+
 
 if __name__ == "__main__":
     script_utils.add_logging_config(expert_demos.expert_demos_ex, "expert_demos")
