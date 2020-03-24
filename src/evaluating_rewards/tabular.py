@@ -14,6 +14,7 @@
 
 """Experiments with tabular (i.e. finite state) reward models."""
 
+import math
 from typing import Optional, Tuple
 
 import numpy as np
@@ -150,28 +151,37 @@ def closest_reward_am(
     return closest_reward
 
 
-def _check_rews_dist(rewa: np.ndarray, rewb: np.ndarray, dist: np.ndarray) -> None:
-    assert rewa.shape == rewb.shape
-    assert rewa.shape == dist.shape
+def _check_arr_dist(arr: np.ndarray, dist: np.ndarray) -> None:
+    assert arr.shape == dist.shape
     assert np.allclose(np.sum(dist), 1)
     assert np.all(dist >= 0)
 
 
-def direct_sq_divergence(rewa: np.ndarray, rewb: np.ndarray, dist: Optional[np.ndarray]) -> float:
-    """Direct divergence over uniform transition distribution with squared-error loss."""
+def weighted_lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None) -> float:
+    """Computes the L^{p} norm of arr, weighted by dist if specified.
+
+    Args:
+        arr: The array to compute the norm of.
+        dist: A distribution to weight elements of array by.
+        p: The power to raise elements to.
+
+    Returns:
+        The L^{p} norm of arr.
+    """
     if dist is None:
-        dist = np.ones_like(rewa) / np.product(rewa.shape)
-    _check_rews_dist(rewa, rewb, dist)
-    squared_error = np.square(rewa - rewb)
-    weighted_sse = np.sum(squared_error * dist)
-    return np.sqrt(weighted_sse)
+        dist = np.ones_like(arr) / np.product(arr.shape)
+    _check_arr_dist(arr, dist)
+    arr = np.abs(arr)
+    arr = np.power(arr, p)
+    accum = np.sum(arr * dist)
+    return math.pow(float(accum), 1 / p)
 
 
 def epic_distance(
     src_reward: np.ndarray, target_reward: np.ndarray, dist: Optional[np.ndarray] = None, **kwargs
 ) -> float:
     closest = closest_reward_am(src_reward, target_reward, **kwargs)
-    return direct_sq_divergence(closest, target_reward, dist)
+    return weighted_lp_norm(closest - target_reward, 2, dist)
 
 
 def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
@@ -197,7 +207,8 @@ def pearson_distance(
     """
     if dist is None:
         dist = np.ones_like(rewa) / np.product(rewa.shape)
-    _check_rews_dist(rewa, rewb, dist)
+    _check_arr_dist(rewa, dist)
+    assert rewa.shape == rewb.shape
 
     dist = dist.flatten()
     rewa = _center(rewa.flatten(), dist)
@@ -243,6 +254,61 @@ def symmetric_distance(rewa: np.ndarray, rewb: np.ndarray, **kwargs) -> float:
     dista = asymmetric_distance(rewa, rewb, **kwargs)
     distb = asymmetric_distance(rewb, rewa, **kwargs)
     return 0.5 * (dista + distb)
+
+
+def singleton_canonical_reward(
+    rew: np.ndarray, discount: float, p: int = 1, dist: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """
+    Compute canonical version of rew, invariant to shaping and positive scaling.
+
+    Args:
+        rew: The three-dimensional reward array to canonicalize.
+        discount: The discount rate of the MDP.
+        p: The power to raise elements to.
+        dist: The measure for the L^{p} norm.
+
+    Returns:
+        Canonical version of rew. Specifically, this corresponds to the advantage under
+        transition dynamics where all states are absorbing and an optimal policy (picking
+        action greedily to maximize reward). This is then rescaled to have unit norm.
+    """
+    if discount >= 1:
+        raise ValueError(f"discount '{discount}' >= 1: only undiscounted MDPs supported.")
+    ns, _na, ns2 = rew.shape
+    assert ns == ns2
+    instantaneous_reward = rew[np.arange(ns), :, np.arange(ns)]
+    greedy_reward = instantaneous_reward.max(1)
+    value = 1 / (1 - discount) * greedy_reward
+    deshaped = shape(rew, value, discount)
+
+    normalizer = weighted_lp_norm(deshaped, p, dist)
+    return deshaped / normalizer
+
+
+def singleton_canonical_reward_distance(
+    rewa: np.ndarray,
+    rewb: np.ndarray,
+    discount: float,
+    p: int = 1,
+    dist: Optional[np.ndarray] = None,
+) -> float:
+    """
+    Computes distance between canonicalized versions of rewa and rewb.
+
+    Args:
+        rewa: A three-dimensional reward array.
+        rewb: A three-dimensional reward array.
+        discount: The discount rate of the MDP.
+        p: The power to raise elements to.
+        dist: The measure for the L^{p} norm.
+
+    Returns:
+        The L^{p} norm of the difference between the canonicalized versions of `rewa` and `rewb`.
+    """
+    rewa_canon = singleton_canonical_reward(rewa, discount, p, dist)
+    rewb_canon = singleton_canonical_reward(rewb, discount, p, dist)
+    return weighted_lp_norm(rewa_canon - rewb_canon, p, dist)
 
 
 def summary_comparison(

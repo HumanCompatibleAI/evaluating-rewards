@@ -180,6 +180,10 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
                     div = 0.5 * diva + 0.5 * divb
                 else:
                     div = min(diva, divb)
+            elif kind == "singleton_canonical_distance":
+                div = tabular.singleton_canonical_reward_distance(
+                    src_reward, target_reward, dist=dist, discount=discount
+                )
             else:
                 raise ValueError(f"Unrecognized kind '{kind}'")
 
