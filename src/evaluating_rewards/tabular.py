@@ -139,10 +139,13 @@ def closest_reward_am(
         A reward that is equivalent to `source` with minimal squared-error to `target`.
     """
     closest_reward = source
+    # For undiscounted case, adding constant may cause return to not converge, and so does
+    # not form part of the equivalence class.
+    shift = discount < 1.0
     for _ in range(n_iter):
         potential = closest_potential(closest_reward, target, discount)
         closest_reward = shape(closest_reward, potential, discount)
-        params = rewards.least_l2_affine(closest_reward.flatten(), target.flatten())
+        params = rewards.least_l2_affine(closest_reward.flatten(), target.flatten(), shift=shift)
         closest_reward = closest_reward * params.scale + params.shift
     return closest_reward
 
