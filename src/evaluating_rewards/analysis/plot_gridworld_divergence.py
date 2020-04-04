@@ -181,8 +181,28 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
                 else:
                     div = min(diva, divb)
             elif kind == "singleton_canonical_distance":
-                div = tabular.singleton_canonical_reward_distance(
-                    src_reward, target_reward, dist=dist, discount=discount
+                div = tabular.canonical_reward_distance(
+                    src_reward,
+                    target_reward,
+                    deshape_fn=tabular.singleton_shaping_canonical_reward,
+                    dist=dist,
+                    discount=discount,
+                )
+            elif kind == "all_uniform_canonical_distance":
+                div = tabular.canonical_reward_distance(
+                    src_reward,
+                    target_reward,
+                    deshape_fn=tabular.all_uniform_shaping_canonical_reward,
+                    dist=dist,
+                    discount=discount,
+                )
+            elif kind == "uniform_transition_canonical_distance":
+                div = tabular.canonical_reward_distance(
+                    src_reward,
+                    target_reward,
+                    deshape_fn=tabular.uniform_transition_shaping_canonical_reward,
+                    dist=dist,
+                    discount=discount,
                 )
             else:
                 raise ValueError(f"Unrecognized kind '{kind}'")

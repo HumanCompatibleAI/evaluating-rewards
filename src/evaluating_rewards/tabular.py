@@ -15,7 +15,7 @@
 """Experiments with tabular (i.e. finite state) reward models."""
 
 import math
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -256,8 +256,147 @@ def symmetric_distance(rewa: np.ndarray, rewb: np.ndarray, **kwargs) -> float:
     return 0.5 * (dista + distb)
 
 
-def singleton_canonical_reward(
-    rew: np.ndarray, discount: float, p: int = 1, dist: Optional[np.ndarray] = None,
+def singleton_shaping_canonical_reward(rew: np.ndarray, discount: float) -> np.ndarray:
+    """
+    Compute version of rew with canonicalized shaping.
+
+    Args:
+        rew: The three-dimensional reward array to canonicalize.
+        discount: The discount rate of the MDP.
+
+    Returns:
+        Shaped version of rew. Specifically, this corresponds to the advantage under
+        transition dynamics where all states are absorbing and an optimal policy (picking
+        action greedily to maximize reward). This return value is the same for any
+        shaped version of rew.
+
+    Raises:
+        ValueError if discount is not less than 1.
+    """
+    if discount >= 1:
+        raise ValueError(f"discount '{discount}' >= 1: only undiscounted MDPs supported.")
+    assert discount >= 0
+    ns, _na, ns2 = rew.shape
+    assert ns == ns2
+    instantaneous_reward = rew[np.arange(ns), :, np.arange(ns)]
+    greedy_reward = instantaneous_reward.max(1)
+    value = 1 / (1 - discount) * greedy_reward
+    return shape(rew, value, discount)
+
+
+def all_uniform_shaping_canonical_reward(rew: np.ndarray, discount: float) -> np.ndarray:
+    """
+    Compute version of rew with canonicalized shaping.
+
+    Args:
+        rew: The three-dimensional reward array to canonicalize.
+        discount: The discount rate of the MDP.
+
+    Returns:
+        Shaped version of rew. Specifically, this corresponds to the advantage under
+        transition dynamics where next states are chosen uniformly at random and a policy
+        choosing actions uniformly at random. This return value is the same for any
+        shaped version of rew.
+    """
+    assert 0 <= discount <= 1
+    ns, _na, ns2 = rew.shape
+    assert ns == ns2
+
+    # TODO(adam): accept a distribution rather than forcing uniform?
+    mean_reward = np.mean(rew, axis=(1, 2))
+    total_mean = np.mean(mean_reward)
+    # In the infinite-horizon discounted case, the value function is:
+    # V(s) = mean_reward + discount / (1 - discount) * total_mean
+    # So shaping gives:
+    # R^{PC} = shape(rew, mean_reward, discount)
+    #        + (discount - 1) * discount / (1 - discount) * total_mean
+    #        = shape(rew, mean_reward, discount) - total_mean
+    # In the finite-horizon undiscounted case, the value function is:
+    # V_T(s) = mean_reward[s] + T*total_mean
+    # So shaping gives:
+    # R^{PC}(s,a,s') = rew[s,a,s'] + V_{T - 1}(s') - V_{T-1}(s)
+    #                = rew[s,a,s'] + mean_reward[s'] - mean_reward[s] - total_mean
+    #                = shape(rew, mean_reward, 1) - 1 * total_mean
+    # So pleasingly the same formula works for the discounted infinite-horizon and undiscounted
+    # finite-horizon case.
+    return shape(rew, mean_reward, discount) - discount * total_mean
+
+
+def all_uniform_shaping_canonical_reward_dist(
+    rew: np.ndarray, discount: float, dist: np.ndarray
+) -> np.ndarray:
+    """
+    Compute version of rew with canonicalized shaping.
+
+    Args:
+        rew: The three-dimensional reward array to canonicalize.
+        discount: The discount rate of the MDP.
+
+    Returns:
+        Shaped version of rew. Specifically, this corresponds to the advantage under
+        transition dynamics where next states are chosen uniformly at random and a policy
+        choosing actions uniformly at random. This return value is the same for any
+        shaped version of rew.
+    """
+    assert 0 <= discount <= 1
+    ns, _na, ns2 = rew.shape
+    assert ns == ns2
+
+    # TODO(adam): accept a distribution rather than forcing uniform?
+    mean_reward = np.average(rew, axis=(1, 2), weights=dist)
+    total_mean = np.average(rew, weights=dist)
+    # In the infinite-horizon discounted case, the value function is:
+    # V(s) = mean_reward + discount / (1 - discount) * total_mean
+    # So shaping gives:
+    # R^{PC} = shape(rew, mean_reward, discount)
+    #        + (discount - 1) * discount / (1 - discount) * total_mean
+    #        = shape(rew, mean_reward, discount) - total_mean
+    # In the finite-horizon undiscounted case, the value function is:
+    # V_T(s) = mean_reward[s] + T*total_mean
+    # So shaping gives:
+    # R^{PC}(s,a,s') = rew[s,a,s'] + V_{T - 1}(s') - V_{T-1}(s)
+    #                = rew[s,a,s'] + mean_reward[s'] - mean_reward[s] - total_mean
+    #                = shape(rew, mean_reward, 1) - 1 * total_mean
+    # So pleasingly the same formula works for the discounted infinite-horizon and undiscounted
+    # finite-horizon case.
+    return shape(rew, mean_reward, discount) - discount * total_mean
+
+
+def uniform_transition_shaping_canonical_reward(rew: np.ndarray, discount: float) -> np.ndarray:
+    """
+    Compute version of rew with canonicalized shaping.
+
+    Args:
+        rew: The three-dimensional reward array to canonicalize.
+        discount: The discount rate of the MDP.
+
+    Returns:
+        Shaped version of rew. Specifically, this corresponds to the advantage under
+        transition dynamics where next states are chosen uniformly at random, with an
+        optimal policy. This return value is the same for any shaped version of rew.
+    """
+    assert 0 <= discount <= 1
+    ns, _na, ns2 = rew.shape
+    assert ns == ns2
+
+    # TODO(adam): accept a distribution rather than forcing uniform?
+    mean_reward = np.mean(rew, axis=2)
+    best_action = np.max(mean_reward, axis=1)
+    total_mean = np.mean(best_action)
+    # See `all_uniform_shaping_canonical_reward` for a discussion of how this expression
+    # is derived from shaping (details differ but the overall argument is similar).
+    return shape(rew, best_action, discount) - discount * total_mean
+
+
+DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
+
+
+def canonical_reward(
+    rew: np.ndarray,
+    discount: float,
+    deshape_fn: DeshapeFn,
+    p: int = 1,
+    dist: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Compute canonical version of rew, invariant to shaping and positive scaling.
@@ -265,31 +404,25 @@ def singleton_canonical_reward(
     Args:
         rew: The three-dimensional reward array to canonicalize.
         discount: The discount rate of the MDP.
+        deshape_fn: The function to canonicalize the shaping component of the reward.
         p: The power to raise elements to.
         dist: The measure for the L^{p} norm.
 
     Returns:
-        Canonical version of rew. Specifically, this corresponds to the advantage under
-        transition dynamics where all states are absorbing and an optimal policy (picking
-        action greedily to maximize reward). This is then rescaled to have unit norm.
+        Canonical version of rew. Shaping is removed in accordance with `deshape_fn`.
+        This is then rescaled to have unit norm.
     """
-    if discount >= 1:
-        raise ValueError(f"discount '{discount}' >= 1: only undiscounted MDPs supported.")
-    ns, _na, ns2 = rew.shape
-    assert ns == ns2
-    instantaneous_reward = rew[np.arange(ns), :, np.arange(ns)]
-    greedy_reward = instantaneous_reward.max(1)
-    value = 1 / (1 - discount) * greedy_reward
-    deshaped = shape(rew, value, discount)
+    deshaped = deshape_fn(rew, discount)
 
     normalizer = weighted_lp_norm(deshaped, p, dist)
     return deshaped / normalizer
 
 
-def singleton_canonical_reward_distance(
+def canonical_reward_distance(
     rewa: np.ndarray,
     rewb: np.ndarray,
     discount: float,
+    deshape_fn: DeshapeFn,
     p: int = 1,
     dist: Optional[np.ndarray] = None,
 ) -> float:
@@ -300,14 +433,15 @@ def singleton_canonical_reward_distance(
         rewa: A three-dimensional reward array.
         rewb: A three-dimensional reward array.
         discount: The discount rate of the MDP.
+        deshape_fn: The function to canonicalize the shaping component of the reward.
         p: The power to raise elements to.
         dist: The measure for the L^{p} norm.
 
     Returns:
         The L^{p} norm of the difference between the canonicalized versions of `rewa` and `rewb`.
     """
-    rewa_canon = singleton_canonical_reward(rewa, discount, p, dist)
-    rewb_canon = singleton_canonical_reward(rewb, discount, p, dist)
+    rewa_canon = canonical_reward(rewa, discount, deshape_fn, p, dist)
+    rewb_canon = canonical_reward(rewb, discount, deshape_fn, p, dist)
     return weighted_lp_norm(rewa_canon - rewb_canon, p, dist)
 
 
