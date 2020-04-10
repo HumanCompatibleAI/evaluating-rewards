@@ -150,6 +150,13 @@ def build_dist(rew: np.ndarray, xlen: int, ylen: int) -> np.ndarray:
     return transitions / np.sum(transitions)
 
 
+CANONICAL_DESHAPE_FN = {
+    "singleton_canonical_distance": tabular.singleton_shaping_canonical_reward,
+    "all_uniform_canonical_distance": tabular.fully_connected_random_canonical_reward,
+    "uniform_transition_canonical_distance": tabular.fully_connected_greedy_canonical_reward,
+}
+
+
 def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -> pd.Series:
     """Compute divergence for each pair of rewards in `reward_cfg`."""
     rewards = {name: make_reward(cfg, discount) for name, cfg in reward_cfg.items()}
@@ -159,49 +166,33 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
             if target_name == "evaluating_rewards/Zero-v0":
                 continue
             xlen, ylen = reward_cfg[src_name]["state_reward"].shape
-            dist = build_dist(src_reward, xlen, ylen)
+            distribution = build_dist(src_reward, xlen, ylen)
 
             if kind == "direct_divergence":
                 div = tabular.epic_distance(
-                    src_reward, target_reward, dist=dist, n_iter=1000, discount=discount
+                    src_reward, target_reward, dist=distribution, n_iter=1000, discount=discount
                 )
             elif kind == "asymmetric":
                 div = tabular.asymmetric_distance(
-                    src_reward, target_reward, dist=dist, n_iter=1000, discount=discount
+                    src_reward, target_reward, dist=distribution, n_iter=1000, discount=discount
                 )
             elif kind in ["symmetric", "symmetric_min"]:
-                diva = tabular.asymmetric_distance(
-                    src_reward, target_reward, dist=dist, n_iter=1000, discount=discount
-                )
-                divb = tabular.asymmetric_distance(
-                    target_reward, src_reward, dist=dist, n_iter=1000, discount=discount
-                )
-                if kind == "symmetric":
-                    div = 0.5 * diva + 0.5 * divb
-                else:
-                    div = min(diva, divb)
-            elif kind == "singleton_canonical_distance":
-                div = tabular.canonical_reward_distance(
+                use_min = kind == "symmetric_min"
+                div = tabular.symmetric_distance(
                     src_reward,
                     target_reward,
-                    deshape_fn=tabular.singleton_shaping_canonical_reward,
-                    dist=dist,
+                    dist=distribution,
+                    n_iter=1000,
                     discount=discount,
+                    use_min=use_min,
                 )
-            elif kind == "all_uniform_canonical_distance":
+            elif kind in CANONICAL_DESHAPE_FN.keys():
+                deshape_fn = CANONICAL_DESHAPE_FN[kind]
                 div = tabular.canonical_reward_distance(
                     src_reward,
                     target_reward,
-                    deshape_fn=tabular.all_uniform_shaping_canonical_reward,
-                    dist=dist,
-                    discount=discount,
-                )
-            elif kind == "uniform_transition_canonical_distance":
-                div = tabular.canonical_reward_distance(
-                    src_reward,
-                    target_reward,
-                    deshape_fn=tabular.uniform_transition_shaping_canonical_reward,
-                    dist=dist,
+                    deshape_fn=deshape_fn,
+                    dist=distribution,
                     discount=discount,
                 )
             else:
