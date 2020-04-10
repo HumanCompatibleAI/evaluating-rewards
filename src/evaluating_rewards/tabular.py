@@ -1,4 +1,4 @@
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019 DeepMind Technologies Limited, 2020 Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -291,8 +291,8 @@ def singleton_shaping_canonical_reward(rew: np.ndarray, discount: float) -> np.n
 def fully_connected_random_canonical_reward(
     rew: np.ndarray,
     discount: float,
-    state_dist: Optional[np.ndarray],
-    action_dist: Optional[np.ndarray],
+    state_dist: Optional[np.ndarray] = None,
+    action_dist: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Compute version of rew with canonicalized shaping.
@@ -342,7 +342,7 @@ def fully_connected_random_canonical_reward(
 
 
 def fully_connected_greedy_canonical_reward(
-    rew: np.ndarray, discount: float, state_dist: Optional[np.ndarray],
+    rew: np.ndarray, discount: float, state_dist: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Compute version of rew with canonicalized shaping.
@@ -426,7 +426,7 @@ def canonical_reward_distance(
     """
     rewa_canon = canonical_reward(rewa, discount, deshape_fn, p, dist)
     rewb_canon = canonical_reward(rewb, discount, deshape_fn, p, dist)
-    return weighted_lp_norm(rewa_canon - rewb_canon, p, dist)
+    return 0.5 * weighted_lp_norm(rewa_canon - rewb_canon, p, dist)
 
 
 def summary_comparison(
@@ -448,7 +448,7 @@ def make_shaped_reward(
     n_states: int, n_actions: int, discount: float = 1.0, seed: Optional[int] = None
 ):
     """Creates random reward, potential and potential-shaped reward."""
-    rng = None
+    rng = np.random
     if seed is not None:
         rng = np.random.RandomState(seed=seed)
 
