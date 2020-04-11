@@ -152,8 +152,8 @@ def build_dist(rew: np.ndarray, xlen: int, ylen: int) -> np.ndarray:
 
 CANONICAL_DESHAPE_FN = {
     "singleton_canonical_distance": tabular.singleton_shaping_canonical_reward,
-    "all_uniform_canonical_distance": tabular.fully_connected_random_canonical_reward,
-    "uniform_transition_canonical_distance": tabular.fully_connected_greedy_canonical_reward,
+    "fully_connected_random_canonical_distance": tabular.fully_connected_random_canonical_reward,
+    "fully_connected_greedy_canonical_distance": tabular.fully_connected_greedy_canonical_reward,
 }
 
 

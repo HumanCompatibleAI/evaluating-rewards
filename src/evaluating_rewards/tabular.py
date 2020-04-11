@@ -23,54 +23,6 @@ import pandas as pd
 from evaluating_rewards import rewards
 
 
-def random_state_only_reward(
-    n_states: int, n_actions: int, rng: np.random.RandomState = np.random
-) -> np.ndarray:
-    """Generates a random reward matrix, differing only in first axis.
-
-    Args:
-        n_states: The number of states.
-        n_actions: The number of actions.
-        rng: Random number generator.
-
-    Returns:
-        A three-dimensional array R, where R[s,a,s'] is the reward starting at state
-        s, taking action a, and transitioning to state s'.
-    """
-    rew = rng.rand(n_states, 1, 1)
-    return np.tile(rew, (1, n_actions, n_states))
-
-
-def random_reward(
-    n_states: int, n_actions: int, rng: np.random.RandomState = np.random
-) -> np.ndarray:
-    """Generates a random reward matrix.
-
-    Args:
-        n_states: The number of states.
-        n_actions: The number of actions.
-        rng: Random number generator.
-
-    Returns:
-        A three-dimensional array R, where R[s,a,s'] is the reward starting at state
-        s, taking action a, and transitioning to state s'.
-    """
-    return rng.rand(n_states, n_actions, n_states)
-
-
-def random_potential(n_states: int, rng: np.random.RandomState = np.random) -> np.ndarray:
-    r"""Generates a random potential function.
-
-    Args:
-        n_states: The number of states.
-        rng: Random number generator.
-
-    Returns:
-        A one-dimensional potential $$\phi$$.
-    """
-    return rng.rand(n_states)
-
-
 def shape(reward: np.ndarray, potential: np.ndarray, discount: float) -> np.ndarray:
     """Adds a potential-based shaping to a reward.
 
@@ -382,6 +334,7 @@ def canonical_reward(
     deshape_fn: DeshapeFn,
     p: int = 1,
     dist: Optional[np.ndarray] = None,
+    eps: float = 1e-10,
 ) -> np.ndarray:
     """
     Compute canonical version of rew, invariant to shaping and positive scaling.
@@ -392,6 +345,7 @@ def canonical_reward(
         deshape_fn: The function to canonicalize the shaping component of the reward.
         p: The power to raise elements to.
         dist: The measure for the L^{p} norm.
+        eps: Threshold to treat reward as zero (needed due to floating point error).
 
     Returns:
         Canonical version of rew. Shaping is removed in accordance with `deshape_fn`.
@@ -399,7 +353,10 @@ def canonical_reward(
     """
     deshaped = deshape_fn(rew, discount)
     normalizer = weighted_lp_norm(deshaped, p, dist)
-    return deshaped / normalizer
+    if abs(normalizer) < eps:
+        return np.zeros_like(deshaped)
+    else:
+        return deshaped / normalizer
 
 
 def canonical_reward_distance(
@@ -429,42 +386,55 @@ def canonical_reward_distance(
     return 0.5 * weighted_lp_norm(rewa_canon - rewb_canon, p, dist)
 
 
-def summary_comparison(
-    reward1: np.ndarray, reward2: np.ndarray, discount: float
-) -> Tuple[float, float, np.ndarray]:
-    """Compares rewards in terms of intrinsic and shaping difference."""
-    potential = closest_potential(reward1, reward2, discount)
-    closest_reward1 = shape(reward1, potential, discount)
-    intrinisic_difference = np.linalg.norm(reward2 - closest_reward1)
-
-    potential_2d = potential[:, np.newaxis]
-    potential_delta = potential_2d.T - potential_2d
-    shaping_difference = np.linalg.norm(potential_delta)
-
-    return intrinisic_difference, shaping_difference, potential
+# Functions for interactive experiments
 
 
-def make_shaped_reward(
-    n_states: int, n_actions: int, discount: float = 1.0, seed: Optional[int] = None
-):
-    """Creates random reward, potential and potential-shaped reward."""
-    rng = np.random
-    if seed is not None:
-        rng = np.random.RandomState(seed=seed)
+def random_state_only_reward(
+    n_states: int, n_actions: int, rng: np.random.RandomState = np.random
+) -> np.ndarray:
+    """Generates a random reward matrix, differing only in first axis.
 
-    reward = random_reward(n_states, n_actions, rng=rng)
-    potential = random_potential(n_states, rng=rng)
-    shaped = shape(reward, potential, discount)
+    Args:
+        n_states: The number of states.
+        n_actions: The number of actions.
+        rng: Random number generator.
 
-    return reward, potential, shaped
+    Returns:
+        A three-dimensional array R, where R[s,a,s'] is the reward starting at state
+        s, taking action a, and transitioning to state s'.
+    """
+    rew = rng.rand(n_states, 1, 1)
+    return np.tile(rew, (1, n_actions, n_states))
 
 
-def potential_difference(p1, p2):
-    p1 = p1.flatten()
-    p2 = p2.flatten()
-    p1 = p1 - p1[0]
-    p2 = p2 - p2[0]
-    return np.linalg.norm(p1 - p2)
+def random_reward(
+    n_states: int, n_actions: int, rng: np.random.RandomState = np.random
+) -> np.ndarray:
+    """Generates a random reward matrix.
+
+    Args:
+        n_states: The number of states.
+        n_actions: The number of actions.
+        rng: Random number generator.
+
+    Returns:
+        A three-dimensional array R, where R[s,a,s'] is the reward starting at state
+        s, taking action a, and transitioning to state s'.
+    """
+    return rng.rand(n_states, n_actions, n_states)
+
+
+def random_potential(n_states: int, rng: np.random.RandomState = np.random) -> np.ndarray:
+    r"""Generates a random potential function.
+
+    Args:
+        n_states: The number of states.
+        rng: Random number generator.
+
+    Returns:
+        A one-dimensional potential $$\phi$$.
+    """
+    return rng.rand(n_states)
 
 
 def experiment_shaping_comparison(
@@ -521,3 +491,41 @@ def experiment_shaping_comparison(
     )
     df.index.names = ["Reward Noise", "Potential Noise"]
     return df
+
+
+def make_shaped_reward(
+    n_states: int, n_actions: int, discount: float = 1.0, seed: Optional[int] = None
+):
+    """Creates random reward, potential and potential-shaped reward."""
+    rng = np.random
+    if seed is not None:
+        rng = np.random.RandomState(seed=seed)
+
+    reward = random_reward(n_states, n_actions, rng=rng)
+    potential = random_potential(n_states, rng=rng)
+    shaped = shape(reward, potential, discount)
+
+    return reward, potential, shaped
+
+
+def summary_comparison(
+    reward1: np.ndarray, reward2: np.ndarray, discount: float
+) -> Tuple[float, float, np.ndarray]:
+    """Compares rewards in terms of intrinsic and shaping difference."""
+    potential = closest_potential(reward1, reward2, discount)
+    closest_reward1 = shape(reward1, potential, discount)
+    intrinisic_difference = np.linalg.norm(reward2 - closest_reward1)
+
+    potential_2d = potential[:, np.newaxis]
+    potential_delta = potential_2d.T - potential_2d
+    shaping_difference = np.linalg.norm(potential_delta)
+
+    return intrinisic_difference, shaping_difference, potential
+
+
+def potential_difference(p1, p2):
+    p1 = p1.flatten()
+    p2 = p2.flatten()
+    p1 = p1 - p1[0]
+    p2 = p2 - p2[0]
+    return np.linalg.norm(p1 - p2)
