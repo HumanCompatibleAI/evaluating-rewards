@@ -31,7 +31,7 @@ from evaluating_rewards import tabular
 def distribution(draw, shape) -> np.ndarray:
     """Search strategy for a probability distribution of given shape."""
     nonneg_elements = st.floats(min_value=0, max_value=1, allow_nan=False, allow_infinity=False)
-    arr = draw(hp_numpy.arrays(np.float, shape, elements=nonneg_elements, fill=st.nothing()))
+    arr = draw(hp_numpy.arrays(np.float128, shape, elements=nonneg_elements, fill=st.nothing()))
     hypothesis.assume(np.any(arr > 0))
     return arr / np.sum(arr)
 
@@ -46,7 +46,7 @@ def arr_and_distribution(draw) -> Tuple[np.ndarray, np.ndarray]:
     """Search strategy for array and a probability distribution of same shape as array."""
     shape = draw(hp_numpy.array_shapes())
     arr = draw(
-        hp_numpy.arrays(dtype=np.float, shape=shape, elements=numeric_float(), fill=st.nothing())
+        hp_numpy.arrays(dtype=np.float128, shape=shape, elements=numeric_float(), fill=st.nothing())
     )
     dist = draw(distribution(shape))
     return arr, dist
@@ -77,7 +77,7 @@ def reward(
     ns = draw(n_states)
     na = draw(n_actions)
     shape = (ns, na, ns)
-    rew = draw(hp_numpy.arrays(np.float, shape, elements=numeric_float(), fill=st.nothing()))
+    rew = draw(hp_numpy.arrays(np.float128, shape, elements=numeric_float(), fill=st.nothing()))
     return rew
 
 
@@ -89,7 +89,9 @@ def shaped_reward_pair(draw, discount=_default_discount) -> Tuple[np.ndarray, np
     """Search strategy for a pair of rewards equivalent up to potential shaping."""
     rew = draw(reward())
     ns = rew.shape[0]
-    potential = draw(hp_numpy.arrays(np.float, (ns,), elements=numeric_float(), fill=st.nothing()))
+    potential = draw(
+        hp_numpy.arrays(np.float128, (ns,), elements=numeric_float(), fill=st.nothing())
+    )
     gamma = draw(discount)
     return rew, gamma, tabular.shape(rew, potential, gamma)
 
@@ -162,7 +164,9 @@ def potential_only_reward(
     ns = draw(n_states)
     na = draw(n_actions)
     rew = np.zeros((ns, na, ns))
-    potential = draw(hp_numpy.arrays(np.float, (ns,), elements=numeric_float(), fill=st.nothing()))
+    potential = draw(
+        hp_numpy.arrays(np.float128, (ns,), elements=numeric_float(), fill=st.nothing())
+    )
     gamma = draw(discount)
     shaped_rew = tabular.shape(rew, potential, gamma)
     return rew, gamma, shaped_rew
