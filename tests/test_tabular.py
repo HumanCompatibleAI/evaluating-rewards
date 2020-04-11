@@ -36,7 +36,7 @@ def distribution(draw, shape) -> np.ndarray:
     return arr / np.sum(arr)
 
 
-def numeric_float(max_abs: float = 1e4) -> st.SearchStrategy:
+def numeric_float(max_abs: float = 1e3) -> st.SearchStrategy:
     """Search strategy for numeric (non-inf, non-NaN) floats with bounded absolute value."""
     return st.floats(min_value=-max_abs, max_value=max_abs, allow_nan=False, allow_infinity=False)
 
@@ -100,7 +100,7 @@ def shaped_reward_pair(draw, discount=_default_discount) -> Tuple[np.ndarray, np
 def equiv_reward_pair(draw, discount=_default_discount) -> Tuple[np.ndarray, np.ndarray]:
     """Search strategy for a pair of rewards equivalent up to shaping and positive rescaling."""
     base_rew, gamma, shaped_rew = draw(shaped_reward_pair(discount))
-    scale = draw(st.floats(min_value=1 / 100.0, max_value=100, exclude_min=True))
+    scale = draw(st.floats(min_value=1e-2, max_value=1e2, exclude_min=True))
     equiv_rew = scale * shaped_rew
     return base_rew, gamma, equiv_rew
 
@@ -146,11 +146,15 @@ def test_canonical_dist(deshape_fn: tabular.DeshapeFn, base_equiv) -> None:
     assert np.allclose(dist_equiv, 0, atol=1e-6)
 
     dist_opposite = tabular.canonical_reward_distance(base_rew, -equiv_rew, discount, deshape_fn)
-    # Distance should be large for opposite rewards.
-    # For deshape_fn `fully_connected_random_canonical_reward`, it will be exactly equal to one.
-    # For others it may be smaller since they take greedy policies, introducing an asymmetry
-    # when rewards from a state differ depending on action.
-    assert 0.3 < dist_opposite <= (1 + 1e-10)
+    # pylint:disable=comparison-with-callable
+    if deshape_fn == tabular.fully_connected_random_canonical_reward:
+        # Distance should be exactly equal to one for this function
+        assert np.allclose(dist_opposite, 1.0, atol=1e-6)
+    else:
+        # For others it may be smaller since they take greedy policies, introducing an asymmetry
+        # when rewards from a state differ depending on action. Usually it'll be >0.5, but there
+        # are some pathological examples where it can be a lot lower.
+        assert 0.01 < dist_opposite <= (1 + 1e-10)
 
 
 @st.composite
