@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test evaluating_rewards.tabular.*"""
+"""Test evaluating_rewards.tabular."""
 
 from typing import Tuple
 
@@ -64,9 +64,7 @@ def test_weighted_lp_norm(arr_dist: Tuple[np.ndarray, np.ndarray], p: int, scale
 
     # Absolute homogeneity
     norm_scaled = tabular.weighted_lp_norm(scale * arr, p, dist)
-    assert norm_scaled == scale * norm
-    norm_neg = tabular.weighted_lp_norm(-arr, p, dist)
-    assert norm_neg == norm
+    assert np.allclose(norm_scaled, abs(scale) * norm)
 
 
 @st.composite
