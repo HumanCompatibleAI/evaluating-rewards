@@ -108,8 +108,8 @@ def _check_dist(dist: np.ndarray) -> None:
     assert np.all(dist >= 0)
 
 
-def weighted_lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None) -> float:
-    """Computes the L^{p} norm of arr, weighted by dist if specified.
+def lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None) -> float:
+    r"""Computes the L^{p} norm of arr, weighted by dist.
 
     Args:
         arr: The array to compute the norm of.
@@ -117,7 +117,8 @@ def weighted_lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None)
         dist: A distribution to weight elements of array by.
 
     Returns:
-        The L^{p} norm of arr.
+        The L^{p} norm of arr with respect to the measure dist.
+        That is, (\sum_i dist_i * |arr_i|^p)^{1/p}.
     """
     if dist is None:
         dist = np.ones_like(arr) / np.product(arr.shape)
@@ -133,7 +134,7 @@ def epic_distance(
     src_reward: np.ndarray, target_reward: np.ndarray, dist: Optional[np.ndarray] = None, **kwargs
 ) -> float:
     closest = closest_reward_am(src_reward, target_reward, **kwargs)
-    return weighted_lp_norm(closest - target_reward, 2, dist)
+    return lp_norm(closest - target_reward, 2, dist)
 
 
 def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
@@ -352,7 +353,7 @@ def canonical_reward(
         This is then rescaled to have unit norm.
     """
     deshaped = deshape_fn(rew, discount)
-    normalizer = weighted_lp_norm(deshaped, p, dist)
+    normalizer = lp_norm(deshaped, p, dist)
     if abs(normalizer) < eps:
         return np.zeros_like(deshaped)
     else:
@@ -383,7 +384,7 @@ def canonical_reward_distance(
     """
     rewa_canon = canonical_reward(rewa, discount, deshape_fn, p, dist)
     rewb_canon = canonical_reward(rewb, discount, deshape_fn, p, dist)
-    return 0.5 * weighted_lp_norm(rewa_canon - rewb_canon, p, dist)
+    return 0.5 * lp_norm(rewa_canon - rewb_canon, p, dist)
 
 
 # Functions for interactive experiments

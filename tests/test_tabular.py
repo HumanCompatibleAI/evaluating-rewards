@@ -58,12 +58,12 @@ def arr_and_distribution(draw) -> Tuple[np.ndarray, np.ndarray]:
 def test_weighted_lp_norm(arr_dist: Tuple[np.ndarray, np.ndarray], p: int, scale: float) -> None:
     """Test for tabular.weighted_lp_norm."""
     arr, dist = arr_dist
-    norm = tabular.weighted_lp_norm(arr, p, dist)
+    norm = tabular.lp_norm(arr, p, dist)
     # Non-negativity
     assert norm >= 0
 
     # Absolute homogeneity
-    norm_scaled = tabular.weighted_lp_norm(scale * arr, p, dist)
+    norm_scaled = tabular.lp_norm(scale * arr, p, dist)
     assert np.allclose(norm_scaled, abs(scale) * norm)
 
 
