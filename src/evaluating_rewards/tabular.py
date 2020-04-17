@@ -271,7 +271,7 @@ def fully_connected_random_canonical_reward(
         shaped version of rew.
     """
     assert 0 <= discount <= 1
-    ns, na, ns2 = rew.shape
+    ns, _na, ns2 = rew.shape
     assert ns == ns2
 
     if state_dist is not None:
