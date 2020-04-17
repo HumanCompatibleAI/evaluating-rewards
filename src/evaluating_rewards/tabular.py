@@ -14,7 +14,6 @@
 
 """Experiments with tabular (i.e. finite state) reward models."""
 
-import math
 from typing import Callable, Optional, Tuple
 
 import numpy as np
@@ -38,6 +37,7 @@ def shape(reward: np.ndarray, potential: np.ndarray, discount: float) -> np.ndar
     assert potential.ndim == 1
     new_pot = discount * potential[np.newaxis, np.newaxis, :]
     old_pot = potential[:, np.newaxis, np.newaxis]
+
     return reward + new_pot - old_pot
 
 
@@ -121,13 +121,21 @@ def lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None) -> float
         That is, (\sum_i dist_i * |arr_i|^p)^{1/p}.
     """
     if dist is None:
-        dist = np.ones_like(arr) / np.product(arr.shape)
+        # Fast path: use optimized np.linalg.norm
+        n = np.product(arr.shape)
+        raw_norm = np.linalg.norm(arr.flatten(), ord=p)
+        return raw_norm / (n ** (1 / p))
+
+    # Otherwise, weighted; use our implementation (up to 2x slower).
     assert arr.shape == dist.shape
     _check_dist(dist)
+
     arr = np.abs(arr)
-    arr = np.power(arr, p)
-    accum = np.sum(arr * dist)
-    return math.pow(float(accum), 1 / p)
+    arr **= p
+    arr *= dist
+    accum = np.sum(arr)
+    accum **= 1 / p
+    return accum
 
 
 def epic_distance(
@@ -266,13 +274,10 @@ def fully_connected_random_canonical_reward(
     ns, na, ns2 = rew.shape
     assert ns == ns2
 
-    if state_dist is None:
-        state_dist = np.ones(ns) / ns
-    if action_dist is None:
-        action_dist = np.ones(na) / na
-
-    _check_dist(state_dist)
-    _check_dist(action_dist)
+    if state_dist is not None:
+        _check_dist(state_dist)
+    if action_dist is not None:
+        _check_dist(action_dist)
 
     mean_rew_sa = np.average(rew, axis=2, weights=state_dist)
     mean_rew_s = np.average(mean_rew_sa, axis=1, weights=action_dist)
@@ -352,12 +357,13 @@ def canonical_reward(
         Canonical version of rew. Shaping is removed in accordance with `deshape_fn`.
         This is then rescaled to have unit norm.
     """
-    deshaped = deshape_fn(rew, discount)
-    normalizer = lp_norm(deshaped, p, dist)
+    res = deshape_fn(rew, discount)
+    normalizer = lp_norm(res, p, dist)
     if abs(normalizer) < eps:
-        return np.zeros_like(deshaped)
+        res *= 0
     else:
-        return deshaped / normalizer
+        res /= normalizer
+    return res
 
 
 def canonical_reward_distance(
