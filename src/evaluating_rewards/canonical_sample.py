@@ -213,7 +213,7 @@ def sample_mean_rews(
     # Compute mean rewards
     mean_rews = {k: [] for k in models.keys()}
     for start, end in zip(idxs[:-1], idxs[1:]):
-        obs = mean_from_obs[start : end + 1]
+        obs = mean_from_obs[start:end]
         batch = _generator_to_batch(
             (old_o, a, new_o) for old_o in obs for (a, new_o) in zip(act_samples, next_obs_samples)
         )
@@ -261,10 +261,9 @@ def sample_canon_shaping(
     sampled i.i.d., but since we are not computing an entire mesh, the sampling process introduces a
     faux dependency. Additionally, `batch` may have an arbitrary distribution.
 
-    This causes the two methods to produce different results, although they are qualitatively
-    similar. The main advantage of this method is its computational efficiency, for similar reasons
-    to why random search is often preferred over grid search when some unknown subset of parameters
-    are relatively unimportant.
+    Empirically, however, the two methods produce very similar results. The main advantage of this
+    method is its computational efficiency, for similar reasons to why random search is often
+    preferred over grid search when some unknown subset of parameters are relatively unimportant.
 
     Args:
         models: A mapping from keys to reward models.
