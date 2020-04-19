@@ -1,21 +1,21 @@
-"""Temporary file for implementation of new metric in continuous control environments."""
+"""Metrics based on searching for a canonical reward in an equivalence class."""
 
 import logging
-from typing import Callable, Type
+from typing import Callable, Type, TypeVar
 
 import numpy as np
 import tensorflow as tf
 
-from evaluating_rewards import rewards, tabular
+from evaluating_rewards import datasets, rewards, tabular
 
-SampleDist = Callable[[int], np.ndarray]
+K = TypeVar("K")
 
 
 def compute_mean(
     model: rewards.RewardModel,
     obs: np.ndarray,
-    obs_dist: SampleDist,
-    act_dist: SampleDist,
+    obs_dist: datasets.SampleDist,
+    act_dist: datasets.SampleDist,
     n_samples: int = 128,
 ) -> np.ndarray:
     """Computes the mean reward of `model` starting from `obs`.
@@ -103,7 +103,11 @@ class RegressMeanModel:
         }
 
     def fit_batch(
-        self, batch_size, obs_dist: SampleDist, act_dist: SampleDist, n_target_samples: int = 128,
+        self,
+        batch_size,
+        obs_dist: datasets.SampleDist,
+        act_dist: datasets.SampleDist,
+        n_target_samples: int = 128,
     ):
         """Fits parameters to one batch of data."""
         obs = obs_dist(batch_size)
@@ -149,15 +153,18 @@ class CanonicalizeRewardWrapper(rewards.LinearCombinationModelWrapper):
     in the same equivalence class as the wrapped reward.
     """
 
-    def __init__(self, model: rewards.RewardModel):
+    def __init__(self, model: rewards.RewardModel, **kwargs):
         """
         Constructs CanonicalizeRewardWrapper.
 
         Args:
             model: The model to canonicalize.
+            kwargs: Passed through to `rewards.PotentialShaping`.
         """
         self.model = model
-        self.shaping = rewards.PotentialShaping(model.observation_space, model.action_space)
+        self.shaping = rewards.PotentialShaping(
+            model.observation_space, model.action_space, **kwargs,
+        )
         self.scale = rewards.ConstantLayer("scale", initializer=tf.keras.initializers.Ones())
         self.scale.build(())
         self.shift = rewards.ConstantReward(model.observation_space, model.action_space)
@@ -172,8 +179,8 @@ class CanonicalizeRewardWrapper(rewards.LinearCombinationModelWrapper):
 
     def fit(
         self,
-        obs_dist: SampleDist,
-        act_dist: SampleDist,
+        obs_dist: datasets.SampleDist,
+        act_dist: datasets.SampleDist,
         affine_n_samples: int = 16384,
         p: int = 1,
         **kwargs,
@@ -211,3 +218,44 @@ class CanonicalizeRewardWrapper(rewards.LinearCombinationModelWrapper):
         self.scale.set_constant(1 / scale)
 
         return stats
+
+
+def pearson_distance(
+    model_a: rewards.RewardModel, model_b: rewards.RewardModel, batch: rewards.Batch,
+) -> float:
+    """
+    Computes the Pearson distance between `model_a` and `model_b` on samples from `batch`.
+
+    Pearson distance is invariant to positive affine transformations. Should not be necessary
+    if using canonicalized reward, which already handles scaling, but can be useful in practice.
+
+    Args:
+        model_a: First reward model.
+        model_b: Second reward model.
+        batch: Transitions to evaluate the models on.
+
+    Returns:
+         An estimate of the L^p norm between `model_a` and `model_b` from `batch` samples.
+    """
+    rew = rewards.evaluate_models({"a": model_a, "b": model_b}, batch)
+    return tabular.pearson_distance(rew["a"], rew["b"])
+
+
+def direct_distance(
+    model_a: rewards.RewardModel, model_b: rewards.RewardModel, batch: rewards.Batch, p: int = 1,
+) -> float:
+    """
+    Computes the L^p norm between `model_a` and `model_b` on samples from `batch`.
+
+    Args:
+        model_a: First reward model.
+        model_b: Second reward model.
+        batch: Transitions to evaluate the models on.
+        p: The order of the L^p norm.
+
+    Returns:
+         An estimate of the L^p norm between `model_a` and `model_b` from `batch` samples.
+    """
+    rew = rewards.evaluate_models({"a": model_a, "b": model_b}, batch)
+    delta = rew["a"] - rew["b"]
+    return tabular.lp_norm(delta, p)

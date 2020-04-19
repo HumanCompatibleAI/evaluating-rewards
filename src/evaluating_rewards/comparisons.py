@@ -27,7 +27,7 @@ from evaluating_rewards import datasets, rewards
 FitStats = Mapping[str, List[Mapping[str, Any]]]
 
 
-def ellp_norm_loss(labels, predictions, p=0.5):
+def ellp_norm_loss(labels: tf.Tensor, predictions: tf.Tensor, p: float = 0.5) -> tf.Tensor:
     """Loss based on L^p norm between `labels` and `predictions`."""
     delta = labels - predictions
     delta = tf.abs(delta)

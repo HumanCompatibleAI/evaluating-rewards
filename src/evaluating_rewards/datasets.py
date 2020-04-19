@@ -36,6 +36,7 @@ BatchCallable = Callable[[int], rewards.Batch]
 # after this. There is no way to specify this in Python type annotations yet :(
 # See https://github.com/python/mypy/issues/5876
 DatasetFactory = Callable[..., ContextManager[BatchCallable]]
+SampleDist = Callable[[int], np.ndarray]
 
 
 @contextlib.contextmanager
@@ -102,6 +103,24 @@ def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[BatchC
             obses.append(obs)
             acts.append(act)
             next_obses.append(next_obs)
+        return rewards.Batch(
+            obs=np.array(obses), actions=np.array(acts), next_obs=np.array(next_obses)
+        )
+
+    yield f
+
+
+@contextlib.contextmanager
+def iid_transition_generator(obs_dist: SampleDist, act_dist: SampleDist) -> Iterator[BatchCallable]:
+    """Samples state and next state i.i.d. from `obs_dist` and actions i.i.d. from `act_dist`.
+
+    This is an extremely weak prior. It's most useful in conjunction with methods in
+    `canonical_sample` which assume i.i.d. transitions internally."""
+
+    def f(total_timesteps: int) -> rewards.Batch:
+        obses = obs_dist(total_timesteps)
+        acts = act_dist(total_timesteps)
+        next_obses = obs_dist(total_timesteps)
         return rewards.Batch(
             obs=np.array(obses), actions=np.array(acts), next_obs=np.array(next_obses)
         )

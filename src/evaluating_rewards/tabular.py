@@ -138,11 +138,24 @@ def lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None) -> float
     return accum
 
 
-def epic_distance(
-    src_reward: np.ndarray, target_reward: np.ndarray, dist: Optional[np.ndarray] = None, **kwargs
+def direct_distance(
+    rewa: np.ndarray, rewb: np.ndarray, p: int = 2, dist: Optional[np.ndarray] = None
 ) -> float:
+    """L^p norm of the difference between `rewa` and `rewb` w.r.t. distribution `dist`."""
+    delta = rewa - rewb
+    return lp_norm(delta, p, dist)
+
+
+def epic_distance(
+    src_reward: np.ndarray,
+    target_reward: np.ndarray,
+    p: int = 2,
+    dist: Optional[np.ndarray] = None,
+    **kwargs,
+) -> float:
+    """Computes premetric EPIC distance."""
     closest = closest_reward_am(src_reward, target_reward, **kwargs)
-    return lp_norm(closest - target_reward, 2, dist)
+    return direct_distance(closest, target_reward, p, dist)
 
 
 def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
@@ -332,6 +345,27 @@ def fully_connected_greedy_canonical_reward(
     return shape(rew, optimal_rew_s, discount) - discount * mean_rew
 
 
+def canonical_scale(
+    rew: np.ndarray, p: int = 1, dist: Optional[np.ndarray] = None, eps: float = 1e-10
+) -> float:
+    """
+    Compute coefficient by which to scale `rew` for it to have canonical scale.
+
+    Coefficient is rounded down to `0` if computed scale is less than `eps`.
+
+    Args:
+        rew: The three-dimensional reward array to compute the normalizer for.
+        p: The power to raise elements to.
+        dist: The measure for the L^{p} norm.
+        eps: Threshold to treat reward as zero (needed due to floating point error).
+
+    Returns:
+        Scaling coefficient by which to multiply `rew` to have unit norm.
+    """
+    scale = lp_norm(rew, p, dist)
+    return 0 if abs(scale) < eps else 1 / scale
+
+
 DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
 
 
@@ -359,11 +393,7 @@ def canonical_reward(
         This is then rescaled to have unit norm.
     """
     res = deshape_fn(rew, discount)
-    normalizer = lp_norm(res, p, dist)
-    if abs(normalizer) < eps:
-        res *= 0
-    else:
-        res /= normalizer
+    res *= canonical_scale(rew, p, dist, eps)
     return res
 
 
@@ -391,7 +421,7 @@ def canonical_reward_distance(
     """
     rewa_canon = canonical_reward(rewa, discount, deshape_fn, p, dist)
     rewb_canon = canonical_reward(rewb, discount, deshape_fn, p, dist)
-    return 0.5 * lp_norm(rewa_canon - rewb_canon, p, dist)
+    return 0.5 * direct_distance(rewa_canon, rewb_canon, p, dist)
 
 
 # Functions for interactive experiments
