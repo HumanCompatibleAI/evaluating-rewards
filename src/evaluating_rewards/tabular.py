@@ -393,7 +393,7 @@ def canonical_reward(
         This is then rescaled to have unit norm.
     """
     res = deshape_fn(rew, discount)
-    res *= canonical_scale(rew, p, dist, eps)
+    res *= canonical_scale(res, p, dist, eps)
     return res
 
 
