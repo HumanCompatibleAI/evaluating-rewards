@@ -1,7 +1,9 @@
 """Metrics based on sampling to approximate a canonical reward in an equivalence class."""
 
 import itertools
-from typing import Callable, Mapping, Tuple, TypeVar
+import multiprocessing
+import multiprocessing.dummy
+from typing import Callable, Mapping, Optional, Tuple, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -10,24 +12,6 @@ import tensorflow as tf
 from evaluating_rewards import datasets, rewards, tabular
 
 K = TypeVar("K")
-
-
-def _make_mesh_tensors_noop(
-    obs: np.ndarray, actions: np.ndarray, next_obs: np.ndarray,
-) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
-    """No-op. Debugging only. Remove."""
-    batch = _mesh_to_batch(obs, actions, next_obs)
-    obs_ph = tf.placeholder(tf.float32, shape=batch.obs.shape)
-    actions_ph = tf.placeholder(tf.float32, shape=batch.actions.shape)
-    next_obs_ph = tf.placeholder(tf.float32, shape=batch.next_obs.shape)
-
-    obs_h = tf.get_session_handle(obs_ph)
-    actions_h = tf.get_session_handle(actions_ph)
-    next_obs_h = tf.get_session_handle(next_obs_ph)
-    handles = (obs_h, actions_h, next_obs_h)
-
-    feed_dict = {obs_ph: batch.obs, actions_ph: batch.actions, next_obs_ph: batch.next_obs}
-    return tf.get_default_session().run(handles, feed_dict=feed_dict)
 
 
 def _make_mesh_tensors(inputs: Mapping[K, np.ndarray]) -> Mapping[K, tf.Tensor]:
@@ -110,18 +94,6 @@ def mesh_evaluate_models(
     return rews
 
 
-def _generator_to_batch(generator) -> rewards.Batch:
-    """Computes a Batch of data from a generator yielding (obs, action, next_obs) triples."""
-    batch = list(generator)
-    batch = [np.array([m[i] for m in batch]) for i in range(3)]
-    return rewards.Batch(*batch)
-
-
-def _mesh_to_batch(obs: np.ndarray, actions: np.ndarray, next_obs: np.ndarray) -> rewards.Batch:
-    """Computes a Batch from the Cartesian product of `obs`, `actions`, and `next_obs`."""
-    return _generator_to_batch(itertools.product(obs, actions, next_obs))
-
-
 def mesh_evaluate_models_slow(
     models: Mapping[K, rewards.RewardModel],
     obs: np.ndarray,
@@ -135,7 +107,9 @@ def mesh_evaluate_models_slow(
     the Cartesian product in Python, taking about 20x longer. This is kept around mainly for
     simplicity to aid testing, and for possibility of other optimizations (e.g. JIT like Numba).
     """
-    batch = _mesh_to_batch(obs, actions, next_obs)
+    batch = list(itertools.product(obs, actions, next_obs))
+    batch = [np.array([m[i] for m in batch]) for i in range(3)]
+    batch = rewards.Batch(*batch)
     rews = rewards.evaluate_models(models, batch)
     rews = {k: v.reshape(len(obs), len(actions), len(next_obs)) for k, v in rews.items()}
     return rews
@@ -169,6 +143,11 @@ def discrete_iid_evaluate_models(
     act = act_dist(n_act)
     rews = mesh_evaluate_models(models, obs, act, obs)
     return rews, obs, act
+
+
+def _tile_first_dim(xs: np.ndarray, reps: int) -> np.ndarray:
+    reps_d = (reps,) + (1,) * (xs.ndim - 1)
+    return np.tile(xs, reps_d)
 
 
 def sample_mean_rews(
@@ -212,10 +191,16 @@ def sample_mean_rews(
 
     # Compute mean rewards
     mean_rews = {k: [] for k in models.keys()}
+    reps = min(obs_per_batch, len(mean_from_obs))
+    act_tiled = _tile_first_dim(act_samples, reps)
+    next_obs_tiled = _tile_first_dim(next_obs_samples, reps)
     for start, end in zip(idxs[:-1], idxs[1:]):
         obs = mean_from_obs[start:end]
-        batch = _generator_to_batch(
-            (old_o, a, new_o) for old_o in obs for (a, new_o) in zip(act_samples, next_obs_samples)
+        obs_repeated = np.repeat(obs, len(act_samples), axis=0)
+        batch = rewards.Batch(
+            obs=obs_repeated,
+            actions=act_tiled[: len(obs_repeated), :],
+            next_obs=next_obs_tiled[: len(obs_repeated), :],
         )
         rews = rewards.evaluate_models(models, batch)
         rews = {k: v.reshape(len(obs), -1) for k, v in rews.items()}
@@ -311,26 +296,39 @@ def sample_canon_shaping(
 
 
 def cross_distance(
-    rews: Mapping[str, np.ndarray], distance_fn: Callable[[np.ndarray, np.ndarray], float],
+    rews: Mapping[str, np.ndarray],
+    distance_fn: Callable[[np.ndarray, np.ndarray], float],
+    parallelism: Optional[int] = None,
+    threading: bool = True,
 ) -> pd.DataFrame:
     """Helper function to compute distance between all pairs of rewards in `rews`.
 
     Args:
         rews: A mapping from keys to NumPy arrays of shape `(n,)`.
         distance_fn: A function to compute the distance between two NumPy arrays.
+        parallelism: The number of threads/processes to execute in parallel; if not specified,
+            defaults to `multiprocessing.cpu_count()`.
+        threading: If true, use multi-threading; otherwise, use multiprocessing. For many NumPy
+            functions, multi-threading is higher performance since NumPy releases the GIL, and
+            threading avoids expensive copying of the arrays needed for multiprocessing.
 
     Returns:
         A square DataFrame whose columns and indices consist of `rews.keys()`, with each cell
         `(i,j)` consisting of `distance_fn(rews[i], rews[j])`.
     """
-    res = {}
-    for k1, rew1 in rews.items():
-        res[k1] = {}
-        for k2, rew2 in rews.items():
-            assert rew1.shape == rew2.shape
-            # TODO(adam): parallelize? most of the computations inside are single-threaded
-            # Can probably use thread pool not multiprocessing pool since NumPy should release GLI,
-            # and this avoids sending large arrays between processes. But could also use
-            # multiprocessing with Shmem.
-            res[k1][k2] = distance_fn(rew1, rew2)
-    return pd.DataFrame(res)
+    shapes = set((v.shape for v in rews.values()))
+    assert len(shapes) <= 1, "rewards differ in shape"
+
+    tasks = {(k1, k2): (rew1, rew2) for k1, rew1 in rews.items() for k2, rew2 in rews.items()}
+
+    if parallelism == 1:
+        # Only one process? Skip multiprocessing, since creating Pool adds overhead.
+        results = [distance_fn(rew1, rew2) for rew1, rew2 in tasks.values()]
+    else:
+        # We want parallelism, use multiprocessing to speed things up.
+        module = multiprocessing.dummy if threading else multiprocessing
+        with module.Pool(processes=parallelism) as pool:
+            results = pool.starmap(distance_fn, tasks.values())
+
+    results = dict(zip(tasks.keys(), results))
+    return pd.Series(results).unstack()
