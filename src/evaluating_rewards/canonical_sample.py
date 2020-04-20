@@ -30,7 +30,7 @@ def _make_mesh_tensors(inputs: Mapping[K, np.ndarray]) -> Mapping[K, tf.Tensor]:
         `{k: itertools.product(inputs.values())[i] for i, k in enumerate(inputs.keys())}`.
     """
     # SOMEDAY(adam): messy, this would be much nicer in TF2 API
-    phs = {k: tf.placeholder(tf.float32, shape=v.shape) for k, v in inputs.items()}
+    phs = {k: tf.placeholder(v.dtype, shape=v.shape) for k, v in inputs.items()}
 
     # Increase dimensions for broadcasting
     # So first tensor will be a[:, None, ..., None],
