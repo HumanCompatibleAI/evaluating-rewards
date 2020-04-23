@@ -28,8 +28,3 @@ disable=
 # Minimum line length for functions/classes that require docstrings, shorter
 # # ones are exempt.
 docstring-min-length=10
-
-[TYPECHECK]
-
-# Tell pylint about TensorFlow's custom context manager
-contextmanager-decorators=contextlib.contextmanager,tf_contextlib.contextmanger

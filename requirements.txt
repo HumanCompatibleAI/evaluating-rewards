@@ -9,5 +9,5 @@ pymdptoolbox
 seaborn
 setuptools
 scipy
-tensorflow>=1.13,<1.14
+tensorflow>=1.13,<1.16
 xarray
