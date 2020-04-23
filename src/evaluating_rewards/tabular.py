@@ -406,7 +406,7 @@ def canonical_reward_distance(
     dist: Optional[np.ndarray] = None,
 ) -> float:
     """
-    Computes distance between canonicalized versions of rewa and rewb.
+    Computes direct distance between canonicalized versions of rewa and rewb.
 
     Args:
         rewa: A three-dimensional reward array.
@@ -422,6 +422,31 @@ def canonical_reward_distance(
     rewa_canon = canonical_reward(rewa, discount, deshape_fn, p, dist)
     rewb_canon = canonical_reward(rewb, discount, deshape_fn, p, dist)
     return 0.5 * direct_distance(rewa_canon, rewb_canon, p, dist)
+
+
+def deshape_pearson_distance(
+    rewa: np.ndarray,
+    rewb: np.ndarray,
+    discount: float,
+    deshape_fn: DeshapeFn,
+    dist: Optional[np.ndarray] = None,
+) -> float:
+    """
+    Computes Pearson distance between deshaped versions of rewa and rewb.
+
+    Args:
+        rewa: A three-dimensional reward array.
+        rewb: A three-dimensional reward array.
+        discount: The discount rate of the MDP.
+        deshape_fn: The function to canonicalize the shaping component of the reward.
+        dist: The measure for the Pearson distance.
+
+    Returns:
+        The Pearson distance between the deshaped versions of `rewa` and `rewb`.
+    """
+    rewa = deshape_fn(rewa, discount=discount)
+    rewb = deshape_fn(rewb, discount=discount)
+    return pearson_distance(rewa, rewb, dist)
 
 
 # Functions for interactive experiments

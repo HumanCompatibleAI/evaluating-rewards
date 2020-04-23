@@ -151,9 +151,9 @@ def build_dist(rew: np.ndarray, xlen: int, ylen: int) -> np.ndarray:
 
 
 CANONICAL_DESHAPE_FN = {
-    "singleton_canonical_distance": tabular.singleton_shaping_canonical_reward,
-    "fully_connected_random_canonical_distance": tabular.fully_connected_random_canonical_reward,
-    "fully_connected_greedy_canonical_distance": tabular.fully_connected_greedy_canonical_reward,
+    "singleton_canonical": tabular.singleton_shaping_canonical_reward,
+    "fully_connected_random_canonical": tabular.fully_connected_random_canonical_reward,
+    "fully_connected_greedy_canonical": tabular.fully_connected_greedy_canonical_reward,
 }
 
 
@@ -186,9 +186,19 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
                     discount=discount,
                     use_min=use_min,
                 )
-            elif kind in CANONICAL_DESHAPE_FN.keys():
-                deshape_fn = CANONICAL_DESHAPE_FN[kind]
-                div = tabular.canonical_reward_distance(
+            elif kind.endswith("_direct") or kind.endswith("_pearson"):
+                if kind.endswith("_direct"):
+                    distance_fn = tabular.canonical_reward_distance
+                else:
+                    distance_fn = tabular.deshape_pearson_distance
+
+                canonical_kind = "_".join(kind.split("_")[:-1])
+                try:
+                    deshape_fn = CANONICAL_DESHAPE_FN[canonical_kind]
+                except KeyError:
+                    raise ValueError(f"Invalid canonicalizer '{canonical_kind}'")
+
+                div = distance_fn(
                     src_reward,
                     target_reward,
                     deshape_fn=deshape_fn,
