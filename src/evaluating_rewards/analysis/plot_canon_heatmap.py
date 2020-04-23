@@ -61,10 +61,16 @@ def default_config():
 
 
 @plot_canon_heatmap_ex.config
-def logging_config(env_name, log_root):
+def logging_config(env_name, computation_kind, distance_kind, discount, log_root):
     # TODO(adam): include any other important config entries here e.g. kind.
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root, "plot_canon_heatmap", env_name, util.make_unique_timestamp(),
+        log_root,
+        "plot_canon_heatmap",
+        env_name,
+        computation_kind,
+        distance_kind,
+        f"discount{discount}",
+        util.make_unique_timestamp(),
     )
 
 
