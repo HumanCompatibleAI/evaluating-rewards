@@ -20,32 +20,31 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-from evaluating_rewards.analysis.plot_canon_heatmap import plot_canon_heatmap_ex
-from evaluating_rewards.analysis.plot_epic_heatmap import plot_epic_heatmap_ex
-from evaluating_rewards.analysis.plot_gridworld_divergence import plot_gridworld_divergence_ex
-from evaluating_rewards.analysis.plot_gridworld_reward import plot_gridworld_reward_ex
-from evaluating_rewards.analysis.plot_pm_reward import plot_pm_reward_ex
-from evaluating_rewards.scripts.model_comparison import model_comparison_ex
-from evaluating_rewards.scripts.train_preferences import train_preferences_ex
-from evaluating_rewards.scripts.train_regress import train_regress_ex
+from evaluating_rewards.analysis.dissimilarity_heatmaps import (
+    plot_canon_heatmap,
+    plot_epic_heatmap,
+    plot_gridworld_heatmap,
+)
+from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
+from evaluating_rewards.scripts import model_comparison, train_preferences, train_regress
 from tests import common
 
 EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates
-    "plot_canon_heatmap": (plot_canon_heatmap_ex, dict, [], {}),
-    "plot_epic_heatmap": (plot_epic_heatmap_ex, dict, [], {}),
-    "plot_pm": (plot_pm_reward_ex, xr.DataArray, [], {}),
-    "plot_gridworld_divergence": (plot_gridworld_divergence_ex, dict, [], {}),
-    "plot_gridworld_reward": (plot_gridworld_reward_ex, plt.Figure, [], {}),
-    "comparison": (model_comparison_ex, dict, [], {}),
+    "plot_canon_heatmap": (plot_canon_heatmap.plot_canon_heatmap_ex, dict, [], {}),
+    "plot_epic_heatmap": (plot_epic_heatmap.plot_epic_heatmap_ex, dict, [], {}),
+    "plot_pm": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
+    "plot_gridworld_divergence": (plot_gridworld_heatmap.plot_gridworld_heatmap, dict, [], {},),
+    "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, plt.Figure, [], {}),
+    "comparison": (model_comparison.model_comparison_ex, dict, [], {}),
     "comparison_alternating": (
-        model_comparison_ex,
+        model_comparison.model_comparison_ex,
         dict,
         ["alternating_maximization"],
         {"fit_kwargs": {"epoch_timesteps": 4096}},
     ),
-    "regress": (train_regress_ex, dict, [], {}),
-    "preferences": (train_preferences_ex, pd.DataFrame, [], {}),
+    "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}),
+    "regress": (train_regress.train_regress_ex, dict, [], {}),
 }
 
 
@@ -53,7 +52,7 @@ def add_canon_experiments():
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
             EXPERIMENTS[f"plot_canon_heatmap_{computation_kind}_{distance_kind}"] = (
-                plot_canon_heatmap_ex,
+                plot_canon_heatmap.plot_canon_heatmap_ex,
                 dict,
                 [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},

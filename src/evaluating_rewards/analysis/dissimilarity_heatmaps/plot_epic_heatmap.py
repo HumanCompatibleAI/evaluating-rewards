@@ -15,24 +15,22 @@
 """CLI script to plot heatmap of EPIC distance between pairs of reward models."""
 
 import os
-from typing import Any, Iterable, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from imitation import util
+from matplotlib import pyplot as plt
+import pandas as pd
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import (
-    dissimilarity_heatmap_config,
-    results,
-    stylesheets,
-    visualize,
-)
+from evaluating_rewards.analysis import results, stylesheets, visualize
+from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
 from evaluating_rewards.scripts import script_utils
 
 plot_epic_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 
-dissimilarity_heatmap_config.make_config(plot_epic_heatmap_ex)
+config.make_config(plot_epic_heatmap_ex)
 
 
 @plot_epic_heatmap_ex.config
@@ -79,6 +77,36 @@ def normalize():
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "normalize": True,
     }
+
+
+def _multi_heatmap(
+    data: Iterable[pd.Series], labels: Iterable[pd.Series], kwargs: Iterable[Dict[str, Any]]
+) -> plt.Figure:
+    data = tuple(data)
+    labels = tuple(labels)
+    kwargs = tuple(kwargs)
+    ncols = len(data)
+    assert ncols == len(labels)
+    assert ncols == len(kwargs)
+
+    width, height = plt.rcParams.get("figure.figsize")
+    fig, axs = plt.subplots(ncols, 1, figsize=(ncols * width, height), squeeze=True)
+
+    for series, lab, kw, ax in zip(data, labels, kwargs, axs):
+        heatmaps.comparison_heatmap(series, ax=ax, **kw)
+        ax.set_title(lab)
+
+    return fig
+
+
+def loss_heatmap(loss: pd.Series, unwrapped_loss: pd.Series) -> plt.Figure:
+    return _multi_heatmap([loss, unwrapped_loss], ["Loss", "Unwrapped Loss"], [{}, {}])
+
+
+def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
+    return _multi_heatmap(
+        [scales, constants], ["Scale", "Constant"], [dict(robust=True), dict(log=False, center=0.0)]
+    )
 
 
 @plot_epic_heatmap_ex.main
@@ -134,12 +162,10 @@ def plot_divergence_heatmap(
 
     with stylesheets.setup_styles(styles):
         figs = {}
-        figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])
-        figs["affine"] = visualize.affine_heatmap(
-            res["affine"]["scales"], res["affine"]["constants"]
-        )
-        heatmaps = visualize.compact_heatmaps(dissimilarity=loss, **heatmap_kwargs)
-        figs.update(heatmaps)
+        figs["loss"] = loss_heatmap(loss, res["loss"]["unwrapped_loss"])
+        figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
+        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=loss, **heatmap_kwargs)
+        figs.update(heatmap_figs)
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
         return figs

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to plot heatmap of divergence between reward models in gridworlds."""
+"""CLI script to plot heatmap of dissimilarity_heatmaps between reward models in gridworlds."""
 
 import collections
 import os
@@ -25,13 +25,15 @@ import pandas as pd
 import sacred
 
 from evaluating_rewards import serialize, tabular
-from evaluating_rewards.analysis import gridworld_heatmap, gridworld_rewards, stylesheets, visualize
+from evaluating_rewards.analysis import gridworld_rewards, stylesheets, visualize
+from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
+from evaluating_rewards.analysis.reward_figures import gridworld_reward_heatmap
 from evaluating_rewards.scripts import script_utils
 
-plot_gridworld_divergence_ex = sacred.Experiment("plot_gridworld_divergence")
+plot_gridworld_heatmap = sacred.Experiment("plot_gridworld_heatmap")
 
 
-@plot_gridworld_divergence_ex.config
+@plot_gridworld_heatmap.config
 def default_config():
     """Default configuration values."""
     # Dataset parameters
@@ -50,15 +52,15 @@ def default_config():
     del _
 
 
-@plot_gridworld_divergence_ex.config
+@plot_gridworld_heatmap.config
 def heatmap_kwargs_default(kind):
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
-        "masks": {kind: [visualize.always_true]},
+        "masks": {kind: [reward_masks.always_true]},
         "log": kind == "direct_divergence",
     }
 
 
-@plot_gridworld_divergence_ex.named_config
+@plot_gridworld_heatmap.named_config
 def test():
     """Unit tests/debugging."""
     styles = ["paper", "heatmap", "heatmap-2col"]  # disable TeX
@@ -67,14 +69,14 @@ def test():
     del _
 
 
-@plot_gridworld_divergence_ex.named_config
+@plot_gridworld_heatmap.named_config
 def normalize():
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "normalize": True,
     }
 
 
-@plot_gridworld_divergence_ex.named_config
+@plot_gridworld_heatmap.named_config
 def paper():
     """Figure for paper appendix."""
     reward_subset = [
@@ -92,7 +94,7 @@ def paper():
     }
 
 
-@plot_gridworld_divergence_ex.config
+@plot_gridworld_heatmap.config
 def logging_config(log_root):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root, "plot_gridworld_divergence", util.make_unique_timestamp(),
@@ -146,7 +148,7 @@ def build_dist(rew: np.ndarray, xlen: int, ylen: int) -> np.ndarray:
     ns, na, ns2 = rew.shape
     assert ns == xlen * ylen
     assert ns == ns2
-    transitions = gridworld_heatmap.build_transitions(xlen, ylen, na).transpose((1, 0, 2))
+    transitions = gridworld_reward_heatmap.build_transitions(xlen, ylen, na).transpose((1, 0, 2))
     return transitions / np.sum(transitions)
 
 
@@ -215,7 +217,7 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
     return divergence
 
 
-@plot_gridworld_divergence_ex.main
+@plot_gridworld_heatmap.main
 def plot_gridworld_divergence(
     styles: Iterable[str],
     reward_subset: Optional[Iterable[str]],
@@ -240,8 +242,8 @@ def plot_gridworld_divergence(
             rewards = {k: rewards[k] for k in reward_subset}
         divergence = compute_divergence(rewards, discount, kind)
 
-        figs = visualize.compact_heatmaps(
-            dissimilarity=divergence, fmt=visualize.short_e, **heatmap_kwargs
+        figs = heatmaps.compact_heatmaps(
+            dissimilarity=divergence, fmt=heatmaps.short_e, **heatmap_kwargs,
         )
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
@@ -249,4 +251,4 @@ def plot_gridworld_divergence(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_gridworld_divergence_ex, "plot_gridworld_divergence")
+    script_utils.experiment_main(plot_gridworld_heatmap, "plot_gridworld_heatmap")

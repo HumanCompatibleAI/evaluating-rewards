@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Configurations for dissimilarity heatmaps.
+"""Configurations for dissimilarity_heatmaps heatmaps.
 
 Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatmap}`.
 """
@@ -26,8 +26,7 @@ from typing import Iterable, Tuple
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import visualize
-from evaluating_rewards.analysis.visualize import horizontal_ticks
+from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",
@@ -44,13 +43,13 @@ POINT_MASS_KINDS = [
 
 
 def _norm(args: Iterable[str]) -> bool:
-    return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
+    return any(reward_masks.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
 
 def _hopper_activity(args: Iterable[str]) -> bool:
     pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
-    repl = visualize.replace(pattern, r"\1\2")(args)
-    return len(set(repl)) > 1 and visualize.no_ctrl(args)
+    repl = reward_masks.replace(pattern, r"\1\2")(args)
+    return len(set(repl)) > 1 and reward_masks.no_ctrl(args)
 
 
 def _hardcoded_model_cfg(kinds: Iterable[str]) -> Iterable[Tuple[str, str]]:
@@ -95,8 +94,8 @@ def make_config(
     def figure_config(kinds):
         """Defaults for figure parameters."""
         heatmap_kwargs = {
-            "masks": {"all": [visualize.always_true]},
-            "after_plot": horizontal_ticks,
+            "masks": {"all": [reward_masks.always_true]},
+            "after_plot": heatmaps.horizontal_ticks,
         }
         if kinds and "order" not in heatmap_kwargs:
             heatmap_kwargs["order"] = kinds
@@ -112,7 +111,7 @@ def make_config(
         """Large output size, high precision."""
         styles = ["paper", "heatmap", "heatmap-2col", "tex"]
         heatmap_kwargs = {
-            "fmt": visualize.short_e,
+            "fmt": heatmaps.short_e,
             "cbar_kws": dict(fraction=0.05),
         }
         _ = locals()
@@ -125,13 +124,13 @@ def make_config(
         kinds = POINT_MASS_KINDS
         heatmap_kwargs = {}
         heatmap_kwargs["masks"] = {
-            "diagonal": [visualize.zero, visualize.same],
-            "control": [visualize.zero, visualize.control],
-            "dense_vs_sparse": [visualize.zero, visualize.sparse_or_dense],
-            "norm": [visualize.zero, visualize.same, _norm],
-            "all": [visualize.always_true],
+            "diagonal": [reward_masks.zero, reward_masks.same],
+            "control": [reward_masks.zero, reward_masks.control],
+            "dense_vs_sparse": [reward_masks.zero, reward_masks.sparse_or_dense],
+            "norm": [reward_masks.zero, reward_masks.same, _norm],
+            "all": [reward_masks.always_true],
         }
-        heatmap_kwargs["after_plot"] = horizontal_ticks
+        heatmap_kwargs["after_plot"] = heatmaps.horizontal_ticks
         _ = locals()
         del _
 
@@ -145,7 +144,7 @@ def make_config(
             "evaluating_rewards/Zero-v0",
         ]
         heatmap_kwargs = {
-            "masks": {"all": [visualize.always_true]},  # "all" is still only 3x3
+            "masks": {"all": [reward_masks.always_true]},  # "all" is still only 3x3
         }
         _ = locals()
         del _
@@ -160,11 +159,11 @@ def make_config(
         ]
         heatmap_kwargs = {
             "masks": {
-                "diagonal": [visualize.zero, visualize.same],
-                "control": [visualize.zero, visualize.control],
-                "direction": [visualize.zero, visualize.direction],
-                "no_ctrl": [visualize.zero, visualize.no_ctrl],
-                "all": [visualize.always_true],
+                "diagonal": [reward_masks.zero, reward_masks.same],
+                "control": [reward_masks.zero, reward_masks.control],
+                "direction": [reward_masks.zero, reward_masks.direction],
+                "no_ctrl": [reward_masks.zero, reward_masks.no_ctrl],
+                "all": [reward_masks.always_true],
             },
         }
         _ = locals()
@@ -182,14 +181,14 @@ def make_config(
         del activities
         heatmap_kwargs = {}
         heatmap_kwargs["masks"] = {
-            "diagonal": [visualize.zero, visualize.same],
-            "control": [visualize.zero, visualize.control],
-            "direction": [visualize.zero, visualize.direction],
-            "no_ctrl": [visualize.zero, visualize.no_ctrl],
-            "different_activity": [visualize.zero, _hopper_activity],
-            "all": [visualize.always_true],
+            "diagonal": [reward_masks.zero, reward_masks.same],
+            "control": [reward_masks.zero, reward_masks.control],
+            "direction": [reward_masks.zero, reward_masks.direction],
+            "no_ctrl": [reward_masks.zero, reward_masks.no_ctrl],
+            "different_activity": [reward_masks.zero, _hopper_activity],
+            "all": [reward_masks.always_true],
         }
-        heatmap_kwargs["after_plot"] = horizontal_ticks
-        heatmap_kwargs["fmt"] = functools.partial(visualize.short_e, precision=0)
+        heatmap_kwargs["after_plot"] = heatmaps.horizontal_ticks
+        heatmap_kwargs["fmt"] = functools.partial(heatmaps.short_e, precision=0)
         _ = locals()
         del _

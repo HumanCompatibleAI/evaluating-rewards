@@ -28,14 +28,15 @@ from stable_baselines.common import vec_env
 import tensorflow as tf
 
 from evaluating_rewards import canonical_sample, datasets, rewards, serialize, tabular
-from evaluating_rewards.analysis import dissimilarity_heatmap_config, stylesheets, visualize
+from evaluating_rewards.analysis import stylesheets, visualize
+from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
 from evaluating_rewards.scripts import script_utils
 
 plot_canon_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_canon_heatmap")
 
 
-dissimilarity_heatmap_config.make_config(plot_canon_heatmap_ex)
+config.make_config(plot_canon_heatmap_ex)
 
 
 @plot_canon_heatmap_ex.config
@@ -214,9 +215,9 @@ def sample_canon(
     Returns:
         Dissimilarity matrix.
     """
-    # TODO(adam): configurable transition generator
     del g
     logger.info("Sampling dataset")
+    # TODO(adam): configurable dataset
     with datasets.iid_transition_generator(obs_dist, act_dist) as iid_transition:
         batch = iid_transition(n_samples)
 
@@ -291,7 +292,7 @@ def plot_divergence_heatmap(
     dissimilarity = dissimilarity_df_to_series(dissimilarity)
 
     with stylesheets.setup_styles(styles):
-        figs = visualize.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
+        figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
     return figs
