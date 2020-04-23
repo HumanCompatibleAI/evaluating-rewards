@@ -29,13 +29,13 @@ from evaluating_rewards.analysis import (
 )
 from evaluating_rewards.scripts import script_utils
 
-plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
+plot_epic_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 
 
-dissimilarity_heatmap_config.make_config(plot_divergence_heatmap_ex)
+dissimilarity_heatmap_config.make_config(plot_epic_heatmap_ex)
 
 
-@plot_divergence_heatmap_ex.config
+@plot_epic_heatmap_ex.config
 def default_config():
     """Default configuration values."""
     # Dataset parameters
@@ -48,19 +48,19 @@ def default_config():
     del _
 
 
-@plot_divergence_heatmap_ex.config
+@plot_epic_heatmap_ex.config
 def search_config(search, env_name):
     search["env_name"] = env_name
 
 
-@plot_divergence_heatmap_ex.config
+@plot_epic_heatmap_ex.config
 def logging_config(log_root, search):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root, "plot_epic_heatmap", str(search).replace("/", "_"), util.make_unique_timestamp(),
     )
 
 
-@plot_divergence_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     data_root = os.path.join("tests", "data")
@@ -74,14 +74,14 @@ def test():
     del _
 
 
-@plot_divergence_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def normalize():
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "normalize": True,
     }
 
 
-@plot_divergence_heatmap_ex.main
+@plot_epic_heatmap_ex.main
 def plot_divergence_heatmap(
     x_reward_cfgs: Iterable[Tuple[str, str]],
     y_reward_cfgs: Iterable[Tuple[str, str]],
@@ -146,4 +146,4 @@ def plot_divergence_heatmap(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_divergence_heatmap_ex, "plot_divergence_heatmap")
+    script_utils.experiment_main(plot_epic_heatmap_ex, "plot_divergence_heatmap")

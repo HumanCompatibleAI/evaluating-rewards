@@ -31,28 +31,36 @@ from evaluating_rewards import canonical_sample, datasets, rewards, serialize, t
 from evaluating_rewards.analysis import dissimilarity_heatmap_config, stylesheets, visualize
 from evaluating_rewards.scripts import script_utils
 
-plot_divergence_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
+plot_canon_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_canon_heatmap")
 
 
-dissimilarity_heatmap_config.make_config(plot_divergence_heatmap_ex)
+dissimilarity_heatmap_config.make_config(plot_canon_heatmap_ex)
 
 
-@plot_divergence_heatmap_ex.config
+@plot_canon_heatmap_ex.config
 def default_config():
     """Default configuration values."""
+    computation_kind = "sample"  # either "sample" or "mesh"
+    distance_kind = "pearson"  # either "direct" or "pearson"
+    discount = 0.99  # discount rate for shaping
+
+    # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
+    # n_obs and n_act only applicable for mesh approach
+    n_obs = 256
+    n_act = 256
+
+    # Figure parameters
     heatmap_kwargs = {
         "log": False,
     }
-    # TODO(adam): anything specific to CANON...
-    # Different kinds, e.g. Pearson vs direct?
     _ = locals()
     del _
 
 
-@plot_divergence_heatmap_ex.config
+@plot_canon_heatmap_ex.config
 def logging_config(env_name, log_root):
     # TODO(adam): include any other important config entries here e.g. kind.
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
@@ -60,13 +68,14 @@ def logging_config(env_name, log_root):
     )
 
 
-@plot_divergence_heatmap_ex.named_config
+@plot_canon_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
-    # TODO(adam): anything else custom here?
-    # Do not include "tex" in styles here: this will break on CI.
     n_samples = 64
     n_mean_samples = 64
+    n_obs = 16
+    n_act = 16
+    # Do not include "tex" in styles here: this will break on CI.
     styles = ["paper", "heatmap-1col"]
     _ = locals()
     del _
@@ -94,13 +103,144 @@ def make_gym_dists(env_name: str) -> Tuple[datasets.SampleDist, datasets.SampleD
     return obs_dist, act_dist
 
 
-@plot_divergence_heatmap_ex.main
-def plot_divergence_heatmap(
-    env_name: str,
-    n_samples: int,
-    n_mean_samples: int,
+def dissimilarity_df_to_series(dissimilarity: pd.DataFrame) -> pd.Series:
+    dissimilarity.index = pd.MultiIndex.from_tuples(
+        dissimilarity.index, names=("source_reward_type", "source_reward_path"),
+    )
+    dissimilarity.columns = pd.MultiIndex.from_tuples(
+        dissimilarity.columns, names=("target_reward_type", "target_reward_path"),
+    )
+    return dissimilarity.stack(level=("target_reward_type", "target_reward_path"))
+
+
+@plot_canon_heatmap_ex.capture
+def mesh_canon(
+    g: tf.Graph,
+    sess: tf.Session,
+    obs_dist: datasets.SampleDist,
+    act_dist: datasets.SampleDist,
+    models: Mapping[Tuple[str, str], rewards.RewardModel],
     x_reward_cfgs: Iterable[Tuple[str, str]],
     y_reward_cfgs: Iterable[Tuple[str, str]],
+    distance_kind: str,
+    discount: float,
+    n_obs: int,
+    n_act: int,
+) -> pd.DataFrame:
+    """
+    Computes approximation of canon distance by discretizing and then using tabular method.
+
+    Specifically, we first call `sample_canon_shaping.discrete_iid_evaluate_models` to evaluate
+    on a mesh, and then use `tabular.fully_connected_random_canonical_reward` to remove the
+    shaping.
+
+    Args:
+        g: the TensorFlow graph.
+        sess: the TensorFlow session.
+        obs_dist: the distribution over observations.
+        act_dist: the distribution over actions.
+        models: loaded reward models for all of `x_reward_cfgs` and `y_reward_cfgs`.
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        distance_kind: the distance to use after deshaping: direct or Pearson.
+        discount: the discount rate for shaping.
+        n_obs: The number of observations and next observations to use in the mesh.
+        n_act: The number of actions to use in the mesh.
+
+    Returns:
+        Dissimilarity matrix.
+    """
+    with g.as_default():
+        with sess.as_default():
+            mesh_rews, _, _ = canonical_sample.discrete_iid_evaluate_models(
+                models, obs_dist, act_dist, n_obs, n_act
+            )
+    x_rews = {cfg: mesh_rews[cfg] for cfg in x_reward_cfgs}
+    y_rews = {cfg: mesh_rews[cfg] for cfg in y_reward_cfgs}
+
+    if distance_kind == "direct":
+        distance_fn = tabular.canonical_reward_distance
+    elif distance_kind == "pearson":
+        distance_fn = tabular.deshape_pearson_distance
+    else:
+        raise ValueError(f"Unrecognized distance '{distance_kind}'")
+    distance_fn = functools.partial(
+        distance_fn, discount=discount, deshape_fn=tabular.fully_connected_random_canonical_reward
+    )
+    logger.info("Computing distance")
+    return canonical_sample.cross_distance(x_rews, y_rews, distance_fn=distance_fn)
+
+
+def _direct_distance(rewa: np.ndarray, rewb: np.ndarray) -> float:
+    return 0.5 * tabular.direct_distance(rewa, rewb, p=1)
+
+
+@plot_canon_heatmap_ex.capture
+def sample_canon(
+    g: tf.Graph,
+    sess: tf.Session,
+    obs_dist: datasets.SampleDist,
+    act_dist: datasets.SampleDist,
+    models: Mapping[Tuple[str, str], rewards.RewardModel],
+    x_reward_cfgs: Iterable[Tuple[str, str]],
+    y_reward_cfgs: Iterable[Tuple[str, str]],
+    distance_kind: str,
+    discount: float,
+    n_samples: int,
+    n_mean_samples: int,
+) -> pd.DataFrame:
+    """
+    Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
+
+    Args:
+        g: the TensorFlow graph.
+        sess: the TensorFlow session.
+        obs_dist: the distribution over observations.
+        act_dist: the distribution over actions.
+        models: loaded reward models for all of `x_reward_cfgs` and `y_reward_cfgs`.
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        distance_kind: the distance to use after deshaping: direct or Pearson.
+        discount: the discount rate for shaping.
+        n_samples: the number of samples to estimate the distance with.
+        n_mean_samples: the number of samples to estimate the mean reward for canonicalization.
+
+    Returns:
+        Dissimilarity matrix.
+    """
+    # TODO(adam): configurable transition generator
+    del g
+    logger.info("Sampling dataset")
+    with datasets.iid_transition_generator(obs_dist, act_dist) as iid_transition:
+        batch = iid_transition(n_samples)
+
+    with sess.as_default():
+        logger.info("Removing shaping")
+        deshaped_rew = canonical_sample.sample_canon_shaping(
+            models, batch, act_dist, obs_dist, n_mean_samples, discount,
+        )
+        x_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in x_reward_cfgs}
+        y_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in y_reward_cfgs}
+
+    if distance_kind == "direct":
+        distance_fn = _direct_distance
+    elif distance_kind == "pearson":
+        distance_fn = tabular.pearson_distance
+    else:
+        raise ValueError(f"Unrecognized distance '{distance_kind}'")
+
+    logger.info("Computing distance")
+    return canonical_sample.cross_distance(
+        x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1,
+    )
+
+
+@plot_canon_heatmap_ex.main
+def plot_divergence_heatmap(
+    env_name: str,
+    x_reward_cfgs: Iterable[Tuple[str, str]],
+    y_reward_cfgs: Iterable[Tuple[str, str]],
+    computation_kind: str,
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
@@ -110,10 +250,9 @@ def plot_divergence_heatmap(
 
     Args:
         env_name: the name of the environment to plot rewards for.
-        n_samples: the number of samples to estimate the distance with.
-        n_mean_samples: the number of samples to estimate the mean reward for canonicalization.
-        x_reward_cfgs: tuples of reward_type and reward_path for x-axis (target).
-        y_reward_cfgs: tuples of reward_type and reward_path for y-axis (source).
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
@@ -134,32 +273,16 @@ def plot_divergence_heatmap(
     # TODO(adam): make distribution configurable
     obs_dist, act_dist = make_gym_dists(env_name)
 
-    # TODO(adam): support mesh method of computation?
-    # TODO(adam): configurable transition generator
-    logger.info("Sampling dataset")
-    with datasets.iid_transition_generator(obs_dist, act_dist) as iid_transition:
-        batch = iid_transition(n_samples)
-    with sess.as_default():
-        logger.info("Removing shaping")
-        deshaped_rew = canonical_sample.sample_canon_shaping(
-            models, batch, act_dist, obs_dist, n_mean_samples=n_mean_samples,
-        )
-        x_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in x_reward_cfgs}
-        y_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in y_reward_cfgs}
-    logger.info("Computing distance")
-    dissimilarity = 0.5 * canonical_sample.cross_distance(
-        x_deshaped_rew,
-        y_deshaped_rew,
-        functools.partial(tabular.direct_distance, p=1),
-        parallelism=1,
+    if computation_kind == "sample":
+        computation_fn = sample_canon
+    elif computation_kind == "mesh":
+        computation_fn = mesh_canon
+    else:
+        raise ValueError(f"Unrecognized computation kind '{computation_kind}'")
+    dissimilarity = computation_fn(
+        g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
     )
-    dissimilarity.index = pd.MultiIndex.from_tuples(
-        dissimilarity.index, names=("source_reward_type", "source_reward_path"),
-    )
-    dissimilarity.columns = pd.MultiIndex.from_tuples(
-        dissimilarity.columns, names=("target_reward_type", "target_reward_path"),
-    )
-    dissimilarity = dissimilarity.stack(level=("target_reward_type", "target_reward_path"))
+    dissimilarity = dissimilarity_df_to_series(dissimilarity)
 
     with stylesheets.setup_styles(styles):
         figs = visualize.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
@@ -169,4 +292,4 @@ def plot_divergence_heatmap(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_divergence_heatmap_ex, "plot_divergence_heatmap")
+    script_utils.experiment_main(plot_canon_heatmap_ex, "plot_divergence_heatmap")

@@ -20,7 +20,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-from evaluating_rewards.analysis.plot_epic_heatmap import plot_divergence_heatmap_ex
+from evaluating_rewards.analysis.plot_canon_heatmap import plot_canon_heatmap_ex
+from evaluating_rewards.analysis.plot_epic_heatmap import plot_epic_heatmap_ex
 from evaluating_rewards.analysis.plot_gridworld_divergence import plot_gridworld_divergence_ex
 from evaluating_rewards.analysis.plot_gridworld_reward import plot_gridworld_reward_ex
 from evaluating_rewards.analysis.plot_pm_reward import plot_pm_reward_ex
@@ -31,7 +32,8 @@ from tests import common
 
 EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates
-    "plot_divergence": (plot_divergence_heatmap_ex, dict, [], {}),
+    "plot_canon_heatmap": (plot_canon_heatmap_ex, dict, [], {}),
+    "plot_epic_heatmap": (plot_epic_heatmap_ex, dict, [], {}),
     "plot_pm": (plot_pm_reward_ex, xr.DataArray, [], {}),
     "plot_gridworld_divergence": (plot_gridworld_divergence_ex, dict, [], {}),
     "plot_gridworld_reward": (plot_gridworld_reward_ex, plt.Figure, [], {}),
@@ -45,6 +47,20 @@ EXPERIMENTS = {
     "regress": (train_regress_ex, dict, [], {}),
     "preferences": (train_preferences_ex, pd.DataFrame, [], {}),
 }
+
+
+def add_canon_experiments():
+    for computation_kind in ["sample", "mesh"]:
+        for distance_kind in ["direct", "pearson"]:
+            EXPERIMENTS[f"plot_canon_heatmap_{computation_kind}_{distance_kind}"] = (
+                plot_canon_heatmap_ex,
+                dict,
+                [],
+                {"computation_kind": computation_kind, "distance_kind": distance_kind},
+            )
+
+
+add_canon_experiments()
 
 
 @common.mark_parametrize_dict("experiment,expected_type,named_configs,config_updates", EXPERIMENTS)

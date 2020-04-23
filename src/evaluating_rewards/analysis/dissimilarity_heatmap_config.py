@@ -37,6 +37,12 @@ MUJOCO_STANDARD_ORDER = [
 ]
 
 
+POINT_MASS_KINDS = [
+    f"evaluating_rewards/PointMass{label}-v0"
+    for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
+]
+
+
 def _norm(args: Iterable[str]) -> bool:
     return any(visualize.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
@@ -63,11 +69,11 @@ def make_config(
     @experiment.config
     def default_config():
         """Default configuration values."""
-        env_name = "evaluating_rewards/Hopper-v3"
+        env_name = "evaluating_rewards/PointMassLine-v0"
+        kinds = POINT_MASS_KINDS
         log_root = serialize.get_output_dir()  # where results are read from/written to
 
         # Reward configurations: models to compare
-        kinds = None
         x_reward_cfgs = None
         y_reward_cfgs = None
 
@@ -116,8 +122,7 @@ def make_config(
     def point_mass():
         """Heatmaps for evaluating_rewards/PointMass* environments."""
         env_name = "evaluating_rewards/PointMassLine-v0"
-        kinds = ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
-        kinds = [f"evaluating_rewards/PointMass{label}-v0" for label in kinds]
+        kinds = POINT_MASS_KINDS
         heatmap_kwargs = {}
         heatmap_kwargs["masks"] = {
             "diagonal": [visualize.zero, visualize.same],
