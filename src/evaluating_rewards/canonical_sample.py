@@ -3,7 +3,7 @@
 import itertools
 import multiprocessing
 import multiprocessing.dummy
-from typing import Callable, Mapping, Optional, Tuple, TypeVar
+from typing import Any, Callable, Mapping, Optional, Tuple, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -296,15 +296,17 @@ def sample_canon_shaping(
 
 
 def cross_distance(
-    rews: Mapping[str, np.ndarray],
+    rewxs: Mapping[Any, np.ndarray],
+    rewys: Mapping[Any, np.ndarray],
     distance_fn: Callable[[np.ndarray, np.ndarray], float],
     parallelism: Optional[int] = None,
     threading: bool = True,
 ) -> pd.DataFrame:
-    """Helper function to compute distance between all pairs of rewards in `rews`.
+    """Helper function to compute distance between all pairs of rewards from `rewxs` and `rewys`.
 
     Args:
-        rews: A mapping from keys to NumPy arrays of shape `(n,)`.
+        rewxs: A mapping from keys to NumPy arrays of shape `(n,)`.
+        rewys: A mapping from keys to NumPy arrays of shape `(n,)`.
         distance_fn: A function to compute the distance between two NumPy arrays.
         parallelism: The number of threads/processes to execute in parallel; if not specified,
             defaults to `multiprocessing.cpu_count()`.
@@ -316,14 +318,15 @@ def cross_distance(
         A square DataFrame whose columns and indices consist of `rews.keys()`, with each cell
         `(i,j)` consisting of `distance_fn(rews[i], rews[j])`.
     """
-    shapes = set((v.shape for v in rews.values()))
+    shapes = set((v.shape for v in rewxs.values()))
+    shapes.update((v.shape for v in rewys.values()))
     assert len(shapes) <= 1, "rewards differ in shape"
 
-    tasks = {(k1, k2): (rew1, rew2) for k1, rew1 in rews.items() for k2, rew2 in rews.items()}
+    tasks = {(kx, ky): (rewx, rewy) for kx, rewx in rewxs.items() for ky, rewy in rewxs.items()}
 
     if parallelism == 1:
         # Only one process? Skip multiprocessing, since creating Pool adds overhead.
-        results = [distance_fn(rew1, rew2) for rew1, rew2 in tasks.values()]
+        results = [distance_fn(rewx, rewy) for rewx, rewy in tasks.values()]
     else:
         # We want parallelism, use multiprocessing to speed things up.
         module = multiprocessing.dummy if threading else multiprocessing

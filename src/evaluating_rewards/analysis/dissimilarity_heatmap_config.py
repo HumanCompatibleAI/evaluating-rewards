@@ -1,3 +1,17 @@
+# Copyright 2020 Adam Gleave
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#            http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Configurations for dissimilarity heatmaps.
 
 Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatmap}`.
@@ -7,10 +21,11 @@ Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatma
 
 import functools
 import itertools
-from typing import Iterable
+from typing import Iterable, Tuple
 
 import sacred
 
+from evaluating_rewards import serialize
 from evaluating_rewards.analysis import visualize
 from evaluating_rewards.analysis.visualize import horizontal_ticks
 
@@ -32,10 +47,13 @@ def _hopper_activity(args: Iterable[str]) -> bool:
     return len(set(repl)) > 1 and visualize.no_ctrl(args)
 
 
-# pylint:disable=unused-variable
+def _hardcoded_model_cfg(kinds: Iterable[str]) -> Iterable[Tuple[str, str]]:
+    return [(kind, "dummy") for kind in kinds]
 
 
-def make_config(experiment: sacred.Experiment):
+def make_config(
+    experiment: sacred.Experiment,
+):  # pylint: disable=unused-variable,too-many-statements
     """Adds configs and named configs to `experiment`.
 
     Assumes Sacred experiment functions use `heatmap_kwargs`, `styles` and `save_kwargs`
@@ -45,16 +63,41 @@ def make_config(experiment: sacred.Experiment):
     @experiment.config
     def default_config():
         """Default configuration values."""
-        # Figure parameters
+        env_name = "evaluating_rewards/Hopper-v3"
+        log_root = serialize.get_output_dir()  # where results are read from/written to
+
+        # Reward configurations: models to compare
+        kinds = None
+        x_reward_cfgs = None
+        y_reward_cfgs = None
+
+        _ = locals()
+        del _
+
+    @experiment.config
+    def reward_config(kinds, x_reward_cfgs, y_reward_cfgs):
+        """Default to hardcoded reward model types."""
+        if kinds is not None:
+            if x_reward_cfgs is None:
+                x_reward_cfgs = _hardcoded_model_cfg(kinds)
+            if y_reward_cfgs is None:
+                y_reward_cfgs = _hardcoded_model_cfg(kinds)
+        _ = locals()
+        del _
+
+    @experiment.config
+    def figure_config(kinds):
+        """Defaults for figure parameters."""
         heatmap_kwargs = {
             "masks": {"all": [visualize.always_true]},
             "after_plot": horizontal_ticks,
         }
+        if kinds and "order" not in heatmap_kwargs:
+            heatmap_kwargs["order"] = kinds
         styles = ["paper", "heatmap", "heatmap-1col", "tex"]
         save_kwargs = {
             "fmt": "pdf",
         }
-
         _ = locals()
         del _
 
@@ -73,6 +116,8 @@ def make_config(experiment: sacred.Experiment):
     def point_mass():
         """Heatmaps for evaluating_rewards/PointMass* environments."""
         env_name = "evaluating_rewards/PointMassLine-v0"
+        kinds = ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
+        kinds = [f"evaluating_rewards/PointMass{label}-v0" for label in kinds]
         heatmap_kwargs = {}
         heatmap_kwargs["masks"] = {
             "diagonal": [visualize.zero, visualize.same],
@@ -81,9 +126,6 @@ def make_config(experiment: sacred.Experiment):
             "norm": [visualize.zero, visualize.same, _norm],
             "all": [visualize.always_true],
         }
-        order = ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
-        heatmap_kwargs["order"] = [f"evaluating_rewards/PointMass{label}-v0" for label in order]
-        del order
         heatmap_kwargs["after_plot"] = horizontal_ticks
         _ = locals()
         del _
@@ -92,13 +134,13 @@ def make_config(experiment: sacred.Experiment):
     def point_maze():
         """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
         env_name = "evaluating_rewards/PointMazeLeft-v0"
+        kinds = [
+            "imitation/PointMazeGroundTruthWithCtrl-v0",
+            "imitation/PointMazeGroundTruthNoCtrl-v0",
+            "evaluating_rewards/Zero-v0",
+        ]
         heatmap_kwargs = {
             "masks": {"all": [visualize.always_true]},  # "all" is still only 3x3
-            "order": [
-                "imitation/PointMazeGroundTruthWithCtrl-v0",
-                "imitation/PointMazeGroundTruthNoCtrl-v0",
-                "evaluating_rewards/Zero-v0",
-            ],
         }
         _ = locals()
         del _
@@ -107,6 +149,10 @@ def make_config(experiment: sacred.Experiment):
     def half_cheetah():
         """Heatmaps for HalfCheetah-v3."""
         env_name = "evaluating_rewards/HalfCheetah-v3"
+        kinds = [
+            f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
+            for suffix in MUJOCO_STANDARD_ORDER
+        ]
         heatmap_kwargs = {
             "masks": {
                 "diagonal": [visualize.zero, visualize.same],
@@ -115,10 +161,6 @@ def make_config(experiment: sacred.Experiment):
                 "no_ctrl": [visualize.zero, visualize.no_ctrl],
                 "all": [visualize.always_true],
             },
-            "order": [
-                f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
-                for suffix in MUJOCO_STANDARD_ORDER
-            ],
         }
         _ = locals()
         del _
@@ -127,6 +169,12 @@ def make_config(experiment: sacred.Experiment):
     def hopper():
         """Heatmaps for Hopper-v3."""
         env_name = "evaluating_rewards/Hopper-v3"
+        activities = ["GroundTruth", "Backflip"]
+        kinds = [
+            f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
+            for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
+        ]
+        del activities
         heatmap_kwargs = {}
         heatmap_kwargs["masks"] = {
             "diagonal": [visualize.zero, visualize.same],
@@ -136,16 +184,7 @@ def make_config(experiment: sacred.Experiment):
             "different_activity": [visualize.zero, _hopper_activity],
             "all": [visualize.always_true],
         }
-        activities = ["GroundTruth", "Backflip"]
-        heatmap_kwargs["order"] = [
-            f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
-            for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
-        ]
         heatmap_kwargs["after_plot"] = horizontal_ticks
         heatmap_kwargs["fmt"] = functools.partial(visualize.short_e, precision=0)
-        del activities
         _ = locals()
         del _
-
-
-# pylint:enable=unused-variable

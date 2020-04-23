@@ -240,7 +240,9 @@ def plot_gridworld_divergence(
             rewards = {k: rewards[k] for k in reward_subset}
         divergence = compute_divergence(rewards, discount, kind)
 
-        figs = visualize.compact_heatmaps(loss=divergence, fmt=visualize.short_e, **heatmap_kwargs)
+        figs = visualize.compact_heatmaps(
+            dissimilarity=divergence, fmt=visualize.short_e, **heatmap_kwargs
+        )
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
         return figs

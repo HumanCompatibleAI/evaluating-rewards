@@ -375,7 +375,7 @@ short_fmt = functools.partial(short_e, precision=1)
 
 
 def compact_heatmaps(
-    loss: pd.Series,
+    dissimilarity: pd.Series,
     masks: Mapping[str, Iterable[results.FilterFn]],
     order: Optional[Iterable[str]] = None,
     fmt: Callable[[float], str] = short_fmt,
@@ -385,7 +385,7 @@ def compact_heatmaps(
     """Plots a series of compact heatmaps, suitable for presentations.
 
     Args:
-        loss: The loss between source and target.
+        dissimilarity: The loss between source and target.
                 The index should consist of target_reward_type, one of
                 source_reward_{type,path}, and any number of seed indices.
                 source_reward_path, if present, is rewritten into source_reward_type
@@ -402,23 +402,25 @@ def compact_heatmaps(
         A mapping from strings to figures.
     """
     if order is None:
-        order = loss.index.levels[0]
-    loss = loss.copy()
-    loss = rewrite_index(loss)
-    loss = compact(loss)
+        order = dissimilarity.index.levels[0]
+    dissimilarity = dissimilarity.copy()
+    dissimilarity = rewrite_index(dissimilarity)
+    dissimilarity = compact(dissimilarity)
 
     source_order = list(order)
-    if ZERO_REWARD in loss.index.get_level_values("source_reward_type"):
+    if ZERO_REWARD in dissimilarity.index.get_level_values("source_reward_type"):
         if ZERO_REWARD not in source_order:
             source_order.append(ZERO_REWARD)
-    loss = loss.reindex(index=source_order, level="source_reward_type")
-    loss = loss.reindex(index=order, level="target_reward_type")
+    dissimilarity = dissimilarity.reindex(index=source_order, level="source_reward_type")
+    dissimilarity = dissimilarity.reindex(index=order, level="target_reward_type")
 
     figs = {}
     for name, matching in masks.items():
         fig, ax = plt.subplots(1, 1, squeeze=True)
-        match_mask = compute_mask(loss, matching)
-        comparison_heatmap(loss, ax=ax, fmt=fmt, preserve_order=True, mask=match_mask, **kwargs)
+        match_mask = compute_mask(dissimilarity, matching)
+        comparison_heatmap(
+            dissimilarity, ax=ax, fmt=fmt, preserve_order=True, mask=match_mask, **kwargs
+        )
         # make room for multi-line xlabels
         after_plot()
         figs[name] = fig

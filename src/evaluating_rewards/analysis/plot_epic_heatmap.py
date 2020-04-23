@@ -15,7 +15,7 @@
 """CLI script to plot heatmap of EPIC distance between pairs of reward models."""
 
 import os
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional, Tuple
 
 from imitation import util
 import sacred
@@ -38,8 +38,6 @@ dissimilarity_heatmap_config.make_config(plot_divergence_heatmap_ex)
 @plot_divergence_heatmap_ex.config
 def default_config():
     """Default configuration values."""
-    env_name = "evaluating_rewards/Hopper-v3"
-
     # Dataset parameters
     log_root = serialize.get_output_dir()  # where results are read from/written to
     data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
@@ -58,10 +56,7 @@ def search_config(search, env_name):
 @plot_divergence_heatmap_ex.config
 def logging_config(log_root, search):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root,
-        "plot_divergence_heatmap",
-        str(search).replace("/", "_"),
-        util.make_unique_timestamp(),
+        log_root, "plot_epic_heatmap", str(search).replace("/", "_"), util.make_unique_timestamp(),
     )
 
 
@@ -88,6 +83,8 @@ def normalize():
 
 @plot_divergence_heatmap_ex.main
 def plot_divergence_heatmap(
+    x_reward_cfgs: Iterable[Tuple[str, str]],
+    y_reward_cfgs: Iterable[Tuple[str, str]],
     styles: Iterable[str],
     data_root: str,
     data_subdir: Optional[str],
@@ -99,6 +96,8 @@ def plot_divergence_heatmap(
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis (target).
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis (source).
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         data_root: where to load data from.
         data_subdir: subdirectory to load data from.
@@ -107,32 +106,39 @@ def plot_divergence_heatmap(
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
     """
+    # Sacred turns our tuples into lists :(, undo
+    x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
+    y_reward_cfgs = [tuple(v) for v in y_reward_cfgs]
+
+    data_dir = data_root
+    if data_subdir is not None:
+        data_dir = os.path.join(data_dir, data_subdir)
+    # Workaround tags reserved by Sacred
+    search = dict(search)
+    for k, v in search.items():
+        if isinstance(v, dict):
+            search[k] = {inner_k.replace("escape/", ""): inner_v for inner_k, inner_v in v.items()}
+
+    def cfg_filter(cfg):
+        matches_search = all((cfg.get(k) == v for k, v in search.items()))
+        source_cfg = cfg.get("source_reward_type"), cfg.get("source_reward_path")
+        matches_source = source_cfg in y_reward_cfgs
+        target_cfg = cfg.get("target_reward_type"), cfg.get("target_reward_path")
+        matches_target = target_cfg in x_reward_cfgs
+        return matches_search and matches_source and matches_target
+
+    keys = ("source_reward_type", "source_reward_path", "target_reward_type", "seed")
+    stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
+    res = results.pipeline(stats)
+    loss = res["loss"]["loss"]
+
     with stylesheets.setup_styles(styles):
-        data_dir = data_root
-        if data_subdir is not None:
-            data_dir = os.path.join(data_dir, data_subdir)
-        # Workaround tags reserved by Sacred
-        search = dict(search)
-        for k, v in search.items():
-            if isinstance(v, dict):
-                search[k] = {
-                    inner_k.replace("escape/", ""): inner_v for inner_k, inner_v in v.items()
-                }
-
-        def cfg_filter(cfg):
-            return all((cfg.get(k) == v for k, v in search.items()))
-
-        keys = ["source_reward_type", "source_reward_path", "target_reward_type", "seed"]
-        stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
-        res = results.pipeline(stats)
-        loss = res["loss"]["loss"]
-
         figs = {}
         figs["loss"] = visualize.loss_heatmap(loss, res["loss"]["unwrapped_loss"])
         figs["affine"] = visualize.affine_heatmap(
             res["affine"]["scales"], res["affine"]["constants"]
         )
-        heatmaps = visualize.compact_heatmaps(loss=loss, **heatmap_kwargs)
+        heatmaps = visualize.compact_heatmaps(dissimilarity=loss, **heatmap_kwargs)
         figs.update(heatmaps)
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
