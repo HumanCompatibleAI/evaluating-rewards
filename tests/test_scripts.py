@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-from evaluating_rewards.analysis.plot_divergence_heatmap import plot_divergence_heatmap_ex
+from evaluating_rewards.analysis.plot_epic_heatmap import plot_divergence_heatmap_ex
 from evaluating_rewards.analysis.plot_gridworld_divergence import plot_gridworld_divergence_ex
 from evaluating_rewards.analysis.plot_gridworld_reward import plot_gridworld_reward_ex
 from evaluating_rewards.analysis.plot_pm_reward import plot_pm_reward_ex

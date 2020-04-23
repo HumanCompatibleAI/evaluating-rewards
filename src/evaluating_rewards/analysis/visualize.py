@@ -133,6 +133,11 @@ def remove_constant_levels(index: pd.MultiIndex) -> pd.MultiIndex:
 # Plotting: generate figures
 
 
+def horizontal_ticks() -> None:
+    plt.xticks(rotation="horizontal")
+    plt.yticks(rotation="horizontal")
+
+
 def plot_shaping_comparison(
     df: pd.DataFrame, cols: Optional[Iterable[str]] = None, **kwargs
 ) -> pd.DataFrame:
