@@ -33,9 +33,9 @@ EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates
     "plot_canon_heatmap": (plot_canon_heatmap.plot_canon_heatmap_ex, dict, [], {}),
     "plot_epic_heatmap": (plot_epic_heatmap.plot_epic_heatmap_ex, dict, [], {}),
-    "plot_pm": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
-    "plot_gridworld_divergence": (plot_gridworld_heatmap.plot_gridworld_heatmap, dict, [], {},),
+    "plot_gridworld_heatmap": (plot_gridworld_heatmap.plot_gridworld_heatmap_ex, dict, [], {},),
     "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, plt.Figure, [], {}),
+    "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
     "comparison": (model_comparison.model_comparison_ex, dict, [], {}),
     "comparison_alternating": (
         model_comparison.model_comparison_ex,
@@ -59,7 +59,27 @@ def add_canon_experiments():
             )
 
 
+def add_gridworld_experiments():
+    """Adds experiments for `plot_gridworld_heatmap`."""
+    kinds = [
+        "direct_divergence",
+        "asymmetric",
+        "symmetric",
+        "symmetric_min",
+    ]
+    for canonical in plot_gridworld_heatmap.CANONICAL_DESHAPE_FN:
+        kinds += [f"{canonical}_direct", f"{canonical}_pearson"]
+    for kind in kinds:
+        EXPERIMENTS[f"plot_gridworld_heatmap_{kind}"] = (
+            plot_gridworld_heatmap.plot_gridworld_heatmap_ex,
+            dict,
+            [],
+            {"kind": kind},
+        )
+
+
 add_canon_experiments()
+add_gridworld_experiments()
 
 
 @common.mark_parametrize_dict("experiment,expected_type,named_configs,config_updates", EXPERIMENTS)

@@ -30,10 +30,10 @@ from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_
 from evaluating_rewards.analysis.reward_figures import gridworld_reward_heatmap
 from evaluating_rewards.scripts import script_utils
 
-plot_gridworld_heatmap = sacred.Experiment("plot_gridworld_heatmap")
+plot_gridworld_heatmap_ex = sacred.Experiment("plot_gridworld_heatmap")
 
 
-@plot_gridworld_heatmap.config
+@plot_gridworld_heatmap_ex.config
 def default_config():
     """Default configuration values."""
     # Dataset parameters
@@ -52,7 +52,7 @@ def default_config():
     del _
 
 
-@plot_gridworld_heatmap.config
+@plot_gridworld_heatmap_ex.config
 def heatmap_kwargs_default(kind):
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "masks": {kind: [reward_masks.always_true]},
@@ -60,7 +60,7 @@ def heatmap_kwargs_default(kind):
     }
 
 
-@plot_gridworld_heatmap.named_config
+@plot_gridworld_heatmap_ex.named_config
 def test():
     """Unit tests/debugging."""
     styles = ["paper", "heatmap", "heatmap-2col"]  # disable TeX
@@ -69,14 +69,14 @@ def test():
     del _
 
 
-@plot_gridworld_heatmap.named_config
+@plot_gridworld_heatmap_ex.named_config
 def normalize():
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "normalize": True,
     }
 
 
-@plot_gridworld_heatmap.named_config
+@plot_gridworld_heatmap_ex.named_config
 def paper():
     """Figure for paper appendix."""
     reward_subset = [
@@ -94,7 +94,7 @@ def paper():
     }
 
 
-@plot_gridworld_heatmap.config
+@plot_gridworld_heatmap_ex.config
 def logging_config(log_root):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root, "plot_gridworld_divergence", util.make_unique_timestamp(),
@@ -217,7 +217,7 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
     return divergence
 
 
-@plot_gridworld_heatmap.main
+@plot_gridworld_heatmap_ex.main
 def plot_gridworld_divergence(
     styles: Iterable[str],
     reward_subset: Optional[Iterable[str]],
@@ -251,4 +251,4 @@ def plot_gridworld_divergence(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_gridworld_heatmap, "plot_gridworld_heatmap")
+    script_utils.experiment_main(plot_gridworld_heatmap_ex, "plot_gridworld_heatmap")
