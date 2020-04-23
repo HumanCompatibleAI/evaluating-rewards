@@ -195,7 +195,7 @@ def pearson_distance(
     corr = cov / (np.sqrt(vara) * np.sqrt(varb))
     corr = min(corr, 1.0)  # floating point error sometimes rounds above 1.0
 
-    return 0.5 * np.sqrt(1 - corr)
+    return np.sqrt(0.5 * (1 - corr))
 
 
 def asymmetric_distance(
