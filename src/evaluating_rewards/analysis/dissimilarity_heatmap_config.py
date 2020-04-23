@@ -1,6 +1,6 @@
 """Configurations for dissimilarity heatmaps.
 
-Shared between `plot_epic_heatmap.py` and `plot_canon_heatmap.py`.
+Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatmap}`.
 """
 
 # TODO(adam): should this also be integrated into plot_gridworld_divergence?
@@ -32,7 +32,16 @@ def _hopper_activity(args: Iterable[str]) -> bool:
     return len(set(repl)) > 1 and visualize.no_ctrl(args)
 
 
+# pylint:disable=unused-variable
+
+
 def make_config(experiment: sacred.Experiment):
+    """Adds configs and named configs to `experiment`.
+
+    Assumes Sacred experiment functions use `heatmap_kwargs`, `styles` and `save_kwargs`
+    like `plot_epic_heatmap` and `plot_canon_heatmap`.
+    """
+
     @experiment.config
     def default_config():
         """Default configuration values."""
@@ -137,3 +146,6 @@ def make_config(experiment: sacred.Experiment):
         del activities
         _ = locals()
         del _
+
+
+# pylint:enable=unused-variable

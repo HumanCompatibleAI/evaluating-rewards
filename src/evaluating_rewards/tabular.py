@@ -444,8 +444,8 @@ def deshape_pearson_distance(
     Returns:
         The Pearson distance between the deshaped versions of `rewa` and `rewb`.
     """
-    rewa = deshape_fn(rewa, discount=discount)
-    rewb = deshape_fn(rewb, discount=discount)
+    rewa = deshape_fn(rewa, discount)
+    rewb = deshape_fn(rewb, discount)
     return pearson_distance(rewa, rewb, dist)
 
 
