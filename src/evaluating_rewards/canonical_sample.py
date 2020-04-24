@@ -1,12 +1,24 @@
+# Copyright 2020 Adam Gleave
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Metrics based on sampling to approximate a canonical reward in an equivalence class."""
 
-import itertools
 import multiprocessing
 import multiprocessing.dummy
-from typing import Any, Callable, Mapping, Optional, Tuple, TypeVar
+from typing import Callable, Mapping, Optional, Tuple, TypeVar
 
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 from evaluating_rewards import datasets, rewards, tabular
@@ -30,6 +42,10 @@ def _make_mesh_tensors(inputs: Mapping[K, np.ndarray]) -> Mapping[K, tf.Tensor]:
         `{k: itertools.product(inputs.values())[i] for i, k in enumerate(inputs.keys())}`.
     """
     # SOMEDAY(adam): messy, this would be much nicer in TF2 API
+    # SOMEDAY(adam): v.dtype may not always match the dtype expected by the models.
+    # e.g. `stable_baselines.common.input` always maps `MultiDiscrete` to `int32` even though
+    # Gym reports it as `int64`. The dtypes match with `Box` though, which is the only thing we
+    # need so far, so ignoring this (change should possibly be made in Stable Baselines).
     phs = {k: tf.placeholder(v.dtype, shape=v.shape) for k, v in inputs.items()}
 
     # Increase dimensions for broadcasting
@@ -90,27 +106,6 @@ def mesh_evaluate_models(
         feed_dict.update({ph: tensors["next_obs"] for ph in m.next_obs_ph})
 
     rews = tf.get_default_session().run(reward_outputs, feed_dict=feed_dict)
-    rews = {k: v.reshape(len(obs), len(actions), len(next_obs)) for k, v in rews.items()}
-    return rews
-
-
-def mesh_evaluate_models_slow(
-    models: Mapping[K, rewards.RewardModel],
-    obs: np.ndarray,
-    actions: np.ndarray,
-    next_obs: np.ndarray,
-) -> Mapping[K, np.ndarray]:
-    """
-    Evaluate models on the Cartesian product of `obs`, `actions`, `next_obs`.
-
-    Same interface as `mesh_evaluate_models`. This is the unoptimized version, which computes
-    the Cartesian product in Python, taking about 20x longer. This is kept around mainly for
-    simplicity to aid testing, and for possibility of other optimizations (e.g. JIT like Numba).
-    """
-    batch = list(itertools.product(obs, actions, next_obs))
-    batch = [np.array([m[i] for m in batch]) for i in range(3)]
-    batch = rewards.Batch(*batch)
-    rews = rewards.evaluate_models(models, batch)
     rews = {k: v.reshape(len(obs), len(actions), len(next_obs)) for k, v in rews.items()}
     return rews
 
@@ -296,12 +291,12 @@ def sample_canon_shaping(
 
 
 def cross_distance(
-    rewxs: Mapping[Any, np.ndarray],
-    rewys: Mapping[Any, np.ndarray],
+    rewxs: Mapping[K, np.ndarray],
+    rewys: Mapping[K, np.ndarray],
     distance_fn: Callable[[np.ndarray, np.ndarray], float],
     parallelism: Optional[int] = None,
     threading: bool = True,
-) -> pd.DataFrame:
+) -> Mapping[Tuple[K, K], float]:
     """Helper function to compute distance between all pairs of rewards from `rewxs` and `rewys`.
 
     Args:
@@ -322,7 +317,7 @@ def cross_distance(
     shapes.update((v.shape for v in rewys.values()))
     assert len(shapes) <= 1, "rewards differ in shape"
 
-    tasks = {(kx, ky): (rewx, rewy) for kx, rewx in rewxs.items() for ky, rewy in rewxs.items()}
+    tasks = {(kx, ky): (rewx, rewy) for kx, rewx in rewxs.items() for ky, rewy in rewys.items()}
 
     if parallelism == 1:
         # Only one process? Skip multiprocessing, since creating Pool adds overhead.
@@ -333,5 +328,4 @@ def cross_distance(
         with module.Pool(processes=parallelism) as pool:
             results = pool.starmap(distance_fn, tasks.values())
 
-    results = dict(zip(tasks.keys(), results))
-    return pd.Series(results).unstack()
+    return dict(zip(tasks.keys(), results))

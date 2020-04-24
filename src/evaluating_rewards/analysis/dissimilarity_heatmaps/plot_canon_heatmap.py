@@ -32,6 +32,8 @@ from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
 from evaluating_rewards.scripts import script_utils
 
+RewardCfg = Tuple[str, str]  # (type, path)
+
 plot_canon_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_canon_heatmap")
 
@@ -95,17 +97,10 @@ def load_models(
     return {(kind, path): serialize.load_reward(kind, path, venv) for kind, path in reward_cfgs}
 
 
-def space_to_sample(space: gym.Space):
-    def f(n: int) -> np.ndarray:
-        return np.array([space.sample() for _ in range(n)])
-
-    return f
-
-
 def make_gym_dists(env_name: str) -> Tuple[datasets.SampleDist, datasets.SampleDist]:
     env = gym.make(env_name)
-    obs_dist = space_to_sample(env.observation_space)
-    act_dist = space_to_sample(env.action_space)
+    obs_dist = datasets.space_to_sample(env.observation_space)
+    act_dist = datasets.space_to_sample(env.action_space)
 
     return obs_dist, act_dist
 
@@ -126,14 +121,14 @@ def mesh_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[Tuple[str, str], rewards.RewardModel],
-    x_reward_cfgs: Iterable[Tuple[str, str]],
-    y_reward_cfgs: Iterable[Tuple[str, str]],
+    models: Mapping[RewardCfg, rewards.RewardModel],
+    x_reward_cfgs: Iterable[RewardCfg],
+    y_reward_cfgs: Iterable[RewardCfg],
     distance_kind: str,
     discount: float,
     n_obs: int,
     n_act: int,
-) -> pd.DataFrame:
+) -> Mapping[Tuple[RewardCfg, RewardCfg], float]:
     """
     Computes approximation of canon distance by discretizing and then using tabular method.
 
@@ -188,14 +183,14 @@ def sample_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[Tuple[str, str], rewards.RewardModel],
-    x_reward_cfgs: Iterable[Tuple[str, str]],
-    y_reward_cfgs: Iterable[Tuple[str, str]],
+    models: Mapping[RewardCfg, rewards.RewardModel],
+    x_reward_cfgs: Iterable[RewardCfg],
+    y_reward_cfgs: Iterable[RewardCfg],
     distance_kind: str,
     discount: float,
     n_samples: int,
     n_mean_samples: int,
-) -> pd.DataFrame:
+) -> Mapping[Tuple[RewardCfg, RewardCfg], float]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -289,6 +284,7 @@ def plot_divergence_heatmap(
     dissimilarity = computation_fn(
         g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
     )
+    dissimilarity = pd.Series(dissimilarity).unstack()
     dissimilarity = dissimilarity_df_to_series(dissimilarity)
 
     with stylesheets.setup_styles(styles):

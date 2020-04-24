@@ -30,13 +30,22 @@ from stable_baselines.common import base_class, policies, vec_env
 
 from evaluating_rewards import rewards
 
+SampleDist = Callable[[int], np.ndarray]
 BatchCallable = Callable[[int], rewards.Batch]
 # Expect DatasetFactory to accept a str specifying env_name as first argument,
 # int specifying seed as second argument and factory-specific keyword arguments
 # after this. There is no way to specify this in Python type annotations yet :(
 # See https://github.com/python/mypy/issues/5876
 DatasetFactory = Callable[..., ContextManager[BatchCallable]]
-SampleDist = Callable[[int], np.ndarray]
+
+
+def space_to_sample(space: gym.Space) -> SampleDist:
+    """Creates function to sample `n` elements from from `space`."""
+
+    def f(n: int) -> np.ndarray:
+        return np.array([space.sample() for _ in range(n)])
+
+    return f
 
 
 @contextlib.contextmanager
