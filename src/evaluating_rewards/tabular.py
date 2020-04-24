@@ -345,7 +345,7 @@ def fully_connected_greedy_canonical_reward(
     return shape(rew, optimal_rew_s, discount) - discount * mean_rew
 
 
-def canonical_scale(
+def canonical_scale_normalizer(
     rew: np.ndarray, p: int = 1, dist: Optional[np.ndarray] = None, eps: float = 1e-10
 ) -> float:
     """
@@ -393,7 +393,7 @@ def canonical_reward(
         This is then rescaled to have unit norm.
     """
     res = deshape_fn(rew, discount)
-    res *= canonical_scale(res, p, dist, eps)
+    res *= canonical_scale_normalizer(res, p, dist, eps)
     return res
 
 

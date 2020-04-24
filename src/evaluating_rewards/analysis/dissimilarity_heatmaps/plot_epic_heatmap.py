@@ -15,7 +15,7 @@
 """CLI script to plot heatmap of EPIC distance between pairs of reward models."""
 
 import os
-from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from imitation import util
 from matplotlib import pyplot as plt
@@ -27,7 +27,7 @@ from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
 from evaluating_rewards.scripts import script_utils
 
-plot_epic_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
+plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
 
 
 config.make_config(plot_epic_heatmap_ex)
@@ -110,9 +110,9 @@ def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
 
 
 @plot_epic_heatmap_ex.main
-def plot_divergence_heatmap(
-    x_reward_cfgs: Iterable[Tuple[str, str]],
-    y_reward_cfgs: Iterable[Tuple[str, str]],
+def plot_epic_heatmap(
+    x_reward_cfgs: Iterable[config.RewardCfg],
+    y_reward_cfgs: Iterable[config.RewardCfg],
     styles: Iterable[str],
     data_root: str,
     data_subdir: Optional[str],
@@ -120,7 +120,7 @@ def plot_divergence_heatmap(
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     save_kwargs: Mapping[str, Any],
-):
+) -> Mapping[str, plt.Figure]:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -133,6 +133,9 @@ def plot_divergence_heatmap(
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
+
+    Returns:
+        A mapping of keywords to figures.
     """
     # Sacred turns our tuples into lists :(, undo
     x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
@@ -172,4 +175,4 @@ def plot_divergence_heatmap(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_epic_heatmap_ex, "plot_divergence_heatmap")
+    script_utils.experiment_main(plot_epic_heatmap_ex, "plot_epic_heatmap")

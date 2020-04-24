@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Masks filtering different reward types."""
+"""Masks to filter different reward types."""
 
 import re
 from typing import Any, Callable, Iterable

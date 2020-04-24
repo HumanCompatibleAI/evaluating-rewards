@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to plot heatmap of dissimilarity_heatmaps between reward models in gridworlds."""
+"""CLI script to plot heatmap of dissimilarity between reward functions in gridworlds."""
 
 import collections
 import os
@@ -218,7 +218,7 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
 
 
 @plot_gridworld_heatmap_ex.main
-def plot_gridworld_divergence(
+def plot_gridworld_heatmap(
     styles: Iterable[str],
     reward_subset: Optional[Iterable[str]],
     heatmap_kwargs: Dict[str, Any],

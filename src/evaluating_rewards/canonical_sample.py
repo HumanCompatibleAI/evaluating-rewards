@@ -30,8 +30,7 @@ def _make_mesh_tensors(inputs: Mapping[K, np.ndarray]) -> Mapping[K, tf.Tensor]:
     """
     Computes tensors that are the Cartesian product of the inputs.
 
-    The computation takes place in TensorFlow, and so should be more efficient than Python-based
-    alternatives like `mesh_to_batch`.
+    This is around 20x faster than constructing this in Python.
 
     Args:
         inputs: A mapping from keys to NumPy arrays.
@@ -284,7 +283,7 @@ def sample_canon_shaping(
         # Note this is the only part of the computation that depends on discount, so it'd be
         # cheap to evaluate for many values of `discount` if needed.
         deshaped = raw + discount * mean_next_obs - mean_obs - discount * total
-        deshaped *= tabular.canonical_scale(deshaped)
+        deshaped *= tabular.canonical_scale_normalizer(deshaped)
         deshaped_rew[k] = deshaped
 
     return deshaped_rew
@@ -310,8 +309,7 @@ def cross_distance(
             threading avoids expensive copying of the arrays needed for multiprocessing.
 
     Returns:
-        A square DataFrame whose columns and indices consist of `rews.keys()`, with each cell
-        `(i,j)` consisting of `distance_fn(rews[i], rews[j])`.
+        A mapping from (i,j) to `distance_fn(rews[i], rews[j])`.
     """
     shapes = set((v.shape for v in rewxs.values()))
     shapes.update((v.shape for v in rewys.values()))

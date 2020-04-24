@@ -17,8 +17,6 @@
 Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatmap}`.
 """
 
-# TODO(adam): should this also be integrated into plot_gridworld_divergence?
-
 import functools
 import itertools
 from typing import Iterable, Tuple
@@ -27,6 +25,8 @@ import sacred
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
+
+RewardCfg = Tuple[str, str]  # (type, path)
 
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",
@@ -61,8 +61,14 @@ def make_config(
 ):  # pylint: disable=unused-variable,too-many-statements
     """Adds configs and named configs to `experiment`.
 
-    Assumes Sacred experiment functions use `heatmap_kwargs`, `styles` and `save_kwargs`
-    like `plot_epic_heatmap` and `plot_canon_heatmap`.
+    The standard config parameters it defines are:
+        - env_name (str): The environment name in the Gym registry of the rewards to compare.
+        - x_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for x-axis.
+        - y_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for y-axis.
+        - log_root (str): the root directory to log; subdirectory path automatically constructed.
+        - heatmap_kwargs (dict): passed through to `analysis.compact_heatmaps`.
+        - styles (Iterable[str]): styles to apply from `evaluating_rewards.analysis.stylesheets`.
+        - save_kwargs (dict): passed through to `analysis.save_figs`.
     """
 
     @experiment.config
@@ -81,7 +87,7 @@ def make_config(
 
     @experiment.config
     def reward_config(kinds, x_reward_cfgs, y_reward_cfgs):
-        """Default to hardcoded reward model types."""
+        """Default reward configuration: hardcoded reward model types from kinds."""
         if kinds is not None:
             if x_reward_cfgs is None:
                 x_reward_cfgs = _hardcoded_model_cfg(kinds)
@@ -130,7 +136,6 @@ def make_config(
             "norm": [reward_masks.zero, reward_masks.same, _norm],
             "all": [reward_masks.always_true],
         }
-        heatmap_kwargs["after_plot"] = heatmaps.horizontal_ticks
         _ = locals()
         del _
 
@@ -141,10 +146,9 @@ def make_config(
         kinds = [
             "imitation/PointMazeGroundTruthWithCtrl-v0",
             "imitation/PointMazeGroundTruthNoCtrl-v0",
-            "evaluating_rewards/Zero-v0",
         ]
         heatmap_kwargs = {
-            "masks": {"all": [reward_masks.always_true]},  # "all" is still only 3x3
+            "masks": {"all": [reward_masks.always_true]},  # "all" is still only 2x2
         }
         _ = locals()
         del _
@@ -188,7 +192,6 @@ def make_config(
             "different_activity": [reward_masks.zero, _hopper_activity],
             "all": [reward_masks.always_true],
         }
-        heatmap_kwargs["after_plot"] = heatmaps.horizontal_ticks
         heatmap_kwargs["fmt"] = functools.partial(heatmaps.short_e, precision=0)
         _ = locals()
         del _

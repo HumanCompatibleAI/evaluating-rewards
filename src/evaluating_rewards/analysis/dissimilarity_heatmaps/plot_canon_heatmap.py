@@ -21,6 +21,7 @@ from typing import Any, Iterable, Mapping, Tuple
 
 import gym
 from imitation import util
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sacred
@@ -32,9 +33,7 @@ from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
 from evaluating_rewards.scripts import script_utils
 
-RewardCfg = Tuple[str, str]  # (type, path)
-
-plot_canon_heatmap_ex = sacred.Experiment("plot_divergence_heatmap")
+plot_canon_heatmap_ex = sacred.Experiment("plot_canon_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_canon_heatmap")
 
 
@@ -56,16 +55,13 @@ def default_config():
     n_act = 256
 
     # Figure parameters
-    heatmap_kwargs = {
-        "log": False,
-    }
+    heatmap_kwargs = {"log": False}
     _ = locals()
     del _
 
 
 @plot_canon_heatmap_ex.config
 def logging_config(env_name, computation_kind, distance_kind, discount, log_root):
-    # TODO(adam): include any other important config entries here e.g. kind.
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
         "plot_canon_heatmap",
@@ -91,8 +87,8 @@ def test():
 
 
 def load_models(
-    env_name: str, reward_cfgs: Iterable[Tuple[str, str]],
-) -> Mapping[Tuple[str, str], rewards.RewardModel]:
+    env_name: str, reward_cfgs: Iterable[config.RewardCfg],
+) -> Mapping[config.RewardCfg, rewards.RewardModel]:
     venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
     return {(kind, path): serialize.load_reward(kind, path, venv) for kind, path in reward_cfgs}
 
@@ -121,20 +117,19 @@ def mesh_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[RewardCfg, rewards.RewardModel],
-    x_reward_cfgs: Iterable[RewardCfg],
-    y_reward_cfgs: Iterable[RewardCfg],
+    models: Mapping[config.RewardCfg, rewards.RewardModel],
+    x_reward_cfgs: Iterable[config.RewardCfg],
+    y_reward_cfgs: Iterable[config.RewardCfg],
     distance_kind: str,
     discount: float,
     n_obs: int,
     n_act: int,
-) -> Mapping[Tuple[RewardCfg, RewardCfg], float]:
+) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
     """
-    Computes approximation of canon distance by discretizing and then using tabular method.
+    Computes approximation of canon distance by discretizing and then using a tabular method.
 
     Specifically, we first call `sample_canon_shaping.discrete_iid_evaluate_models` to evaluate
-    on a mesh, and then use `tabular.fully_connected_random_canonical_reward` to remove the
-    shaping.
+    on a mesh, and then use `tabular.fully_connected_random_canonical_reward` to remove the shaping.
 
     Args:
         g: the TensorFlow graph.
@@ -183,14 +178,14 @@ def sample_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[RewardCfg, rewards.RewardModel],
-    x_reward_cfgs: Iterable[RewardCfg],
-    y_reward_cfgs: Iterable[RewardCfg],
+    models: Mapping[config.RewardCfg, rewards.RewardModel],
+    x_reward_cfgs: Iterable[config.RewardCfg],
+    y_reward_cfgs: Iterable[config.RewardCfg],
     distance_kind: str,
     discount: float,
     n_samples: int,
     n_mean_samples: int,
-) -> Mapping[Tuple[RewardCfg, RewardCfg], float]:
+) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -238,16 +233,16 @@ def sample_canon(
 
 
 @plot_canon_heatmap_ex.main
-def plot_divergence_heatmap(
+def plot_canon_heatmap(
     env_name: str,
-    x_reward_cfgs: Iterable[Tuple[str, str]],
-    y_reward_cfgs: Iterable[Tuple[str, str]],
+    x_reward_cfgs: Iterable[config.RewardCfg],
+    y_reward_cfgs: Iterable[config.RewardCfg],
     computation_kind: str,
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     save_kwargs: Mapping[str, Any],
-):
+) -> Mapping[str, plt.Figure]:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -259,6 +254,9 @@ def plot_divergence_heatmap(
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
+
+    Returns:
+        A mapping of keywords to figures.
     """
     # Sacred turns our tuples into lists :(, undo
     x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
@@ -295,4 +293,4 @@ def plot_divergence_heatmap(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_canon_heatmap_ex, "plot_divergence_heatmap")
+    script_utils.experiment_main(plot_canon_heatmap_ex, "plot_canon_heatmap")
