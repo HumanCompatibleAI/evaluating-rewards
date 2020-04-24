@@ -681,12 +681,14 @@ def make_feed_dict(models: Iterable[RewardModel], batch: Batch) -> Dict[tf.Tenso
     """Construct a feed dictionary for models for data in batch."""
     assert batch.obs.shape == batch.next_obs.shape
     assert batch.obs.shape[0] == batch.actions.shape[0]
-    a_model = next(iter(models))
-    assert batch.obs.shape[1:] == a_model.observation_space.shape
-    assert batch.actions.shape[1:] == a_model.action_space.shape
-    for m in models:
-        assert a_model.observation_space == m.observation_space
-        assert a_model.action_space == m.action_space
+
+    if models:
+        a_model = next(iter(models))
+        assert batch.obs.shape[1:] == a_model.observation_space.shape
+        assert batch.actions.shape[1:] == a_model.action_space.shape
+        for m in models:
+            assert a_model.observation_space == m.observation_space
+            assert a_model.action_space == m.action_space
 
     feed_dict = {}
     for m in models:

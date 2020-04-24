@@ -71,7 +71,7 @@ def logging_config(log_root, models, reward_type, reward_path):
     data_root = os.path.join(log_root, "model_comparison")
     if models is None:
         log_dir = os.path.join(
-            log_root, reward_type.replace("/", "_"), reward_path.replace("/", "_")
+            log_root, reward_type.replace("/", "_"), reward_path.replace("/", "_"),
         )
     _ = locals()  # quieten flake8 unused variable warning
     del _

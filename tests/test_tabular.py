@@ -58,12 +58,12 @@ def arr_and_distribution(draw) -> Tuple[np.ndarray, np.ndarray]:
 def test_weighted_lp_norm(arr_dist: Tuple[np.ndarray, np.ndarray], p: int, scale: float) -> None:
     """Test for tabular.weighted_lp_norm."""
     arr, dist = arr_dist
-    norm = tabular.weighted_lp_norm(arr, p, dist)
+    norm = tabular.lp_norm(arr, p, dist)
     # Non-negativity
     assert norm >= 0
 
     # Absolute homogeneity
-    norm_scaled = tabular.weighted_lp_norm(scale * arr, p, dist)
+    norm_scaled = tabular.lp_norm(scale * arr, p, dist)
     assert np.allclose(norm_scaled, abs(scale) * norm)
 
 
@@ -122,11 +122,19 @@ def test_deshape(deshape_fn: tabular.DeshapeFn, base_shaped) -> None:
     assert np.allclose(deshaped_base, deshaped_shaped, atol=1e-6)
 
 
+def _check_scale(base_rew: np.ndarray, discount: float, deshape_fn: tabular.DeshapeFn) -> None:
+    deshaped_base = deshape_fn(base_rew, discount)
+    # Assume not near-zero rewards. This can cause problems with floating point errors
+    # if things go slightly above/below round-to-zero thresholds.
+    hypothesis.assume(np.linalg.norm(deshaped_base) > 1e-6)
+
+
 @pytest.mark.parametrize("deshape_fn", DESHAPE_FN)
 @hypothesis.given(base_equiv=equiv_reward_pair())
 def test_canonical(deshape_fn: tabular.DeshapeFn, base_equiv) -> None:
     """Tests reward canonicalization."""
     base_rew, discount, equiv_rew = base_equiv
+    _check_scale(base_rew, discount, deshape_fn)
     canon_base = tabular.canonical_reward(base_rew, discount, deshape_fn)
     canon_equiv = tabular.canonical_reward(equiv_rew, discount, deshape_fn)
     assert np.allclose(canon_base, canon_equiv, atol=1e-6)
@@ -137,11 +145,7 @@ def test_canonical(deshape_fn: tabular.DeshapeFn, base_equiv) -> None:
 def test_canonical_dist(deshape_fn: tabular.DeshapeFn, base_equiv) -> None:
     """Test distance from canonicalized rewards."""
     base_rew, discount, equiv_rew = base_equiv
-    deshaped_base = deshape_fn(base_rew, discount)
-    # Assume not near-zero rewards. This can cause problems with floating point errors
-    # if things go slightly above/below round-to-zero thresholds.
-    hypothesis.assume(np.linalg.norm(deshaped_base) > 1e-6)
-
+    _check_scale(base_rew, discount, deshape_fn)
     dist_equiv = tabular.canonical_reward_distance(base_rew, equiv_rew, discount, deshape_fn)
     assert np.allclose(dist_equiv, 0, atol=1e-6)
 

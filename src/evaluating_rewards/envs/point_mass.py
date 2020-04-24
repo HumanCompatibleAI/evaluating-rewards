@@ -226,12 +226,15 @@ class PointMassSparseReward(rewards.BasicRewardModel, serialize.LayersSerializab
 class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
     """Potential shaping term, based on distance to goal."""
 
-    def __init__(self, observation_space: gym.Space, action_space: gym.Space):
+    def __init__(
+        self, observation_space: gym.Space, action_space: gym.Space, discount: float = 0.99
+    ):
         serialize.LayersSerializable.__init__(**locals(), layers={})
 
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
 
+        self.discount = discount
         rewards.BasicRewardModel.__init__(self, observation_space, action_space)
         self._reward = self.build_reward()
 
@@ -246,7 +249,7 @@ class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
         old_dist = dist(self._proc_obs)
         new_dist = dist(self._proc_next_obs)
 
-        return old_dist - new_dist
+        return old_dist - self.discount * new_dist
 
     @property
     def reward(self):

@@ -23,7 +23,8 @@ import numpy as np
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import gridworld_heatmap, gridworld_rewards, stylesheets, visualize
+from evaluating_rewards.analysis import gridworld_rewards, stylesheets, visualize
+from evaluating_rewards.analysis.reward_figures import gridworld_reward_heatmap
 from evaluating_rewards.scripts import script_utils
 
 plot_gridworld_reward_ex = sacred.Experiment("plot_gridworld_reward")
@@ -106,11 +107,11 @@ def plot_gridworld_reward(
     Returns:
         The generated figure.
     """
-    state_action_reward = gridworld_heatmap.shape(
+    state_action_reward = gridworld_reward_heatmap.shape(
         _normalize(state_reward), _normalize(potential), discount
     )
     with stylesheets.setup_styles(styles):
-        fig = gridworld_heatmap.plot_gridworld_reward(
+        fig = gridworld_reward_heatmap.plot_gridworld_reward(
             state_action_reward, discount=discount, vmin=vmin, vmax=vmax
         )
         visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)

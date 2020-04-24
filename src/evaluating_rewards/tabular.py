@@ -14,7 +14,6 @@
 
 """Experiments with tabular (i.e. finite state) reward models."""
 
-import math
 from typing import Callable, Optional, Tuple
 
 import numpy as np
@@ -38,6 +37,7 @@ def shape(reward: np.ndarray, potential: np.ndarray, discount: float) -> np.ndar
     assert potential.ndim == 1
     new_pot = discount * potential[np.newaxis, np.newaxis, :]
     old_pot = potential[:, np.newaxis, np.newaxis]
+
     return reward + new_pot - old_pot
 
 
@@ -108,8 +108,8 @@ def _check_dist(dist: np.ndarray) -> None:
     assert np.all(dist >= 0)
 
 
-def weighted_lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None) -> float:
-    """Computes the L^{p} norm of arr, weighted by dist if specified.
+def lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None) -> float:
+    r"""Computes the L^{p} norm of arr, weighted by dist.
 
     Args:
         arr: The array to compute the norm of.
@@ -117,23 +117,45 @@ def weighted_lp_norm(arr: np.ndarray, p: int, dist: Optional[np.ndarray] = None)
         dist: A distribution to weight elements of array by.
 
     Returns:
-        The L^{p} norm of arr.
+        The L^{p} norm of arr with respect to the measure dist.
+        That is, (\sum_i dist_i * |arr_i|^p)^{1/p}.
     """
     if dist is None:
-        dist = np.ones_like(arr) / np.product(arr.shape)
+        # Fast path: use optimized np.linalg.norm
+        n = np.product(arr.shape)
+        raw_norm = np.linalg.norm(arr.flatten(), ord=p)
+        return raw_norm / (n ** (1 / p))
+
+    # Otherwise, weighted; use our implementation (up to 2x slower).
     assert arr.shape == dist.shape
     _check_dist(dist)
+
     arr = np.abs(arr)
-    arr = np.power(arr, p)
-    accum = np.sum(arr * dist)
-    return math.pow(float(accum), 1 / p)
+    arr **= p
+    arr *= dist
+    accum = np.sum(arr)
+    accum **= 1 / p
+    return accum
+
+
+def direct_distance(
+    rewa: np.ndarray, rewb: np.ndarray, p: int = 2, dist: Optional[np.ndarray] = None
+) -> float:
+    """L^p norm of the difference between `rewa` and `rewb` w.r.t. distribution `dist`."""
+    delta = rewa - rewb
+    return lp_norm(delta, p, dist)
 
 
 def epic_distance(
-    src_reward: np.ndarray, target_reward: np.ndarray, dist: Optional[np.ndarray] = None, **kwargs
+    src_reward: np.ndarray,
+    target_reward: np.ndarray,
+    p: int = 2,
+    dist: Optional[np.ndarray] = None,
+    **kwargs,
 ) -> float:
+    """Computes premetric EPIC distance."""
     closest = closest_reward_am(src_reward, target_reward, **kwargs)
-    return weighted_lp_norm(closest - target_reward, 2, dist)
+    return direct_distance(closest, target_reward, p, dist)
 
 
 def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
@@ -171,8 +193,9 @@ def pearson_distance(
     varb = np.average(np.square(rewb), weights=dist)
     cov = np.average(rewa * rewb, weights=dist)
     corr = cov / (np.sqrt(vara) * np.sqrt(varb))
+    corr = min(corr, 1.0)  # floating point error sometimes rounds above 1.0
 
-    return 0.5 * np.sqrt(1 - corr)
+    return np.sqrt(0.5 * (1 - corr))
 
 
 def asymmetric_distance(
@@ -262,16 +285,13 @@ def fully_connected_random_canonical_reward(
         shaped version of rew.
     """
     assert 0 <= discount <= 1
-    ns, na, ns2 = rew.shape
+    ns, _na, ns2 = rew.shape
     assert ns == ns2
 
-    if state_dist is None:
-        state_dist = np.ones(ns) / ns
-    if action_dist is None:
-        action_dist = np.ones(na) / na
-
-    _check_dist(state_dist)
-    _check_dist(action_dist)
+    if state_dist is not None:
+        _check_dist(state_dist)
+    if action_dist is not None:
+        _check_dist(action_dist)
 
     mean_rew_sa = np.average(rew, axis=2, weights=state_dist)
     mean_rew_s = np.average(mean_rew_sa, axis=1, weights=action_dist)
@@ -325,6 +345,27 @@ def fully_connected_greedy_canonical_reward(
     return shape(rew, optimal_rew_s, discount) - discount * mean_rew
 
 
+def canonical_scale_normalizer(
+    rew: np.ndarray, p: int = 1, dist: Optional[np.ndarray] = None, eps: float = 1e-10
+) -> float:
+    """
+    Compute coefficient by which to scale `rew` for it to have canonical scale.
+
+    Coefficient is rounded down to `0` if computed scale is less than `eps`.
+
+    Args:
+        rew: The three-dimensional reward array to compute the normalizer for.
+        p: The power to raise elements to.
+        dist: The measure for the L^{p} norm.
+        eps: Threshold to treat reward as zero (needed due to floating point error).
+
+    Returns:
+        Scaling coefficient by which to multiply `rew` to have unit norm.
+    """
+    scale = lp_norm(rew, p, dist)
+    return 0 if abs(scale) < eps else 1 / scale
+
+
 DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
 
 
@@ -351,12 +392,9 @@ def canonical_reward(
         Canonical version of rew. Shaping is removed in accordance with `deshape_fn`.
         This is then rescaled to have unit norm.
     """
-    deshaped = deshape_fn(rew, discount)
-    normalizer = weighted_lp_norm(deshaped, p, dist)
-    if abs(normalizer) < eps:
-        return np.zeros_like(deshaped)
-    else:
-        return deshaped / normalizer
+    res = deshape_fn(rew, discount)
+    res *= canonical_scale_normalizer(res, p, dist, eps)
+    return res
 
 
 def canonical_reward_distance(
@@ -368,7 +406,7 @@ def canonical_reward_distance(
     dist: Optional[np.ndarray] = None,
 ) -> float:
     """
-    Computes distance between canonicalized versions of rewa and rewb.
+    Computes direct distance between canonicalized versions of rewa and rewb.
 
     Args:
         rewa: A three-dimensional reward array.
@@ -383,7 +421,32 @@ def canonical_reward_distance(
     """
     rewa_canon = canonical_reward(rewa, discount, deshape_fn, p, dist)
     rewb_canon = canonical_reward(rewb, discount, deshape_fn, p, dist)
-    return 0.5 * weighted_lp_norm(rewa_canon - rewb_canon, p, dist)
+    return 0.5 * direct_distance(rewa_canon, rewb_canon, p, dist)
+
+
+def deshape_pearson_distance(
+    rewa: np.ndarray,
+    rewb: np.ndarray,
+    discount: float,
+    deshape_fn: DeshapeFn,
+    dist: Optional[np.ndarray] = None,
+) -> float:
+    """
+    Computes Pearson distance between deshaped versions of rewa and rewb.
+
+    Args:
+        rewa: A three-dimensional reward array.
+        rewb: A three-dimensional reward array.
+        discount: The discount rate of the MDP.
+        deshape_fn: The function to canonicalize the shaping component of the reward.
+        dist: The measure for the Pearson distance.
+
+    Returns:
+        The Pearson distance between the deshaped versions of `rewa` and `rewb`.
+    """
+    rewa = deshape_fn(rewa, discount)
+    rewb = deshape_fn(rewb, discount)
+    return pearson_distance(rewa, rewb, dist)
 
 
 # Functions for interactive experiments

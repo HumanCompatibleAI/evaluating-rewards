@@ -25,6 +25,7 @@ import gym
 import numpy as np
 import pandas as pd
 import scipy as sp
+import seaborn as sns
 import tensorflow as tf
 
 from evaluating_rewards import comparisons, datasets, rewards
@@ -387,3 +388,28 @@ def summary_stats(
     # Compute summary statistics
     res = dict(**preds, old_potential=old_potential, new_potential=new_potential)
     return {k: sp.stats.describe(v) for k, v in res.items()}
+
+
+def plot_shaping_comparison(
+    df: pd.DataFrame, cols: Optional[Iterable[str]] = None, **kwargs
+) -> pd.DataFrame:
+    """Plots return value of experiments.compare_synthetic."""
+    if cols is None:
+        cols = ["Intrinsic", "Shaping"]
+    df = df.loc[:, cols]
+    longform = df.reset_index()
+    longform = pd.melt(
+        longform,
+        id_vars=["Reward Noise", "Potential Noise"],
+        var_name="Metric",
+        value_name="Distance",
+    )
+    sns.lineplot(
+        x="Reward Noise",
+        y="Distance",
+        hue="Potential Noise",
+        style="Metric",
+        data=longform,
+        **kwargs,
+    )
+    return longform

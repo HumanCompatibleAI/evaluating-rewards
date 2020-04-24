@@ -30,6 +30,8 @@ import tensorflow as tf
 
 from evaluating_rewards import rewards
 
+ZERO_REWARD = "evaluating_rewards/Zero-v0"
+
 RewardLoaderFn = Callable[[str, vec_env.VecEnv], rewards.RewardModel]
 
 
