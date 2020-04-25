@@ -117,8 +117,8 @@ class MonteCarloGreedyPolicy(policies.BasePolicy):
 
 @registry.sess_context
 def load_monte_carlo_greedy(path: str, env: vec_env.VecEnv) -> MonteCarloGreedyPolicy:
-    reward_type, reward_path = path.split(":")
-    reward_model = serialize.load_reward(reward_type, reward_path, env)
+    reward_type, reward_path, discount = path.split(":")
+    reward_model = serialize.load_reward(reward_type, reward_path, env, float(discount))
     return MonteCarloGreedyPolicy(env, reward_model=reward_model)
 
 

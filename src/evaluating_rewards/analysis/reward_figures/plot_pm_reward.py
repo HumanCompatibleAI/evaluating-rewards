@@ -40,6 +40,7 @@ def default_config():
     """Default configuration values."""
     # Reward parameters
     env_name = "evaluating_rewards/PointMassLine-v0"
+    discount = 0.99
     # Simple method: specify one model
     reward_type = "evaluating_rewards/PointMassSparseWithCtrl-v0"
     reward_path = "dummy"
@@ -130,6 +131,7 @@ def test():
 def plot_pm_reward(
     styles: Iterable[str],
     env_name: str,
+    discount: float,
     models: Sequence[Tuple[str, str, str]],
     data_root: str,
     # Mesh parameters
@@ -154,7 +156,7 @@ def plot_pm_reward(
         with util.make_session():
             for model_name, reward_type, reward_path in models:
                 reward_path = os.path.join(data_root, reward_path)
-                model = serialize.load_reward(reward_type, reward_path, venv)
+                model = serialize.load_reward(reward_type, reward_path, venv, discount)
                 reward = point_mass_analysis.evaluate_reward_model(
                     env,
                     model,

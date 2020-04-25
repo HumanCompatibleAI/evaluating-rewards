@@ -33,6 +33,7 @@ EnvRewardFactory = Callable[[gym.Space, gym.Space], rewards.RewardModel]
 
 DEFAULT_CONFIG = {
     "env_name": "evaluating_rewards/PointMassLine-v0",
+    "discount": 0.99,
     "target_reward_type": "evaluating_rewards/Zero-v0",
     "target_reward_path": "dummy",
     "model_reward_type": rewards.MLPRewardModel,
@@ -57,6 +58,7 @@ def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> rew
 def regress(
     seed: int,
     env_name: str,
+    discount: float,
     make_source: MakeModelFn,
     source_init: bool,
     make_trainer: MakeTrainerFn,
@@ -76,7 +78,7 @@ def regress(
             model = make_source(venv)
 
         with tf.variable_scope("target"):
-            target = serialize.load_reward(target_reward_type, target_reward_path, venv)
+            target = serialize.load_reward(target_reward_type, target_reward_path, venv, discount)
 
         with tf.variable_scope("train") as train_scope:
             trainer = make_trainer(model, model_scope, target)

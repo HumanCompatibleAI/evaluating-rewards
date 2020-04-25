@@ -23,6 +23,7 @@ import tensorflow as tf
 
 # Environments registered as a side-effect of importing
 from evaluating_rewards import comparisons, datasets, rewards, serialize
+from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
 from tests import common
 
 PM_REWARD_TYPES = {
@@ -49,7 +50,12 @@ PM_REWARD_TYPES = {
 
 @common.mark_parametrize_kwargs(PM_REWARD_TYPES)
 def test_regress(
-    graph: tf.Graph, session: tf.Session, target: str, loss_ub: float, rel_loss_lb: float
+    graph: tf.Graph,
+    session: tf.Session,
+    target: str,
+    loss_ub: float,
+    rel_loss_lb: float,
+    discount: float = 0.99,
 ):
     """Test regression onto target.
 
@@ -69,7 +75,7 @@ def test_regress(
                     source = rewards.MLPRewardModel(venv.observation_space, venv.action_space)
 
                 with tf.variable_scope("target"):
-                    target_model = serialize.load_reward(target, "dummy", venv)
+                    target_model = serialize.load_reward(target, "dummy", venv, discount)
 
                 with tf.variable_scope("match") as match_scope:
                     match = comparisons.RegressModel(source, target_model)

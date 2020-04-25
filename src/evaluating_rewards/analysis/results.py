@@ -199,7 +199,7 @@ def get_affine_from_models(env_name: str, paths: Iterable[str]):
     with imitation_util.make_session():
         for path in paths:
             model = serialize.load_reward(
-                "evaluating_rewards/RewardModel-v0", os.path.join(path, "model"), venv
+                "evaluating_rewards/RewardModel-v0", os.path.join(path, "model"), venv,
             )
             return model.models["wrapped"][0].get_weights()
     return res

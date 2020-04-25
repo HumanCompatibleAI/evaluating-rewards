@@ -69,6 +69,18 @@ class RewardModel(serialize.Serializable, abc.ABC):
         """Gets the reward output tensor."""
 
     @property
+    def discount(self) -> Optional[tf.Tensor]:
+        """Tensor specifying discount rate of reward model, or None if not applicable.
+
+        Generally reward models that involve explicit shaping will have a discount parameter
+        while others will not.
+        """
+        return None
+
+    def set_discount(self, discount: float) -> None:
+        """Set the discount rate; no-op in models without internal discounting."""
+
+    @property
     @abc.abstractmethod
     def observation_space(self) -> gym.Space:
         """Gets the space of observations."""
@@ -193,14 +205,23 @@ class PotentialShaping(BasicRewardModel, serialize.LayersSerializable):
             hid_sizes, self._proc_obs, self._proc_next_obs, **kwargs
         )
         self._old_potential, self._new_potential, layers = res
-        self.discount = discount
-        self._reward_output = discount * self._new_potential - self.old_potential
+        self._discount = ConstantLayer("discount", initializer=tf.constant_initializer(discount))
+        self._discount.build(())
+        layers["discount"] = self._discount
+        self._reward_output = self.discount * self.new_potential - self.old_potential
 
         serialize.LayersSerializable.__init__(**params, layers=layers)
 
     @property
     def reward(self):
         return self._reward_output
+
+    @property
+    def discount(self) -> tf.Tensor:
+        return tf.stop_gradient(self._discount.constant)
+
+    def set_discount(self, discount: float) -> None:
+        self._discount.set_constant(discount)
 
     @property
     def old_potential(self):
@@ -324,6 +345,8 @@ class RewardNetToRewardModel(RewardModel):
         self.reward_net = network
         self.use_test = use_test
 
+    # SOMEDAY(adam): support discount/set_discount for RewardNetShaped
+
     @property
     def reward(self):
         net = self.reward_net
@@ -382,6 +405,13 @@ class RewardModelWrapper(RewardModel):
     @property
     def reward(self):
         return self.model.reward
+
+    @property
+    def discount(self):
+        return self.model.discount
+
+    def set_discount(self, discount):
+        return self.model.set_discount(discount)
 
     @property
     def observation_space(self):
@@ -447,6 +477,15 @@ class LinearCombinationModelWrapper(RewardModelWrapper):
     @property
     def reward(self):
         return self._reward_output
+
+    @property
+    def discount(self):
+        # SOMEDAY(adam): single representative is misleading, but can't do better with a scalar
+        return self.model.discount
+
+    def set_discount(self, discount):
+        for m, _ in self._models.values():
+            m.set_discount(discount)
 
     @property
     def obs_ph(self):

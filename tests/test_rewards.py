@@ -22,6 +22,7 @@ from imitation.util import rollout
 from imitation.util import serialize as util_serialize
 import numpy as np
 import pytest
+from stable_baselines.common import vec_env
 import tensorflow as tf
 
 from evaluating_rewards import datasets, rewards, serialize
@@ -98,7 +99,9 @@ GROUND_TRUTH = {
 
 
 @pytest.fixture(name="helper_serialize_identity")
-def fixture_serialize_identity(graph, session, venv):
+def fixture_serialize_identity(
+    graph: tf.Graph, session: tf.Session, venv: vec_env.VecEnv,
+):
     """Creates reward model, saves it, reloads it, and checks for equality."""
 
     def f(make_model):
@@ -134,11 +137,16 @@ def fixture_serialize_identity(graph, session, venv):
 
 
 @common.mark_parametrize_kwargs(STANDALONE_REWARD_MODELS)
-def test_serialize_identity_standalone(helper_serialize_identity, model_class, kwargs):
+@pytest.mark.parametrize("discount", [0.9, 0.99, 1.0])
+def test_serialize_identity_standalone(
+    helper_serialize_identity, model_class, discount: float, kwargs
+):
     """Creates reward model, saves it, reloads it, and checks for equality."""
 
     def make_model(venv):
-        return model_class(venv.observation_space, venv.action_space, **kwargs)
+        model = model_class(venv.observation_space, venv.action_space, **kwargs)
+        model.set_discount(discount)
+        return model
 
     return helper_serialize_identity(make_model)
 
@@ -161,12 +169,15 @@ def test_serialize_identity_linear_combination(helper_serialize_identity):
 
 @pytest.mark.parametrize("wrapper_cls", REWARD_WRAPPERS)
 @pytest.mark.parametrize("env_name", ENVS)
-def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls):
+@pytest.mark.parametrize("discount", [0.9, 0.99, 1.0])
+def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls, discount: float):
     """Checks for equality between original and loaded wrapped reward."""
 
     def make_model(env):
         mlp = rewards.MLPRewardModel(env.observation_space, env.action_space)
-        return wrapper_cls(mlp)
+        model = wrapper_cls(mlp)
+        model.set_discount(discount)
+        return model
 
     return helper_serialize_identity(make_model)
 
@@ -194,7 +205,7 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
 
     # Make predictions using reward model
     with graph.as_default(), session.as_default():
-        reward_model = serialize.load_reward(reward_id, "dummy", venv)
+        reward_model = serialize.load_reward(reward_id, "dummy", venv, 1.0)
         pred_reward = rewards.evaluate_models({"m": reward_model}, batch)["m"]
 
     # Are the predictions close to true Gym reward?
