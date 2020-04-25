@@ -17,7 +17,7 @@
 import functools
 import logging
 import os
-from typing import Any, Dict, Iterable, Mapping, Tuple
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 import gym
 from imitation import util
@@ -50,6 +50,8 @@ def default_config():
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
+    dataset_factory = None  # defaults to datasets.iid_transition_generator
+    dataset_factory_kwargs = None
     # n_obs and n_act only applicable for mesh approach
     n_obs = 256
     n_act = 256
@@ -101,6 +103,22 @@ def sample_from_serialized_policy():
         "policy_path": "dummy",
     }
     sample_dist_tag = "random_policy"
+    _ = locals()
+    del _
+
+
+@plot_canon_heatmap_ex.named_config
+def dataset_from_serialized_policy(env_name):
+    """Configurable to sample batches from rollouts of a serialized policy.
+
+    Only has effect when `computation_kind` equals `"sample"`.
+    """
+    dataset_factory = datasets.rollout_serialized_policy_generator
+    dataset_factory_kwargs = {
+        "policy_type": "random",
+        "policy_path": "dummy",
+        "env_name": env_name,
+    }
     _ = locals()
     del _
 
@@ -210,6 +228,8 @@ def sample_canon(
     y_reward_cfgs: Iterable[config.RewardCfg],
     distance_kind: str,
     discount: float,
+    dataset_factory: Optional[datasets.DatasetFactory],
+    dataset_factory_kwargs: Optional[Dict[str, Any]],
     n_samples: int,
     n_mean_samples: int,
 ) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
@@ -234,9 +254,11 @@ def sample_canon(
     """
     del g
     logger.info("Sampling dataset")
-    # TODO(adam): configurable dataset
-    with datasets.iid_transition_generator(obs_dist, act_dist) as iid_transition:
-        batch = iid_transition(n_samples)
+    if dataset_factory is None:
+        dataset_factory = datasets.iid_transition_generator
+        dataset_factory_kwargs = dict(obs_dist=obs_dist, act_dist=act_dist)
+    with dataset_factory(**dataset_factory_kwargs) as batch_callable:
+        batch = batch_callable(n_samples)
 
     with sess.as_default():
         logger.info("Removing shaping")
