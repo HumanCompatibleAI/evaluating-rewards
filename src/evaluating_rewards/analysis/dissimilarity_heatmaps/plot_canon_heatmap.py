@@ -45,6 +45,7 @@ def default_config(env_name):
     """Default configuration values."""
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
+    direct_p = 1  # the power to use for direct distance
     discount = 0.99  # discount rate for shaping
 
     # n_samples and n_mean_samples only applicable for sample approach
@@ -195,6 +196,7 @@ def mesh_canon(
     discount: float,
     n_obs: int,
     n_act: int,
+    direct_p: int,
 ) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
     """
     Computes approximation of canon distance by discretizing and then using a tabular method.
@@ -214,6 +216,7 @@ def mesh_canon(
         discount: the discount rate for shaping.
         n_obs: The number of observations and next observations to use in the mesh.
         n_act: The number of actions to use in the mesh.
+        direct_p: When `distance_kind` is "direct", the power used for comparison in the L^p norm.
 
     Returns:
         Dissimilarity matrix.
@@ -227,7 +230,7 @@ def mesh_canon(
     y_rews = {cfg: mesh_rews[cfg] for cfg in y_reward_cfgs}
 
     if distance_kind == "direct":
-        distance_fn = tabular.canonical_reward_distance
+        distance_fn = functools.partial(tabular.canonical_reward_distance, p=direct_p)
     elif distance_kind == "pearson":
         distance_fn = tabular.deshape_pearson_distance
     else:
@@ -239,8 +242,8 @@ def mesh_canon(
     return canonical_sample.cross_distance(x_rews, y_rews, distance_fn=distance_fn)
 
 
-def _direct_distance(rewa: np.ndarray, rewb: np.ndarray) -> float:
-    return 0.5 * tabular.direct_distance(rewa, rewb, p=1)
+def _direct_distance(rewa: np.ndarray, rewb: np.ndarray, p: int) -> float:
+    return 0.5 * tabular.direct_distance(rewa, rewb, p=p)
 
 
 @plot_canon_heatmap_ex.capture
@@ -258,6 +261,7 @@ def sample_canon(
     dataset_factory_kwargs: Optional[Dict[str, Any]],
     n_samples: int,
     n_mean_samples: int,
+    direct_p: int,
 ) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
@@ -274,6 +278,7 @@ def sample_canon(
         discount: the discount rate for shaping.
         n_samples: the number of samples to estimate the distance with.
         n_mean_samples: the number of samples to estimate the mean reward for canonicalization.
+        direct_p: When `distance_kind` is "direct", the power used for comparison in the L^p norm.
 
     Returns:
         Dissimilarity matrix.
@@ -289,13 +294,13 @@ def sample_canon(
     with sess.as_default():
         logger.info("Removing shaping")
         deshaped_rew = canonical_sample.sample_canon_shaping(
-            models, batch, act_dist, obs_dist, n_mean_samples, discount,
+            models, batch, act_dist, obs_dist, n_mean_samples, discount, direct_p,
         )
         x_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in x_reward_cfgs}
         y_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in y_reward_cfgs}
 
     if distance_kind == "direct":
-        distance_fn = _direct_distance
+        distance_fn = functools.partial(_direct_distance, p=direct_p)
     elif distance_kind == "pearson":
         distance_fn = tabular.pearson_distance
     else:
