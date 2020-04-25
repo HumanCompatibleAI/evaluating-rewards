@@ -87,10 +87,13 @@ def test():
 
 
 def load_models(
-    env_name: str, reward_cfgs: Iterable[config.RewardCfg],
+    env_name: str, reward_cfgs: Iterable[config.RewardCfg], discount: float,
 ) -> Mapping[config.RewardCfg, rewards.RewardModel]:
     venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
-    return {(kind, path): serialize.load_reward(kind, path, venv) for kind, path in reward_cfgs}
+    return {
+        (kind, path): serialize.load_reward(kind, path, venv, discount)
+        for kind, path in reward_cfgs
+    }
 
 
 def make_gym_dists(env_name: str) -> Tuple[datasets.SampleDist, datasets.SampleDist]:
@@ -235,6 +238,7 @@ def sample_canon(
 @plot_canon_heatmap_ex.main
 def plot_canon_heatmap(
     env_name: str,
+    discount: float,
     x_reward_cfgs: Iterable[config.RewardCfg],
     y_reward_cfgs: Iterable[config.RewardCfg],
     computation_kind: str,
@@ -268,7 +272,7 @@ def plot_canon_heatmap(
         sess = tf.Session()
         with sess.as_default():
             reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
-            models = load_models(env_name, reward_cfgs)
+            models = load_models(env_name, reward_cfgs, discount)
 
     # TODO(adam): make distribution configurable
     obs_dist, act_dist = make_gym_dists(env_name)

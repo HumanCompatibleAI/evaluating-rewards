@@ -67,6 +67,7 @@ def train_preferences(
     _seed: int,  # pylint:disable=invalid-name
     # Dataset
     env_name: str,
+    discount: float,
     num_vec: int,
     policy_type: str,
     policy_path: str,
@@ -122,6 +123,7 @@ def train_preferences(
         return regress_utils.regress(
             seed=_seed,
             env_name=env_name,
+            discount=discount,
             make_source=make_source,
             source_init=True,
             make_trainer=make_trainer,

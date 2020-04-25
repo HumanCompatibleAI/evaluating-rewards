@@ -82,7 +82,10 @@ def test_mesh_evaluate_models(
         assert np.allclose(expected[k], actual[k]), f"difference in model {k}"
 
 
-def test_sample_canon_shaping(graph: tf.Graph, session: tf.Session, eps: float = 1e-4):
+@pytest.mark.parametrize("discount", [0.9, 0.99, 1.0])
+def test_sample_canon_shaping(
+    graph: tf.Graph, session: tf.Session, discount: float, eps: float = 1e-4,
+):
     """Tests canonical_sample.sample_canon_shaping.
 
     Specifically, verifies that sparse, sparse affine-transformed and dense rewards in PointMass
@@ -97,7 +100,7 @@ def test_sample_canon_shaping(graph: tf.Graph, session: tf.Session, eps: float =
     ]
     with graph.as_default():
         with session.as_default():
-            models = {k: serialize.load_reward(k, "dummy", venv) for k in reward_types}
+            models = {k: serialize.load_reward(k, "dummy", venv, discount) for k in reward_types}
             constant = rewards.ConstantReward(venv.observation_space, venv.action_space)
             constant.constant.set_constant(42.0)
             models["big_sparse"] = rewards.LinearCombinationModelWrapper(
@@ -115,7 +118,7 @@ def test_sample_canon_shaping(graph: tf.Graph, session: tf.Session, eps: float =
     with datasets.iid_transition_generator(obs_dist, act_dist) as iid_generator:
         batch = iid_generator(256)
     canon_rew = canonical_sample.sample_canon_shaping(
-        models, batch, act_dist, obs_dist, n_mean_samples=256, discount=0.99,
+        models, batch, act_dist, obs_dist, n_mean_samples=256, discount=discount,
     )
 
     sparse_vs_affine = tabular.direct_distance(

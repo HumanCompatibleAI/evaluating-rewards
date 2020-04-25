@@ -17,7 +17,7 @@
 import contextlib
 import logging
 import os
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Optional
 import uuid
 
 from imitation.rewards import reward_net, serialize
@@ -109,7 +109,6 @@ def _load_imitation(use_test: bool) -> RewardLoaderFn:
 
 def _load_native(path: str, venv: vec_env.VecEnv) -> rewards.RewardModel:
     """Load a RewardModel that implemented the Serializable interface."""
-
     random_id = uuid.uuid4().hex
     with tf.variable_scope(f"model_{random_id}"):
         logging.info(f"Loading native evaluating rewards model from '{path}'")
@@ -131,13 +130,17 @@ reward_registry.register(
 )
 
 
-def load_reward(reward_type: str, reward_path: str, venv: vec_env.VecEnv) -> rewards.RewardModel:
+def load_reward(
+    reward_type: str, reward_path: str, venv: vec_env.VecEnv, discount: Optional[float] = None,
+) -> rewards.RewardModel:
     """Load serialized reward model.
 
     Args:
         reward_type: A key in `AGENT_LOADERS`, e.g. `ppo2`.
         reward_path: A path on disk where the policy is stored.
         venv: An environment that the policy is to be used with.
+        discount: The discount rate of the environment. This is ignored by many reward functions,
+            but should be respected by those with explicit shaping (whether learned or procedural).
 
     Returns:
         The reward model loaded from reward_path.
@@ -145,4 +148,7 @@ def load_reward(reward_type: str, reward_path: str, venv: vec_env.VecEnv) -> rew
     agent_loader = reward_registry.get(reward_type)
     reward_path = os.path.join(get_output_dir(), reward_path)
     logging.debug(f"Loading {reward_type} from {reward_path}")
-    return agent_loader(reward_path, venv)
+    model = agent_loader(reward_path, venv)
+    if discount is not None:
+        model.set_discount(discount)
+    return model

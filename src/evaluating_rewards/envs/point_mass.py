@@ -227,16 +227,20 @@ class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
     """Potential shaping term, based on distance to goal."""
 
     def __init__(
-        self, observation_space: gym.Space, action_space: gym.Space, discount: float = 0.99
+        self, observation_space: gym.Space, action_space: gym.Space, discount: float = 1.0,
     ):
-        serialize.LayersSerializable.__init__(**locals(), layers={})
+        self._discount = rewards.ConstantLayer(
+            "discount", initializer=tf.constant_initializer(discount)
+        )
+        self._discount.build(())
+        serialize.LayersSerializable.__init__(**locals(), layers={"discount": self._discount})
 
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
 
-        self.discount = discount
         rewards.BasicRewardModel.__init__(self, observation_space, action_space)
         self._reward = self.build_reward()
+        self.set_discount(discount)
 
     def build_reward(self):
         """Computes shaping from current and next observations."""
@@ -252,6 +256,13 @@ class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
         return old_dist - self.discount * new_dist
 
     @property
+    def discount(self) -> Optional[tf.Tensor]:
+        return tf.stop_gradient(self._discount.constant)
+
+    def set_discount(self, discount: float) -> None:
+        self._discount.set_constant(discount)
+
+    @property
     def reward(self):
         """Reward tensor."""
         return self._reward
@@ -260,9 +271,11 @@ class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
 class PointMassDenseReward(rewards.LinearCombinationModelWrapper):
     """Sparse reward plus potential shaping."""
 
-    def __init__(self, observation_space: gym.Space, action_space: gym.Space, **kwargs):
+    def __init__(
+        self, observation_space: gym.Space, action_space: gym.Space, discount: float = 1.0, **kwargs
+    ):
         sparse = PointMassSparseReward(observation_space, action_space, **kwargs)
-        shaping = PointMassShaping(observation_space, action_space)
+        shaping = PointMassShaping(observation_space, action_space, discount)
         models = {"sparse": (sparse, tf.constant(1.0)), "shaping": (shaping, tf.constant(10.0))}
         super().__init__(models)
 

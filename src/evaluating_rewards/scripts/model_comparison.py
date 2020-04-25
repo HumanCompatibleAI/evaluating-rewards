@@ -155,6 +155,7 @@ def model_comparison(
     _seed: int,  # pylint:disable=invalid-name
     # Dataset
     env_name: str,
+    discount: float,
     dataset_factory: datasets.DatasetFactory,
     dataset_factory_kwargs: Dict[str, Any],
     # Source specification
@@ -177,7 +178,7 @@ def model_comparison(
     with dataset_factory(env_name, seed=_seed, **dataset_factory_kwargs) as dataset_generator:
 
         def make_source(venv):
-            return serialize.load_reward(source_reward_type, source_reward_path, venv)
+            return serialize.load_reward(source_reward_type, source_reward_path, venv, discount)
 
         def make_trainer(model, model_scope, target):
             del model_scope
@@ -196,6 +197,7 @@ def model_comparison(
         return regress_utils.regress(
             seed=_seed,
             env_name=env_name,
+            discount=discount,
             make_source=make_source,
             source_init=False,
             make_trainer=make_trainer,

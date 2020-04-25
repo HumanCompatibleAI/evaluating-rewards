@@ -76,6 +76,7 @@ def train_regress(
     _seed: int,  # pylint:disable=invalid-name
     # Dataset
     env_name: str,
+    discount: float,
     dataset_factory: datasets.DatasetFactory,
     dataset_factory_kwargs: Dict[str, Any],
     # Target specification
@@ -106,6 +107,7 @@ def train_regress(
         return regress_utils.regress(
             seed=_seed,
             env_name=env_name,
+            discount=discount,
             make_source=make_source,
             source_init=True,
             make_trainer=make_trainer,
