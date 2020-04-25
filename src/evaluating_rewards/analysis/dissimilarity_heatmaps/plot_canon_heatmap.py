@@ -17,7 +17,7 @@
 import functools
 import logging
 import os
-from typing import Any, Iterable, Mapping, Tuple
+from typing import Any, Dict, Iterable, Mapping, Tuple
 
 import gym
 from imitation import util
@@ -61,16 +61,48 @@ def default_config():
 
 
 @plot_canon_heatmap_ex.config
-def logging_config(env_name, computation_kind, distance_kind, discount, log_root):
+def sample_dist_config(env_name):
+    """Default sample distribution config: randomly sample from Gym spaces."""
+    obs_sample_dist_factory = functools.partial(datasets.env_name_to_sample, obs=True)
+    act_sample_dist_factory = functools.partial(datasets.env_name_to_sample, obs=False)
+    sample_dist_factory_kwargs = {"env_name": env_name}
+    sample_dist_tag = "random_space"  # only used for logging
+    _ = locals()
+    del _
+
+
+@plot_canon_heatmap_ex.config
+def logging_config(env_name, sample_dist_tag, computation_kind, distance_kind, discount, log_root):
+    """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
         "plot_canon_heatmap",
         env_name,
+        sample_dist_tag,
         computation_kind,
         distance_kind,
         f"discount{discount}",
         util.make_unique_timestamp(),
     )
+
+
+@plot_canon_heatmap_ex.named_config
+def sample_from_serialized_policy():
+    """Configure to sample observations and actions from rollouts of a serialized policy."""
+    obs_sample_dist_factory = functools.partial(
+        datasets.dataset_factory_to_sample_dist_factory, obs=True
+    )
+    act_sample_dist_factory = functools.partial(
+        datasets.dataset_factory_to_sample_dist_factory, obs=False
+    )
+    sample_dist_factory_kwargs = {
+        "dataset_factory": datasets.rollout_serialized_policy_generator,
+        "policy_type": "random",
+        "policy_path": "dummy",
+    }
+    sample_dist_tag = "random_policy"
+    _ = locals()
+    del _
 
 
 @plot_canon_heatmap_ex.named_config
@@ -94,14 +126,6 @@ def load_models(
         (kind, path): serialize.load_reward(kind, path, venv, discount)
         for kind, path in reward_cfgs
     }
-
-
-def make_gym_dists(env_name: str) -> Tuple[datasets.SampleDist, datasets.SampleDist]:
-    env = gym.make(env_name)
-    obs_dist = datasets.space_to_sample(env.observation_space)
-    act_dist = datasets.space_to_sample(env.action_space)
-
-    return obs_dist, act_dist
 
 
 def dissimilarity_df_to_series(dissimilarity: pd.DataFrame) -> pd.Series:
@@ -241,6 +265,9 @@ def plot_canon_heatmap(
     discount: float,
     x_reward_cfgs: Iterable[config.RewardCfg],
     y_reward_cfgs: Iterable[config.RewardCfg],
+    obs_sample_dist_factory: datasets.SampleDistFactory,
+    act_sample_dist_factory: datasets.SampleDistFactory,
+    sample_dist_factory_kwargs: Dict[str, Any],
     computation_kind: str,
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
@@ -274,18 +301,19 @@ def plot_canon_heatmap(
             reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
             models = load_models(env_name, reward_cfgs, discount)
 
-    # TODO(adam): make distribution configurable
-    obs_dist, act_dist = make_gym_dists(env_name)
-
     if computation_kind == "sample":
         computation_fn = sample_canon
     elif computation_kind == "mesh":
         computation_fn = mesh_canon
     else:
         raise ValueError(f"Unrecognized computation kind '{computation_kind}'")
-    dissimilarity = computation_fn(
-        g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
-    )
+
+    with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
+        with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
+            dissimilarity = computation_fn(
+                g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
+            )
+
     dissimilarity = pd.Series(dissimilarity).unstack()
     dissimilarity = dissimilarity_df_to_series(dissimilarity)
 

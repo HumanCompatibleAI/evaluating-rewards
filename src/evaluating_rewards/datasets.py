@@ -37,15 +37,26 @@ BatchCallable = Callable[[int], rewards.Batch]
 # after this. There is no way to specify this in Python type annotations yet :(
 # See https://github.com/python/mypy/issues/5876
 DatasetFactory = Callable[..., ContextManager[BatchCallable]]
+SampleDistFactory = Callable[..., ContextManager[SampleDist]]
 
 
-def space_to_sample(space: gym.Space) -> SampleDist:
+@contextlib.contextmanager
+def space_to_sample(space: gym.Space) -> Iterator[SampleDist]:
     """Creates function to sample `n` elements from from `space`."""
 
     def f(n: int) -> np.ndarray:
         return np.array([space.sample() for _ in range(n)])
 
-    return f
+    yield f
+
+
+@contextlib.contextmanager
+def env_name_to_sample(env_name: str, obs: bool) -> Iterator[SampleDist]:
+    env = gym.make(env_name)
+    space = env.observation_space if obs else env.action_space
+    with space_to_sample(space) as sample_dist:
+        yield sample_dist
+    env.close()
 
 
 @contextlib.contextmanager
@@ -135,3 +146,30 @@ def iid_transition_generator(obs_dist: SampleDist, act_dist: SampleDist) -> Iter
         )
 
     yield f
+
+
+def batch_callable_to_sample_dist(batch_callable: BatchCallable, obs: bool) -> SampleDist:
+    """Samples state/actions from batches returned by `batch_callable`.
+
+    If `obs` is true, then samples observations from state and next state.
+    If `obs` is false, then samples actions from the action.
+    """
+
+    def f(n: int) -> np.ndarray:
+        num_timesteps = ((n - 1) // 2 + 1) if obs else n
+        batch = batch_callable(num_timesteps)
+        if obs:
+            res = np.concatenate((batch.obs, batch.next_obs))
+        else:
+            res = batch.actions
+        return res[:n]
+
+    return f
+
+
+@contextlib.contextmanager
+def dataset_factory_to_sample_dist_factory(
+    dataset_factory: DatasetFactory, obs: bool, **kwargs
+) -> Iterator[SampleDist]:
+    with dataset_factory(**kwargs) as batch_callable:
+        yield batch_callable_to_sample_dist(batch_callable, obs)
