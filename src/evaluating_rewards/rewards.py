@@ -72,13 +72,13 @@ class RewardModel(serialize.Serializable, abc.ABC):
     def discount(self) -> Optional[tf.Tensor]:
         """Tensor specifying discount rate of reward model, or None if not applicable.
 
-        Generally reward models that involve explicit shaping will have a discount parameters
-        but others will not.
+        Generally reward models that involve explicit shaping will have a discount parameter
+        while others will not.
         """
         return None
 
     def set_discount(self, discount: float) -> None:
-        """Set the discount rate; no-op in models where this is not applicable."""
+        """Set the discount rate; no-op in models without internal discounting."""
 
     @property
     @abc.abstractmethod
