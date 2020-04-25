@@ -41,7 +41,7 @@ config.make_config(plot_canon_heatmap_ex)
 
 
 @plot_canon_heatmap_ex.config
-def default_config():
+def default_config(env_name):
     """Default configuration values."""
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
@@ -51,7 +51,8 @@ def default_config():
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
     dataset_factory = None  # defaults to datasets.iid_transition_generator
-    dataset_factory_kwargs = None
+    dataset_factory_kwargs = {"env_name": env_name}
+    dataset_tag = "iid"
     # n_obs and n_act only applicable for mesh approach
     n_obs = 256
     n_act = 256
@@ -74,13 +75,16 @@ def sample_dist_config(env_name):
 
 
 @plot_canon_heatmap_ex.config
-def logging_config(env_name, sample_dist_tag, computation_kind, distance_kind, discount, log_root):
+def logging_config(
+    env_name, sample_dist_tag, dataset_tag, computation_kind, distance_kind, discount, log_root
+):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
         "plot_canon_heatmap",
         env_name,
         sample_dist_tag,
+        dataset_tag,
         computation_kind,
         distance_kind,
         f"discount{discount}",
@@ -88,15 +92,20 @@ def logging_config(env_name, sample_dist_tag, computation_kind, distance_kind, d
     )
 
 
+SAMPLE_FROM_DATASET_FACTORY = dict(
+    obs_sample_dist_factory=functools.partial(
+        datasets.dataset_factory_to_sample_dist_factory, obs=True
+    ),
+    act_sample_dist_factory=functools.partial(
+        datasets.dataset_factory_to_sample_dist_factory, obs=False
+    ),
+)
+
+
 @plot_canon_heatmap_ex.named_config
 def sample_from_serialized_policy():
     """Configure to sample observations and actions from rollouts of a serialized policy."""
-    obs_sample_dist_factory = functools.partial(
-        datasets.dataset_factory_to_sample_dist_factory, obs=True
-    )
-    act_sample_dist_factory = functools.partial(
-        datasets.dataset_factory_to_sample_dist_factory, obs=False
-    )
+    locals().update(**SAMPLE_FROM_DATASET_FACTORY)
     sample_dist_factory_kwargs = {
         "dataset_factory": datasets.rollout_serialized_policy_generator,
         "policy_type": "random",
@@ -108,7 +117,7 @@ def sample_from_serialized_policy():
 
 
 @plot_canon_heatmap_ex.named_config
-def dataset_from_serialized_policy(env_name):
+def dataset_from_serialized_policy():
     """Configurable to sample batches from rollouts of a serialized policy.
 
     Only has effect when `computation_kind` equals `"sample"`.
@@ -117,8 +126,25 @@ def dataset_from_serialized_policy(env_name):
     dataset_factory_kwargs = {
         "policy_type": "random",
         "policy_path": "dummy",
-        "env_name": env_name,
     }
+    dataset_tag = "random_policy"
+    _ = locals()
+    del _
+
+
+@plot_canon_heatmap_ex.named_config
+def sample_from_random_transitions():
+    locals().update(**SAMPLE_FROM_DATASET_FACTORY)
+    sample_dist_factory_kwargs = {"dataset_factory": datasets.random_transition_generator}
+    sample_dist_tag = "random_transitions"
+    _ = locals()
+    del _
+
+
+@plot_canon_heatmap_ex.named_config
+def dataset_from_random_transitions():
+    dataset_factory = datasets.random_transition_generator
+    dataset_tag = "random_transitions"
     _ = locals()
     del _
 
