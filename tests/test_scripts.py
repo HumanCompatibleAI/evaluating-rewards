@@ -49,6 +49,7 @@ EXPERIMENTS = {
 
 
 def add_canon_experiments():
+    """Add testcases for `evaluating_rewards.analysis.dissimilarity_heatmaps.plot_canon_heatmap`."""
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
             EXPERIMENTS[f"plot_canon_heatmap_{computation_kind}_{distance_kind}"] = (
@@ -57,6 +58,22 @@ def add_canon_experiments():
                 [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
             )
+    NAMED_CONFIGS = {
+        "random_policy": ["sample_from_serialized_policy"],
+        "random_policy_batch": ["sample_from_serialized_policy", "dataset_from_serialized_policy"],
+        "random_transitions_batch": [
+            "point_mass",
+            "sample_from_random_transitions",
+            "dataset_from_random_transitions",
+        ],
+    }
+    for name, named_configs in NAMED_CONFIGS.items():
+        EXPERIMENTS[f"plot_canon_heatmap_{name}"] = (
+            plot_canon_heatmap.plot_canon_heatmap_ex,
+            dict,
+            named_configs,
+            {},
+        )
 
 
 def add_gridworld_experiments():
