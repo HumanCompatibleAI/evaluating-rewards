@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2020 Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Compares hardcoded rewards to each other using CANON
+# Compares hardcoded rewards to each other using CANON: `plot_canon_heatmap.py`
 
 ENVS="point_mass hopper half_cheetah"
 DISCOUNTS="0.9 0.99 1.0"
 
-# Datasets?
-# Default: Sample from Gym, IID
-# Random policy, IID
-# Random policy, random batch
-# PointMass only: random transition, IID; random transition, random transition batch
 for env in ${ENVS}; do
   for discount in ${DISCOUNTS}; do
     for distance_kind in direct pearson; do

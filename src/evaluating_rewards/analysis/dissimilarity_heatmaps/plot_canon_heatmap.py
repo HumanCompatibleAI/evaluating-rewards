@@ -105,7 +105,7 @@ SAMPLE_FROM_DATASET_FACTORY = dict(
 
 @plot_canon_heatmap_ex.named_config
 def sample_from_serialized_policy():
-    """Configure to sample observations and actions from rollouts of a serialized policy."""
+    """Configure script to sample observations and actions from rollouts of a serialized policy."""
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
     sample_dist_factory_kwargs = {
         "dataset_factory": datasets.rollout_serialized_policy_generator,
@@ -119,7 +119,7 @@ def sample_from_serialized_policy():
 
 @plot_canon_heatmap_ex.named_config
 def dataset_from_serialized_policy():
-    """Configurable to sample batches from rollouts of a serialized policy.
+    """Configure script to sample batches from rollouts of a serialized policy.
 
     Only has effect when `computation_kind` equals `"sample"`.
     """

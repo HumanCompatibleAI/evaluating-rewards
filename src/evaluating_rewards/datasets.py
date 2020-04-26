@@ -152,7 +152,7 @@ def batch_callable_to_sample_dist(batch_callable: BatchCallable, obs: bool) -> S
     """Samples state/actions from batches returned by `batch_callable`.
 
     If `obs` is true, then samples observations from state and next state.
-    If `obs` is false, then samples actions from the action.
+    If `obs` is false, then samples actions.
     """
 
     def f(n: int) -> np.ndarray:
