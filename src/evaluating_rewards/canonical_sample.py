@@ -215,6 +215,7 @@ def sample_canon_shaping(
     obs_dist: datasets.SampleDist,
     n_mean_samples: int,
     discount: float = 1.0,
+    p: int = 1,
 ) -> Mapping[K, np.ndarray]:
     r"""
     Canonicalize `batch` for `models` using a sample-based estimate of mean reward.
@@ -251,6 +252,7 @@ def sample_canon_shaping(
         obs_dist: The distribution to sample next observations from.
         n_mean_samples: The number of samples to take.
         discount: The discount parameter to use for potential shaping.
+        p: Controls power in the L^p norm used for normalization.
 
     Returns:
         A mapping from keys to NumPy arrays containing rewards from the model evaluated on batch
@@ -283,7 +285,7 @@ def sample_canon_shaping(
         # Note this is the only part of the computation that depends on discount, so it'd be
         # cheap to evaluate for many values of `discount` if needed.
         deshaped = raw + discount * mean_next_obs - mean_obs - discount * total
-        deshaped *= tabular.canonical_scale_normalizer(deshaped)
+        deshaped *= tabular.canonical_scale_normalizer(deshaped, p)
         deshaped_rew[k] = deshaped
 
     return deshaped_rew

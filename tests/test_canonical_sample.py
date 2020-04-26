@@ -60,11 +60,10 @@ def test_mesh_evaluate_models(
     graph: tf.Graph, session: tf.Session, space: gym.Space, n_models: int, n_mesh: int = 64,
 ):
     """Checks `canonical_sample.mesh_evaluate_models` agrees with `mesh_evaluate_models_slow`."""
-    dist = datasets.space_to_sample(space)
-
-    obs = dist(n_mesh)
-    actions = dist(n_mesh)
-    next_obs = dist(n_mesh)
+    with datasets.space_to_sample(space) as dist:
+        obs = dist(n_mesh)
+        actions = dist(n_mesh)
+        next_obs = dist(n_mesh)
 
     with graph.as_default():
         models = {}
@@ -113,10 +112,10 @@ def test_sample_canon_shaping(
                 }
             )
 
-    obs_dist = datasets.space_to_sample(venv.observation_space)
-    act_dist = datasets.space_to_sample(venv.action_space)
-    with datasets.iid_transition_generator(obs_dist, act_dist) as iid_generator:
-        batch = iid_generator(256)
+    with datasets.space_to_sample(venv.observation_space) as obs_dist:
+        with datasets.space_to_sample(venv.action_space) as act_dist:
+            with datasets.iid_transition_generator(obs_dist, act_dist) as iid_generator:
+                batch = iid_generator(256)
     canon_rew = canonical_sample.sample_canon_shaping(
         models, batch, act_dist, obs_dist, n_mean_samples=256, discount=discount,
     )
