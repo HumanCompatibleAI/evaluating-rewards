@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     "env_name": "evaluating_rewards/PointMassLine-v0",
     "discount": 0.99,
     "target_reward_type": "evaluating_rewards/Zero-v0",
-    "target_reward_path": "dummy",
+    "target_reward_path": None,
     "model_reward_type": rewards.MLPRewardModel,
 }
 

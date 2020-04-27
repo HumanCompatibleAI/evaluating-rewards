@@ -35,7 +35,7 @@ def default_config():
 
     # Model to fit to target
     source_reward_type = "evaluating_rewards/PointMassSparseWithCtrl-v0"
-    source_reward_path = "dummy"
+    source_reward_path = None
 
     # Model to train and hyperparameters
     comparison_class = comparisons.RegressWrappedModel
@@ -61,7 +61,7 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs, comparison_class, co
         dataset_factory == datasets.rollout_serialized_policy_generator
         and not dataset_factory_kwargs
     ):
-        dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
+        dataset_factory_kwargs = dict(policy_type="random", policy_path=None)
     if (
         comparison_class == comparisons.RegressWrappedModel
         and "model_wrapper" not in comparison_kwargs

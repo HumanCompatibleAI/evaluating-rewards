@@ -49,7 +49,7 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs):
         dataset_factory == datasets.rollout_serialized_policy_generator
         and not dataset_factory_kwargs
     ):
-        dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
+        dataset_factory_kwargs = dict(policy_type="random", policy_path=None)
     _ = locals()  # quieten flake8 unused variable warning
     del _
 

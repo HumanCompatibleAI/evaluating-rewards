@@ -205,7 +205,7 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
 
     # Make predictions using reward model
     with graph.as_default(), session.as_default():
-        reward_model = serialize.load_reward(reward_id, "dummy", venv, 1.0)
+        reward_model = serialize.load_reward(reward_id, None, venv, 1.0)
         pred_reward = rewards.evaluate_models({"m": reward_model}, batch)["m"]
 
     # Are the predictions close to true Gym reward?

@@ -298,7 +298,7 @@ def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
     res = []
     for (kind, path) in zip(kinds, paths):
 
-        if kind in HARDCODED_TYPES or path == "dummy":
+        if kind in HARDCODED_TYPES or path is None or path == "dummy":
             res.append((kind, "hardcoded", 0, 0))
         else:
             config, run, path = _find_sacred_parent(path, seen)

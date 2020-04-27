@@ -111,7 +111,7 @@ def sample_from_serialized_policy():
     sample_dist_factory_kwargs = {
         "dataset_factory": datasets.rollout_serialized_policy_generator,
         "policy_type": "random",
-        "policy_path": "dummy",
+        "policy_path": None,
     }
     sample_dist_tag = "random_policy"
     _ = locals()
@@ -127,7 +127,7 @@ def dataset_from_serialized_policy():
     dataset_factory = datasets.rollout_serialized_policy_generator
     dataset_factory_kwargs = {
         "policy_type": "random",
-        "policy_path": "dummy",
+        "policy_path": None,
     }
     dataset_tag = "random_policy"
     _ = locals()
@@ -166,6 +166,7 @@ def test():
 
 @plot_canon_heatmap_ex.named_config
 def point_maze_learned():
+    """Compare rewards learned in PointMaze to the ground-truth reward."""
     env_name = "imitation/PointMazeLeftVel-v0"
     x_reward_cfgs = [
         ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", None),
@@ -337,6 +338,17 @@ def sample_canon(
     )
 
 
+def _canonicalize_reward_cfg(
+    reward_cfg: Iterable[config.RewardCfg], data_root: str
+) -> Iterable[config.RewardCfg]:
+    res = []
+    for kind, path in reward_cfg:
+        if path is not None:
+            path = os.path.join(data_root, path)
+        res.append((kind, path))
+    return res
+
+
 @plot_canon_heatmap_ex.main
 def plot_canon_heatmap(
     env_name: str,
@@ -350,6 +362,7 @@ def plot_canon_heatmap(
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
+    data_root: str,
     save_kwargs: Mapping[str, Any],
 ) -> Mapping[str, plt.Figure]:
     """Entry-point into script to produce divergence heatmaps.
@@ -362,14 +375,15 @@ def plot_canon_heatmap(
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
+        data_root: directory to load learned reward models from.
         save_kwargs: passed through to `analysis.save_figs`.
 
     Returns:
         A mapping of keywords to figures.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
-    y_reward_cfgs = [tuple(v) for v in y_reward_cfgs]
+    x_reward_cfgs = _canonicalize_reward_cfg(x_reward_cfgs, data_root)
+    y_reward_cfgs = _canonicalize_reward_cfg(y_reward_cfgs, data_root)
 
     logger.info("Loading models")
     g = tf.Graph()
