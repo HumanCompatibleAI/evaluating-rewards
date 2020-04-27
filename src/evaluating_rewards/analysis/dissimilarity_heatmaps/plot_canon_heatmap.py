@@ -41,8 +41,9 @@ config.make_config(plot_canon_heatmap_ex)
 
 
 @plot_canon_heatmap_ex.config
-def default_config(env_name):
+def default_config(env_name, log_root):
     """Default configuration values."""
+    data_root = log_root  # root of data directory for learned reward models
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance
@@ -163,6 +164,31 @@ def test():
     del _
 
 
+@plot_canon_heatmap_ex.named_config
+def point_maze_learned():
+    """Compare rewards learned in PointMaze to the ground-truth reward."""
+    env_name = "imitation/PointMazeLeftVel-v0"
+    x_reward_cfgs = [
+        ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
+        ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", "dummy"),
+    ]
+    y_reward_cfgs = [
+        (
+            "imitation/RewardNet_unshaped-v0",
+            "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net/",
+        ),
+        (
+            "imitation/RewardNet_unshaped-v0",
+            "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net/",
+        ),
+        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model/"),
+        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model/"),
+    ]
+    kinds = None
+    _ = locals()
+    del _
+
+
 def load_models(
     env_name: str, reward_cfgs: Iterable[config.RewardCfg], discount: float,
 ) -> Mapping[config.RewardCfg, rewards.RewardModel]:
@@ -173,14 +199,22 @@ def load_models(
     }
 
 
-def dissimilarity_df_to_series(dissimilarity: pd.DataFrame) -> pd.Series:
-    dissimilarity.index = pd.MultiIndex.from_tuples(
-        dissimilarity.index, names=("source_reward_type", "source_reward_path"),
-    )
-    dissimilarity.columns = pd.MultiIndex.from_tuples(
-        dissimilarity.columns, names=("target_reward_type", "target_reward_path"),
-    )
-    return dissimilarity.stack(level=("target_reward_type", "target_reward_path"))
+def dissimilarity_mapping_to_series(
+    dissimilarity: Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]
+) -> pd.Series:
+    """Converts dissimilarity mapping to a MultiIndex series."""
+    dissimilarity = {
+        (xtype, xpath, ytype, ypath): v
+        for ((xtype, xpath), (ytype, ypath)), v in dissimilarity.items()
+    }
+    dissimilarity = pd.Series(dissimilarity)
+    dissimilarity.index.names = [
+        "target_reward_type",
+        "target_reward_path",
+        "source_reward_type",
+        "source_reward_path",
+    ]
+    return dissimilarity
 
 
 @plot_canon_heatmap_ex.capture
@@ -312,6 +346,17 @@ def sample_canon(
     )
 
 
+def _canonicalize_reward_cfg(
+    reward_cfg: Iterable[config.RewardCfg], data_root: str
+) -> Iterable[config.RewardCfg]:
+    res = []
+    for kind, path in reward_cfg:
+        if path != "dummy":
+            path = os.path.join(data_root, path)
+        res.append((kind, path))
+    return res
+
+
 @plot_canon_heatmap_ex.main
 def plot_canon_heatmap(
     env_name: str,
@@ -325,6 +370,7 @@ def plot_canon_heatmap(
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
+    data_root: str,
     save_kwargs: Mapping[str, Any],
 ) -> Mapping[str, plt.Figure]:
     """Entry-point into script to produce divergence heatmaps.
@@ -337,14 +383,15 @@ def plot_canon_heatmap(
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
+        data_root: directory to load learned reward models from.
         save_kwargs: passed through to `analysis.save_figs`.
 
     Returns:
         A mapping of keywords to figures.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
-    y_reward_cfgs = [tuple(v) for v in y_reward_cfgs]
+    x_reward_cfgs = _canonicalize_reward_cfg(x_reward_cfgs, data_root)
+    y_reward_cfgs = _canonicalize_reward_cfg(y_reward_cfgs, data_root)
 
     logger.info("Loading models")
     g = tf.Graph()
@@ -367,8 +414,7 @@ def plot_canon_heatmap(
                 g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
             )
 
-    dissimilarity = pd.Series(dissimilarity).unstack()
-    dissimilarity = dissimilarity_df_to_series(dissimilarity)
+    dissimilarity = dissimilarity_mapping_to_series(dissimilarity)
 
     with stylesheets.setup_styles(styles):
         figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)

@@ -297,7 +297,6 @@ def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
     seen = {}
     res = []
     for (kind, path) in zip(kinds, paths):
-
         if kind in HARDCODED_TYPES or path == "dummy":
             res.append((kind, "hardcoded", 0, 0))
         else:

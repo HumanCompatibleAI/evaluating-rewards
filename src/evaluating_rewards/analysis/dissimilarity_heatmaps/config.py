@@ -52,7 +52,7 @@ def _hopper_activity(args: Iterable[str]) -> bool:
     return len(set(repl)) > 1 and reward_masks.no_ctrl(args)
 
 
-def _hardcoded_model_cfg(kinds: Iterable[str]) -> Iterable[Tuple[str, str]]:
+def _hardcoded_model_cfg(kinds: Iterable[str]) -> Iterable[RewardCfg]:
     return [(kind, "dummy") for kind in kinds]
 
 
@@ -142,7 +142,7 @@ def make_config(
     @experiment.named_config
     def point_maze():
         """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
-        env_name = "evaluating_rewards/PointMazeLeft-v0"
+        env_name = "imitation/PointMazeLeft-v0"
         kinds = [
             "imitation/PointMazeGroundTruthWithCtrl-v0",
             "imitation/PointMazeGroundTruthNoCtrl-v0",
