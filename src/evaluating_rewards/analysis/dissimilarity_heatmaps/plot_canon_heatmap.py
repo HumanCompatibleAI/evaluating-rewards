@@ -41,8 +41,9 @@ config.make_config(plot_canon_heatmap_ex)
 
 
 @plot_canon_heatmap_ex.config
-def default_config(env_name):
+def default_config(env_name, log_root):
     """Default configuration values."""
+    data_root = log_root  # root of data directory for learned reward models
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance
@@ -159,6 +160,30 @@ def test():
     n_act = 16
     # Do not include "tex" in styles here: this will break on CI.
     styles = ["paper", "heatmap-1col"]
+    _ = locals()
+    del _
+
+
+@plot_canon_heatmap_ex.named_config
+def point_maze_learned():
+    env_name = "imitation/PointMazeLeftVel-v0"
+    x_reward_cfgs = [
+        ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", None),
+        ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", None),
+    ]
+    y_reward_cfgs = [
+        (
+            "imitation/RewardNet_unshaped-v0",
+            "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net/",
+        ),
+        (
+            "imitation/RewardNet_unshaped-v0",
+            "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net/",
+        ),
+        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model/"),
+        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model/"),
+    ]
+    kinds = None
     _ = locals()
     del _
 

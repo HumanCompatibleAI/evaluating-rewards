@@ -22,7 +22,6 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import sacred
 
-from evaluating_rewards import serialize
 from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
 from evaluating_rewards.scripts import script_utils
@@ -34,10 +33,9 @@ config.make_config(plot_epic_heatmap_ex)
 
 
 @plot_epic_heatmap_ex.config
-def default_config():
+def default_config(log_root):
     """Default configuration values."""
     # Dataset parameters
-    log_root = serialize.get_output_dir()  # where results are read from/written to
     data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
     data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
     search = {}  # parameters to filter by in datasets
