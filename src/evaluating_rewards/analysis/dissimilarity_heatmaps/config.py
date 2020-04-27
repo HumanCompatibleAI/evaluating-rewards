@@ -19,14 +19,14 @@ Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatma
 
 import functools
 import itertools
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Tuple
 
 import sacred
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
-RewardCfg = Tuple[str, Optional[str]]  # (type, path)
+RewardCfg = Tuple[str, str]  # (type, path)
 
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",
@@ -53,7 +53,7 @@ def _hopper_activity(args: Iterable[str]) -> bool:
 
 
 def _hardcoded_model_cfg(kinds: Iterable[str]) -> Iterable[RewardCfg]:
-    return [(kind, None) for kind in kinds]
+    return [(kind, "dummy") for kind in kinds]
 
 
 def make_config(

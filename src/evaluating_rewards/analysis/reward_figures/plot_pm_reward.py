@@ -43,7 +43,7 @@ def default_config():
     discount = 0.99
     # Simple method: specify one model
     reward_type = "evaluating_rewards/PointMassSparseWithCtrl-v0"
-    reward_path = None
+    reward_path = "dummy"
     # Complex method: specify multiple models
     models = None
 
@@ -102,7 +102,7 @@ def dense_no_ctrl_sparsified():
     pos_lim = 0.15
     # Use lists of tuples rather than OrderedDict as Sacred reorders dictionaries
     models = [
-        ("Dense", "evaluating_rewards/PointMassDenseNoCtrl-v0", None),
+        ("Dense", "evaluating_rewards/PointMassDenseNoCtrl-v0", "dummy"),
         (
             "Sparsified",
             "evaluating_rewards/RewardModel-v0",
@@ -112,7 +112,7 @@ def dense_no_ctrl_sparsified():
                 "model",
             ),
         ),
-        ("Sparse", "evaluating_rewards/PointMassSparseNoCtrl-v0", None),
+        ("Sparse", "evaluating_rewards/PointMassSparseNoCtrl-v0", "dummy"),
     ]
     _ = locals()  # quieten flake8 unused variable warning
     del _

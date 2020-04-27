@@ -99,7 +99,7 @@ def test_sample_canon_shaping(
     ]
     with graph.as_default():
         with session.as_default():
-            models = {k: serialize.load_reward(k, None, venv, discount) for k in reward_types}
+            models = {k: serialize.load_reward(k, "dummy", venv, discount) for k in reward_types}
             constant = rewards.ConstantReward(venv.observation_space, venv.action_space)
             constant.constant.set_constant(42.0)
             models["big_sparse"] = rewards.LinearCombinationModelWrapper(

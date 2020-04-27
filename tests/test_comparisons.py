@@ -61,7 +61,7 @@ def test_regress(
 
     Args:
         target: The target reward model type. Must be a hardcoded reward:
-            we always load with path=None.
+            we always load with a path "dummy".
         loss_ub: The maximum loss of the model at the end of training.
         rel_loss_lb: The minimum relative improvement to the initial loss.
     """
@@ -75,7 +75,7 @@ def test_regress(
                     source = rewards.MLPRewardModel(venv.observation_space, venv.action_space)
 
                 with tf.variable_scope("target"):
-                    target_model = serialize.load_reward(target, None, venv, discount)
+                    target_model = serialize.load_reward(target, "dummy", venv, discount)
 
                 with tf.variable_scope("match") as match_scope:
                     match = comparisons.RegressModel(source, target_model)

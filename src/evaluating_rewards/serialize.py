@@ -32,7 +32,7 @@ from evaluating_rewards import rewards
 
 ZERO_REWARD = "evaluating_rewards/Zero-v0"
 
-RewardLoaderFn = Callable[[Optional[str], vec_env.VecEnv], rewards.RewardModel]
+RewardLoaderFn = Callable[[str, vec_env.VecEnv], rewards.RewardModel]
 
 
 def get_output_dir():
@@ -53,9 +53,7 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
         super().register(key, value=value, indirect=indirect)
 
         @contextlib.contextmanager
-        def reward_fn_loader(
-            path: Optional[str], venv: vec_env.VecEnv
-        ) -> Iterator[serialize.RewardFn]:
+        def reward_fn_loader(path: str, venv: vec_env.VecEnv) -> Iterator[serialize.RewardFn]:
             """Load a TensorFlow reward model, then convert it into a Callable."""
             reward_model_loader = self.get(key)
             with util.make_session() as (_, sess):
@@ -88,7 +86,7 @@ def _load_imitation(use_test: bool) -> RewardLoaderFn:
         A function that loads reward networks.
     """
 
-    def f(path: Optional[str], venv: vec_env.VecEnv) -> rewards.RewardModel:
+    def f(path: str, venv: vec_env.VecEnv) -> rewards.RewardModel:
         """Loads a reward network saved to path, for environment venv.
 
         Arguments:
@@ -98,7 +96,6 @@ def _load_imitation(use_test: bool) -> RewardLoaderFn:
         Returns:
             A RewardModel representing the reward network.
         """
-        assert str is not None
         random_id = uuid.uuid4().hex
         with tf.variable_scope(f"model_{random_id}"):
             logging.info(f"Loading imitation reward model from '{path}'")
@@ -110,9 +107,8 @@ def _load_imitation(use_test: bool) -> RewardLoaderFn:
     return f
 
 
-def _load_native(path: Optional[str], venv: vec_env.VecEnv) -> rewards.RewardModel:
+def _load_native(path: str, venv: vec_env.VecEnv) -> rewards.RewardModel:
     """Load a RewardModel that implemented the Serializable interface."""
-    assert str is not None
     random_id = uuid.uuid4().hex
     with tf.variable_scope(f"model_{random_id}"):
         logging.info(f"Loading native evaluating rewards model from '{path}'")
@@ -135,10 +131,7 @@ reward_registry.register(
 
 
 def load_reward(
-    reward_type: str,
-    reward_path: Optional[str],
-    venv: vec_env.VecEnv,
-    discount: Optional[float] = None,
+    reward_type: str, reward_path: str, venv: vec_env.VecEnv, discount: Optional[float] = None,
 ) -> rewards.RewardModel:
     """Load serialized reward model.
 

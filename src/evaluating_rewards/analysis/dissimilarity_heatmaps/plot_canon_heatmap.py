@@ -111,7 +111,7 @@ def sample_from_serialized_policy():
     sample_dist_factory_kwargs = {
         "dataset_factory": datasets.rollout_serialized_policy_generator,
         "policy_type": "random",
-        "policy_path": None,
+        "policy_path": "dummy",
     }
     sample_dist_tag = "random_policy"
     _ = locals()
@@ -127,7 +127,7 @@ def dataset_from_serialized_policy():
     dataset_factory = datasets.rollout_serialized_policy_generator
     dataset_factory_kwargs = {
         "policy_type": "random",
-        "policy_path": None,
+        "policy_path": "dummy",
     }
     dataset_tag = "random_policy"
     _ = locals()
@@ -169,8 +169,8 @@ def point_maze_learned():
     """Compare rewards learned in PointMaze to the ground-truth reward."""
     env_name = "imitation/PointMazeLeftVel-v0"
     x_reward_cfgs = [
-        ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", None),
-        ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", None),
+        ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
+        ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", "dummy"),
     ]
     y_reward_cfgs = [
         (
@@ -199,14 +199,22 @@ def load_models(
     }
 
 
-def dissimilarity_df_to_series(dissimilarity: pd.DataFrame) -> pd.Series:
-    dissimilarity.index = pd.MultiIndex.from_tuples(
-        dissimilarity.index, names=("target_reward_type", "target_reward_path"),
-    )
-    dissimilarity.columns = pd.MultiIndex.from_tuples(
-        dissimilarity.columns, names=("source_reward_type", "source_reward_path"),
-    )
-    return dissimilarity.stack(level=("source_reward_type", "source_reward_path"))
+def dissimilarity_mapping_to_series(
+    dissimilarity: Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]
+) -> pd.Series:
+    """Converts dissimilarity mapping to a MultiIndex series."""
+    dissimilarity = {
+        (xtype, xpath, ytype, ypath): v
+        for ((xtype, xpath), (ytype, ypath)), v in dissimilarity.items()
+    }
+    dissimilarity = pd.Series(dissimilarity)
+    dissimilarity.index.names = [
+        "target_reward_type",
+        "target_reward_path",
+        "source_reward_type",
+        "source_reward_path",
+    ]
+    return dissimilarity
 
 
 @plot_canon_heatmap_ex.capture
@@ -343,7 +351,7 @@ def _canonicalize_reward_cfg(
 ) -> Iterable[config.RewardCfg]:
     res = []
     for kind, path in reward_cfg:
-        if path is not None:
+        if path != "dummy":
             path = os.path.join(data_root, path)
         res.append((kind, path))
     return res
@@ -406,8 +414,7 @@ def plot_canon_heatmap(
                 g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
             )
 
-    dissimilarity = pd.Series(dissimilarity).unstack()
-    dissimilarity = dissimilarity_df_to_series(dissimilarity)
+    dissimilarity = dissimilarity_mapping_to_series(dissimilarity)
 
     with stylesheets.setup_styles(styles):
         figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)

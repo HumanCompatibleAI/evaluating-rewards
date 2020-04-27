@@ -35,7 +35,7 @@ def default_config():
 
     # Trajectory specification
     policy_type = "random"  # type of policy to generate comparison trajectories
-    policy_path = None  # path to policy
+    policy_path = "dummy"  # path to policy
     trajectory_length = 5  # length of trajectories compared
 
     # Hyperparameters
