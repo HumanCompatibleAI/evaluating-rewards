@@ -164,23 +164,22 @@ def compact_heatmaps(
     Returns:
         A mapping from strings to figures.
     """
-    if order is None:
-        order = dissimilarity.index.levels[0]
     dissimilarity = dissimilarity.copy()
     dissimilarity = transformations.rewrite_index(dissimilarity)
     dissimilarity = compact(dissimilarity)
 
-    source_order = list(order)
-    if serialize.ZERO_REWARD in dissimilarity.index.get_level_values("source_reward_type"):
-        if serialize.ZERO_REWARD not in source_order:
-            source_order.append(serialize.ZERO_REWARD)
-    dissimilarity = dissimilarity.reindex(index=source_order, level="source_reward_type")
-    dissimilarity = dissimilarity.reindex(index=order, level="target_reward_type")
+    if order is not None:
+        source_order = list(order)
+        if serialize.ZERO_REWARD in dissimilarity.index.get_level_values("source_reward_type"):
+            if serialize.ZERO_REWARD not in source_order:
+                source_order.append(serialize.ZERO_REWARD)
+        dissimilarity = dissimilarity.reindex(index=source_order, level="source_reward_type")
+        dissimilarity = dissimilarity.reindex(index=order, level="target_reward_type")
 
     figs = {}
-    for name, matching in masks.items():
+    for name, matchings in masks.items():
         fig, ax = plt.subplots(1, 1, squeeze=True)
-        match_mask = reward_masks.compute_mask(dissimilarity, matching)
+        match_mask = reward_masks.compute_mask(dissimilarity, matchings)
         comparison_heatmap(
             dissimilarity, ax=ax, fmt=fmt, preserve_order=True, mask=match_mask, **kwargs
         )

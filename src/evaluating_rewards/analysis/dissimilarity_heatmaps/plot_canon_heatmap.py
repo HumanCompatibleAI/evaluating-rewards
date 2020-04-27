@@ -175,12 +175,12 @@ def load_models(
 
 def dissimilarity_df_to_series(dissimilarity: pd.DataFrame) -> pd.Series:
     dissimilarity.index = pd.MultiIndex.from_tuples(
-        dissimilarity.index, names=("source_reward_type", "source_reward_path"),
+        dissimilarity.index, names=("target_reward_type", "target_reward_path"),
     )
     dissimilarity.columns = pd.MultiIndex.from_tuples(
-        dissimilarity.columns, names=("target_reward_type", "target_reward_path"),
+        dissimilarity.columns, names=("source_reward_type", "source_reward_path"),
     )
-    return dissimilarity.stack(level=("target_reward_type", "target_reward_path"))
+    return dissimilarity.stack(level=("source_reward_type", "source_reward_path"))
 
 
 @plot_canon_heatmap_ex.capture

@@ -37,7 +37,7 @@ def compute_mask(
 
     Returns:
         A boolean Series, with an index equal to `series`.
-        The value is true iff one of `matchings` returns true.
+        The value is false iff one of `matchings` returns true.
     """
     xs = []
     for level in levels:

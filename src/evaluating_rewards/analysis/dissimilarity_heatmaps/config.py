@@ -142,7 +142,7 @@ def make_config(
     @experiment.named_config
     def point_maze():
         """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
-        env_name = "evaluating_rewards/PointMazeLeft-v0"
+        env_name = "imitation/PointMazeLeft-v0"
         kinds = [
             "imitation/PointMazeGroundTruthWithCtrl-v0",
             "imitation/PointMazeGroundTruthNoCtrl-v0",
