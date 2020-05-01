@@ -19,6 +19,7 @@ import functools
 import logging
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Type, TypeVar
 
+from imitation.util import data
 import numpy as np
 import tensorflow as tf
 
@@ -80,14 +81,14 @@ class RegressModel:
             if gradient is not None
         }
 
-    def build_feed_dict(self, batch: rewards.Batch):
+    def build_feed_dict(self, batch: data.Transitions):
         """Construct feed dict given a batch of data."""
         models = [self.model, self.target]
         return rewards.make_feed_dict(models, batch)
 
     def fit(
         self,
-        dataset: datasets.BatchCallable,
+        dataset: datasets.TransitionsCallable,
         total_timesteps: int = int(1e6),
         batch_size: int = 4096,
         log_interval: int = 10,
@@ -148,13 +149,13 @@ class RegressWrappedModel(RegressModel):
         self.metrics["unwrapped_loss"] = loss_fn(self.target.reward, self.unwrapped_source.reward)
         self.metrics.update(metrics)
 
-    def fit_affine(self, batch: rewards.Batch):
+    def fit_affine(self, batch: data.Transitions):
         """Fits affine parameters only (not e.g. potential)."""
         affine_model = self.model_extra["affine"]
         return affine_model.fit_lstsq(batch, target=self.target, shaping=None)
 
     def fit(
-        self, dataset: datasets.BatchCallable, affine_size: Optional[int] = 4096, **kwargs,
+        self, dataset: datasets.TransitionsCallable, affine_size: Optional[int] = 4096, **kwargs,
     ) -> FitStats:
         """Fits shaping to target.
 
@@ -203,7 +204,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
             **kwargs,
         )
 
-    def fit_affine(self, batch: rewards.Batch) -> rewards.AffineParameters:
+    def fit_affine(self, batch: data.Transitions) -> rewards.AffineParameters:
         """
         Set affine transformation parameters to analytic least-squares solution.
 
@@ -221,7 +222,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
 
     def fit(
         self,
-        dataset: datasets.BatchCallable,
+        dataset: datasets.TransitionsCallable,
         total_timesteps: int = int(1e6),
         epoch_timesteps: int = 16384,
         affine_size: int = 4096,
@@ -271,7 +272,7 @@ def summary_comparison(
     original: rewards.RewardModel,
     matched: rewards.RewardModel,
     target: rewards.RewardModel,
-    test_set: rewards.Batch,
+    test_set: rewards.data.Transitions,
     shaping: Optional[rewards.RewardModel] = None,
 ) -> Tuple[float, float, float]:
     """Compare rewards in terms of intrinsic and shaping difference.
@@ -356,7 +357,7 @@ K = TypeVar("K")
 
 def fit_models(
     potentials: Mapping[K, RegressModel],
-    dataset: datasets.BatchCallable,
+    dataset: datasets.TransitionsCallable,
     total_timesteps: int,
     batch_size: int,
     log_interval: int = 10,

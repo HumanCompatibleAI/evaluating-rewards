@@ -17,7 +17,7 @@
 import warnings
 
 from imitation.policies import serialize as policy_serialize
-from imitation.util import registry
+from imitation.util import data, registry
 import numpy as np
 from stable_baselines.common import policies, vec_env
 import tensorflow as tf
@@ -100,7 +100,8 @@ class MonteCarloGreedyPolicy(policies.BasePolicy):
             )
             next_obs = dup_obs
 
-        batch = rewards.Batch(obs=dup_obs, actions=dup_actions, next_obs=next_obs)
+        dones = np.zeros(batch_size * self.n_samples, dtype=np.bool)
+        batch = data.Transitions(obs=dup_obs, acts=dup_actions, next_obs=next_obs, dones=dones)
         feed_dict = rewards.make_feed_dict([self.reward_model], batch)
         # TODO(): add a function to RewardModel to compute this?
         reward = self.sess.run(self.reward_model.reward, feed_dict=feed_dict)

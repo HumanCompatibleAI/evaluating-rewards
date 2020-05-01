@@ -24,19 +24,17 @@ from typing import Callable, ContextManager, Iterator, Union
 
 import gym
 from imitation.policies import serialize
-from imitation.util import rollout, util
+from imitation.util import data, rollout, util
 import numpy as np
 from stable_baselines.common import base_class, policies, vec_env
 
-from evaluating_rewards import rewards
-
 SampleDist = Callable[[int], np.ndarray]
-BatchCallable = Callable[[int], rewards.Batch]
+TransitionsCallable = Callable[[int], data.Transitions]
 # Expect DatasetFactory to accept a str specifying env_name as first argument,
 # int specifying seed as second argument and factory-specific keyword arguments
 # after this. There is no way to specify this in Python type annotations yet :(
 # See https://github.com/python/mypy/issues/5876
-DatasetFactory = Callable[..., ContextManager[BatchCallable]]
+TransitionsFactory = Callable[..., ContextManager[TransitionsCallable]]
 SampleDistFactory = Callable[..., ContextManager[SampleDist]]
 
 
@@ -62,16 +60,12 @@ def env_name_to_sample(env_name: str, obs: bool) -> Iterator[SampleDist]:
 @contextlib.contextmanager
 def rollout_policy_generator(
     venv: vec_env.VecEnv, policy: Union[base_class.BaseRLModel, policies.BasePolicy]
-) -> Iterator[BatchCallable]:
+) -> Iterator[TransitionsCallable]:
     """Generator returning rollouts from a policy in a given environment."""
 
-    def f(total_timesteps: int) -> rewards.Batch:
+    def f(total_timesteps: int) -> data.Transitions:
         # TODO(adam): inefficient -- discards partial trajectories and resets environment
-        transitions = rollout.generate_transitions(policy, venv, n_timesteps=total_timesteps)
-        # TODO(): can we switch to rollout.Transition?
-        return rewards.Batch(
-            obs=transitions.obs, actions=transitions.acts, next_obs=transitions.next_obs
-        )
+        return rollout.generate_transitions(policy, venv, n_timesteps=total_timesteps)
 
     yield f
 
@@ -79,7 +73,7 @@ def rollout_policy_generator(
 @contextlib.contextmanager
 def rollout_serialized_policy_generator(
     env_name: str, policy_type: str, policy_path: str, num_vec: int = 8, seed: int = 0
-) -> Iterator[BatchCallable]:
+) -> Iterator[TransitionsCallable]:
     venv = util.make_vec_env(env_name, n_envs=num_vec, seed=seed)
     with serialize.load_policy(policy_type, policy_path, venv) as policy:
         with rollout_policy_generator(venv, policy) as generator:
@@ -87,7 +81,7 @@ def rollout_serialized_policy_generator(
 
 
 @contextlib.contextmanager
-def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[BatchCallable]:
+def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[TransitionsCallable]:
     """Randomly samples state and action and computes next state from dynamics.
 
     This is one of the weakest possible priors, with broad support. It is similar
@@ -108,7 +102,7 @@ def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[BatchC
     env = gym.make(env_name)
     env.seed(seed)
 
-    def f(total_timesteps: int) -> rewards.Batch:
+    def f(total_timesteps: int) -> data.Transitions:
         """Helper function."""
         obses = []
         acts = []
@@ -123,32 +117,38 @@ def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[BatchC
             obses.append(obs)
             acts.append(act)
             next_obses.append(next_obs)
-        return rewards.Batch(
-            obs=np.array(obses), actions=np.array(acts), next_obs=np.array(next_obses)
+        dones = np.zeros(total_timesteps, dtype=np.bool)
+        return data.Transitions(
+            obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
         )
 
     yield f
 
 
 @contextlib.contextmanager
-def iid_transition_generator(obs_dist: SampleDist, act_dist: SampleDist) -> Iterator[BatchCallable]:
+def iid_transition_generator(
+    obs_dist: SampleDist, act_dist: SampleDist
+) -> Iterator[TransitionsCallable]:
     """Samples state and next state i.i.d. from `obs_dist` and actions i.i.d. from `act_dist`.
 
     This is an extremely weak prior. It's most useful in conjunction with methods in
     `canonical_sample` which assume i.i.d. transitions internally."""
 
-    def f(total_timesteps: int) -> rewards.Batch:
+    def f(total_timesteps: int) -> data.Transitions:
         obses = obs_dist(total_timesteps)
         acts = act_dist(total_timesteps)
         next_obses = obs_dist(total_timesteps)
-        return rewards.Batch(
-            obs=np.array(obses), actions=np.array(acts), next_obs=np.array(next_obses)
+        dones = np.zeros(total_timesteps, dtype=np.bool)
+        return data.Transitions(
+            obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
         )
 
     yield f
 
 
-def batch_callable_to_sample_dist(batch_callable: BatchCallable, obs: bool) -> SampleDist:
+def transitions_callable_to_sample_dist(
+    transitions_callable: TransitionsCallable, obs: bool
+) -> SampleDist:
     """Samples state/actions from batches returned by `batch_callable`.
 
     If `obs` is true, then samples observations from state and next state.
@@ -157,19 +157,19 @@ def batch_callable_to_sample_dist(batch_callable: BatchCallable, obs: bool) -> S
 
     def f(n: int) -> np.ndarray:
         num_timesteps = ((n - 1) // 2 + 1) if obs else n
-        batch = batch_callable(num_timesteps)
+        transitions = transitions_callable(num_timesteps)
         if obs:
-            res = np.concatenate((batch.obs, batch.next_obs))
+            res = np.concatenate((transitions.obs, transitions.next_obs))
         else:
-            res = batch.actions
+            res = transitions.acts
         return res[:n]
 
     return f
 
 
 @contextlib.contextmanager
-def dataset_factory_to_sample_dist_factory(
-    dataset_factory: DatasetFactory, obs: bool, **kwargs
+def transitions_factory_to_sample_dist_factory(
+    transitions_factory: TransitionsFactory, obs: bool, **kwargs
 ) -> Iterator[SampleDist]:
-    with dataset_factory(**kwargs) as batch_callable:
-        yield batch_callable_to_sample_dist(batch_callable, obs)
+    with transitions_factory(**kwargs) as transitions_callable:
+        yield transitions_callable_to_sample_dist(transitions_callable, obs)

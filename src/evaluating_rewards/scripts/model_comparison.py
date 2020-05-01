@@ -156,7 +156,7 @@ def model_comparison(
     # Dataset
     env_name: str,
     discount: float,
-    dataset_factory: datasets.DatasetFactory,
+    dataset_factory: datasets.TransitionsFactory,
     dataset_factory_kwargs: Dict[str, Any],
     # Source specification
     source_reward_type: str,

@@ -49,7 +49,7 @@ def norm_diff(predicted: np.ndarray, actual: np.ndarray, norm: int):
 def constant_baseline(
     match: comparisons.RegressModel,
     target: rewards.RewardModel,
-    dataset: datasets.BatchCallable,
+    dataset: datasets.TransitionsCallable,
     test_size: int = 4096,
 ) -> Dict[str, Any]:
     """Computes the error in predictions of the model matched and some baselines.
