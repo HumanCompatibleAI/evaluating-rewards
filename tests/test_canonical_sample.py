@@ -42,7 +42,9 @@ def mesh_evaluate_models_slow(
     It might also be useful in the future for other optimisations (e.g. a JIT like Numba).
     """
     transitions = list(itertools.product(obs, actions, next_obs))
-    transitions = [np.array([m[i] for m in transitions]) for i in range(3)]
+    transitions = [
+        np.array([m[i] for m in transitions]) for i in range(3)  # pylint:disable=not-an-iterable
+    ]
     dones = np.zeros(transitions[0].shape, dtype=np.bool)
     transitions = data.Transitions(*transitions, dones)
     rews = rewards.evaluate_models(models, transitions)
