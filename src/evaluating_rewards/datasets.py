@@ -168,8 +168,8 @@ def transitions_callable_to_sample_dist(
 
 
 @contextlib.contextmanager
-def dataset_factory_to_sample_dist_factory(
-    dataset_factory: TransitionsFactory, obs: bool, **kwargs
+def transitions_factory_to_sample_dist_factory(
+    transitions_factory: TransitionsFactory, obs: bool, **kwargs
 ) -> Iterator[SampleDist]:
-    with dataset_factory(**kwargs) as transitions_callable:
+    with transitions_factory(**kwargs) as transitions_callable:
         yield transitions_callable_to_sample_dist(transitions_callable, obs)

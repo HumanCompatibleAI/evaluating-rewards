@@ -52,8 +52,8 @@ def default_config(env_name, log_root):
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
-    dataset_factory = None  # defaults to datasets.iid_transition_generator
-    dataset_factory_kwargs = {"env_name": env_name}
+    visitations_factory = None  # defaults to datasets.iid_transition_generator
+    visitations_factory_kwargs = {"env_name": env_name}
     dataset_tag = "iid"
     # n_obs and n_act only applicable for mesh approach
     n_obs = 256
@@ -96,10 +96,10 @@ def logging_config(
 
 SAMPLE_FROM_DATASET_FACTORY = dict(
     obs_sample_dist_factory=functools.partial(
-        datasets.dataset_factory_to_sample_dist_factory, obs=True
+        datasets.transitions_factory_to_sample_dist_factory, obs=True
     ),
     act_sample_dist_factory=functools.partial(
-        datasets.dataset_factory_to_sample_dist_factory, obs=False
+        datasets.transitions_factory_to_sample_dist_factory, obs=False
     ),
 )
 
@@ -109,7 +109,7 @@ def sample_from_serialized_policy():
     """Configure script to sample observations and actions from rollouts of a serialized policy."""
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
     sample_dist_factory_kwargs = {
-        "dataset_factory": datasets.rollout_serialized_policy_generator,
+        "transitions_factory": datasets.rollout_serialized_policy_generator,
         "policy_type": "random",
         "policy_path": "dummy",
     }
@@ -124,8 +124,8 @@ def dataset_from_serialized_policy():
 
     Only has effect when `computation_kind` equals `"sample"`.
     """
-    dataset_factory = datasets.rollout_serialized_policy_generator
-    dataset_factory_kwargs = {
+    visitations_factory = datasets.rollout_serialized_policy_generator
+    visitations_factory_kwargs = {
         "policy_type": "random",
         "policy_path": "dummy",
     }
@@ -137,7 +137,7 @@ def dataset_from_serialized_policy():
 @plot_canon_heatmap_ex.named_config
 def sample_from_random_transitions():
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
-    sample_dist_factory_kwargs = {"dataset_factory": datasets.random_transition_generator}
+    sample_dist_factory_kwargs = {"transitions_factory": datasets.random_transition_generator}
     sample_dist_tag = "random_transitions"
     _ = locals()
     del _
@@ -145,7 +145,7 @@ def sample_from_random_transitions():
 
 @plot_canon_heatmap_ex.named_config
 def dataset_from_random_transitions():
-    dataset_factory = datasets.random_transition_generator
+    visitations_factory = datasets.random_transition_generator
     dataset_tag = "random_transitions"
     _ = locals()
     del _
@@ -291,8 +291,8 @@ def sample_canon(
     y_reward_cfgs: Iterable[config.RewardCfg],
     distance_kind: str,
     discount: float,
-    dataset_factory: Optional[datasets.TransitionsFactory],
-    dataset_factory_kwargs: Optional[Dict[str, Any]],
+    visitations_factory: Optional[datasets.TransitionsFactory],
+    visitations_factory_kwargs: Optional[Dict[str, Any]],
     n_samples: int,
     n_mean_samples: int,
     direct_p: int,
@@ -319,10 +319,10 @@ def sample_canon(
     """
     del g
     logger.info("Sampling dataset")
-    if dataset_factory is None:
-        dataset_factory = datasets.iid_transition_generator
-        dataset_factory_kwargs = dict(obs_dist=obs_dist, act_dist=act_dist)
-    with dataset_factory(**dataset_factory_kwargs) as batch_callable:
+    if visitations_factory is None:
+        visitations_factory = datasets.iid_transition_generator
+        visitations_factory_kwargs = dict(obs_dist=obs_dist, act_dist=act_dist)
+    with visitations_factory(**visitations_factory_kwargs) as batch_callable:
         batch = batch_callable(n_samples)
 
     with sess.as_default():

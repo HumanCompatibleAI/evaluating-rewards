@@ -212,7 +212,7 @@ def sample_mean_rews(
 
 def sample_canon_shaping(
     models: Mapping[K, rewards.RewardModel],
-    transitions: data.Transitions,
+    batch: data.Transitions,
     act_dist: datasets.SampleDist,
     obs_dist: datasets.SampleDist,
     n_mean_samples: int,
@@ -249,7 +249,7 @@ def sample_canon_shaping(
 
     Args:
         models: A mapping from keys to reward models.
-        transitions: A batch to evaluate the models with respect to.
+        batch: A batch to evaluate the models with respect to.
         act_dist: The distribution to sample actions from.
         obs_dist: The distribution to sample next observations from.
         n_mean_samples: The number of samples to take.
@@ -260,13 +260,13 @@ def sample_canon_shaping(
         A mapping from keys to NumPy arrays containing rewards from the model evaluated on batch
         and then canonicalized to be invariant to potential shaping and scale.
     """
-    raw_rew = rewards.evaluate_models(models, transitions)
+    raw_rew = rewards.evaluate_models(models, batch)
 
     # Sample-based estimate of mean reward
     act_samples = act_dist(n_mean_samples)
     next_obs_samples = obs_dist(n_mean_samples)
 
-    all_obs = np.concatenate((next_obs_samples, transitions.obs, transitions.next_obs), axis=0)
+    all_obs = np.concatenate((next_obs_samples, batch.obs, batch.next_obs), axis=0)
     unique_obs, unique_inv = np.unique(all_obs, return_inverse=True, axis=0)
     mean_rews = sample_mean_rews(models, unique_obs, act_samples, next_obs_samples)
     mean_rews = {k: v[unique_inv] for k, v in mean_rews.items()}
