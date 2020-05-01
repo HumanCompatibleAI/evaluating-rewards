@@ -22,7 +22,7 @@ from typing import Dict, Iterable, Mapping, NamedTuple, Optional, Sequence, Tupl
 
 import gym
 from imitation.rewards import reward_net
-from imitation.util import rollout, serialize
+from imitation.util import data, rollout, serialize
 import numpy as np
 import scipy.optimize
 from stable_baselines.common import input as env_in  # avoid name clash
@@ -746,7 +746,7 @@ def evaluate_models(models: Mapping[K, RewardModel], batch: Batch) -> Mapping[K,
 
 
 def compute_returns(
-    models: Mapping[K, RewardModel], trajectories: Sequence[rollout.Trajectory]
+    models: Mapping[K, RewardModel], trajectories: Sequence[data.Trajectory]
 ) -> Mapping[K, np.ndarray]:
     """Computes the (undiscounted) returns of each trajectory under each model.
 
