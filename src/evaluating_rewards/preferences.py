@@ -75,10 +75,7 @@ def _slice_trajectory(trajectory: data.Trajectory, start: int, end: int) -> data
     """Slice trajectory from timestep start to timestep end."""
     infos = trajectory.infos[start:end] if trajectory.infos is not None else None
     return data.Trajectory(
-        obs=trajectory.obs[start : end + 1],
-        acts=trajectory.acts[start:end],
-        rews=trajectory.rews[start:end],
-        infos=infos,
+        obs=trajectory.obs[start : end + 1], acts=trajectory.acts[start:end], infos=infos,
     )
 
 
@@ -307,11 +304,11 @@ class PreferenceComparisonTrainer:
         Returns:
             A feed dict.
         """
-        batch = rewards.Batch(
-            obs=_concatenate(preferences, "obs", slice(0, -1)),
-            actions=_concatenate(preferences, "acts", slice(None)),
-            next_obs=_concatenate(preferences, "obs", slice(1, None)),
-        )
+        obs = _concatenate(preferences, "obs", slice(0, -1))
+        acts = _concatenate(preferences, "acts", slice(None))
+        next_obs = _concatenate(preferences, "obs", slice(1, None))
+        dones = np.zeros(obs.shape[0], dtype=np.bool)
+        batch = data.Transitions(obs=obs, acts=acts, next_obs=next_obs, dones=dones)
         feed_dict = rewards.make_feed_dict([self.model], batch)
         labels = np.array([p.label for p in preferences])
         feed_dict[self._preference_labels] = labels

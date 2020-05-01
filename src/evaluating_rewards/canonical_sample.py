@@ -18,6 +18,7 @@ import multiprocessing
 import multiprocessing.dummy
 from typing import Callable, Mapping, Optional, Tuple, TypeVar
 
+from imitation.util import data
 import numpy as np
 import tensorflow as tf
 
@@ -191,10 +192,11 @@ def sample_mean_rews(
     for start, end in zip(idxs[:-1], idxs[1:]):
         obs = mean_from_obs[start:end]
         obs_repeated = np.repeat(obs, len(act_samples), axis=0)
-        batch = rewards.Batch(
+        batch = data.Transitions(
             obs=obs_repeated,
-            actions=act_tiled[: len(obs_repeated), :],
+            acts=act_tiled[: len(obs_repeated), :],
             next_obs=next_obs_tiled[: len(obs_repeated), :],
+            dones=np.zeros(obs.shape[0], dtype=np.bool),
         )
         rews = rewards.evaluate_models(models, batch)
         rews = {k: v.reshape(len(obs), -1) for k, v in rews.items()}
@@ -210,7 +212,7 @@ def sample_mean_rews(
 
 def sample_canon_shaping(
     models: Mapping[K, rewards.RewardModel],
-    batch: rewards.Batch,
+    transitions: data.Transitions,
     act_dist: datasets.SampleDist,
     obs_dist: datasets.SampleDist,
     n_mean_samples: int,
@@ -247,7 +249,7 @@ def sample_canon_shaping(
 
     Args:
         models: A mapping from keys to reward models.
-        batch: A batch to evaluate the models with respect to.
+        transitions: A batch to evaluate the models with respect to.
         act_dist: The distribution to sample actions from.
         obs_dist: The distribution to sample next observations from.
         n_mean_samples: The number of samples to take.
@@ -258,13 +260,13 @@ def sample_canon_shaping(
         A mapping from keys to NumPy arrays containing rewards from the model evaluated on batch
         and then canonicalized to be invariant to potential shaping and scale.
     """
-    raw_rew = rewards.evaluate_models(models, batch)
+    raw_rew = rewards.evaluate_models(models, transitions)
 
     # Sample-based estimate of mean reward
     act_samples = act_dist(n_mean_samples)
     next_obs_samples = obs_dist(n_mean_samples)
 
-    all_obs = np.concatenate((next_obs_samples, batch.obs, batch.next_obs), axis=0)
+    all_obs = np.concatenate((next_obs_samples, transitions.obs, transitions.next_obs), axis=0)
     unique_obs, unique_inv = np.unique(all_obs, return_inverse=True, axis=0)
     mean_rews = sample_mean_rews(models, unique_obs, act_samples, next_obs_samples)
     mean_rews = {k: v[unique_inv] for k, v in mean_rews.items()}

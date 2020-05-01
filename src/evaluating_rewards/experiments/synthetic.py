@@ -22,6 +22,7 @@ import logging
 from typing import Any, Callable, Iterable, List, Mapping, Optional, Tuple, Type
 
 import gym
+from imitation.util import data
 import numpy as np
 import pandas as pd
 import scipy as sp
@@ -134,7 +135,7 @@ def _compare_synthetic_eval(
     metrics: Mapping[str, List[Mapping[Tuple[float, float], Any]]],
     originals,
     matchings,
-    test_set: rewards.Batch,
+    test_set: data.Transitions,
     initial_constants: Mapping[Tuple[float, float], float],
     initial_scales: Mapping[Tuple[float, float], float],
     gt_constant: float,
@@ -207,7 +208,7 @@ def _compare_synthetic_eval(
 def compare_synthetic(
     observation_space: gym.Space,
     action_space: gym.Space,
-    dataset_generator: datasets.BatchCallable,
+    dataset_generator: datasets.TransitionsCallable,
     reward_noise: Optional[np.ndarray] = None,
     potential_noise: Optional[np.ndarray] = None,
     reward_hids: Optional[Iterable[int]] = None,
@@ -368,7 +369,7 @@ def compare_synthetic(
 def summary_stats(
     observation_space: gym.Space,
     action_space: gym.Space,
-    dataset: rewards.Batch,
+    dataset: data.Transitions,
     reward_hids: Optional[Iterable[int]] = None,
     potential_hids: Optional[Iterable[int]] = None,
 ):

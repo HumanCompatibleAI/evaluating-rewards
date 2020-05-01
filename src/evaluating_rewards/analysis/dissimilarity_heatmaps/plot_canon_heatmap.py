@@ -291,7 +291,7 @@ def sample_canon(
     y_reward_cfgs: Iterable[config.RewardCfg],
     distance_kind: str,
     discount: float,
-    dataset_factory: Optional[datasets.DatasetFactory],
+    dataset_factory: Optional[datasets.TransitionsFactory],
     dataset_factory_kwargs: Optional[Dict[str, Any]],
     n_samples: int,
     n_mean_samples: int,

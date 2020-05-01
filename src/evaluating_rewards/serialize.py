@@ -21,7 +21,7 @@ from typing import Callable, Iterator, Optional
 import uuid
 
 from imitation.rewards import common, reward_net, serialize
-from imitation.util import registry
+from imitation.util import data, registry
 from imitation.util import serialize as util_serialize
 from imitation.util import util
 import numpy as np
@@ -64,8 +64,12 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
                 ) -> np.ndarray:
                     """Helper method computing reward for registered model."""
                     del steps
-                    batch = rewards.Batch(obs=obs, actions=actions, next_obs=next_obs)
-                    fd = rewards.make_feed_dict([reward_model], batch)
+                    # TODO(adam): RewardFn should probably include dones?
+                    dones = np.zeros(obs.shape[0], dtype=np.bool)
+                    transitions = data.Transitions(
+                        obs=obs, acts=actions, next_obs=next_obs, dones=dones
+                    )
+                    fd = rewards.make_feed_dict([reward_model], transitions)
                     return sess.run(reward_model.reward, feed_dict=fd)
 
                 yield reward_fn

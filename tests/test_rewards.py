@@ -198,15 +198,12 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
     # Generate rollouts, recording Gym reward
     policy = base.RandomPolicy(venv.observation_space, venv.action_space)
     transitions = rollout.generate_transitions(policy, venv, n_timesteps=1024)
-    batch = rewards.Batch(
-        obs=transitions.obs, actions=transitions.acts, next_obs=transitions.next_obs
-    )
     gym_reward = transitions.rews
 
     # Make predictions using reward model
     with graph.as_default(), session.as_default():
         reward_model = serialize.load_reward(reward_id, "dummy", venv, 1.0)
-        pred_reward = rewards.evaluate_models({"m": reward_model}, batch)["m"]
+        pred_reward = rewards.evaluate_models({"m": reward_model}, transitions)["m"]
 
     # Are the predictions close to true Gym reward?
     np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)

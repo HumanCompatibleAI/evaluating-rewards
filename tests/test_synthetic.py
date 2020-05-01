@@ -21,13 +21,13 @@ evaluating_rewards.util.
 import logging
 
 import gym
-from imitation import util
+from imitation.util import data, util
 import numpy as np
 import pandas as pd
 import pytest
 import tensorflow as tf
 
-from evaluating_rewards import datasets, rewards
+from evaluating_rewards import datasets
 from evaluating_rewards.envs import point_mass
 from evaluating_rewards.experiments import synthetic
 from tests import common
@@ -42,7 +42,8 @@ def dummy_env_and_dataset(dims: int = 5):
         obs = np.array([obs_space.sample() for _ in range(total_timesteps)])
         actions = np.array([act_space.sample() for _ in range(total_timesteps)])
         next_obs = (obs + actions).clip(0.0, 1.0)
-        return rewards.Batch(obs=obs, actions=actions, next_obs=next_obs)
+        dones = np.zeros(total_timesteps, dtype=np.bool)
+        return data.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
 
     return {
         "observation_space": obs_space,

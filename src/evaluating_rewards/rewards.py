@@ -43,21 +43,6 @@ class AffineParameters(NamedTuple):
     scale: float
 
 
-class Batch(NamedTuple):
-    """A batch of training data, consisting of obs-act-next obs transitions.
-
-    Attributes:
-        obs: Observations. Shape (batch_size, ) + obs_shape.
-        actions: Actions. Shape (batch_size, ) + act_shape.
-        next_obs: Observations. Shape (batch_size, ) + obs_shape.
-    """
-
-    # TODO(): switch to rollout.TransitionsNoRew, see imitation issue #95
-    obs: np.ndarray
-    actions: np.ndarray
-    next_obs: np.ndarray
-
-
 # abc.ABC inheritance is strictly unnecessary as serialize.Serializable is
 # abstract, but pytype gets confused without this.
 class RewardModel(serialize.Serializable, abc.ABC):
@@ -109,6 +94,8 @@ class RewardModel(serialize.Serializable, abc.ABC):
     @abc.abstractmethod
     def next_obs_ph(self) -> Iterable[tf.Tensor]:
         """Gets the next observation placeholder(s)."""
+
+    # TODO(adam): should we have a dones_ph to handle terminal states/shaping
 
 
 # pylint:disable=abstract-method
@@ -584,7 +571,7 @@ class AffineTransform(LinearCombinationModelWrapper):
         super().__init__(models)
 
     def fit_lstsq(
-        self, batch: Batch, target: RewardModel, shaping: Optional[RewardModel]
+        self, batch: data.Transitions, target: RewardModel, shaping: Optional[RewardModel]
     ) -> AffineParameters:
         """Sets the shift and scale parameters to try and match target, given shaping.
 
@@ -595,7 +582,7 @@ class AffineTransform(LinearCombinationModelWrapper):
         and the value corresponding to the identify transformation will be returned.
 
         Args:
-            batch: A batch of data to estimate the affine parameters on.
+            batch: A batch of transitions to estimate the affine parameters on.
             target: The reward model to try and match.
             shaping: Optionally, potential shaping to add to the source. If omitted, will default
                 to all-zero.
@@ -716,15 +703,17 @@ class PotentialShapingWrapper(LinearCombinationModelWrapper):
         )
 
 
-def make_feed_dict(models: Iterable[RewardModel], batch: Batch) -> Dict[tf.Tensor, np.ndarray]:
+def make_feed_dict(
+    models: Iterable[RewardModel], batch: data.Transitions
+) -> Dict[tf.Tensor, np.ndarray]:
     """Construct a feed dictionary for models for data in batch."""
     assert batch.obs.shape == batch.next_obs.shape
-    assert batch.obs.shape[0] == batch.actions.shape[0]
+    assert batch.obs.shape[0] == batch.acts.shape[0]
 
     if models:
         a_model = next(iter(models))
         assert batch.obs.shape[1:] == a_model.observation_space.shape
-        assert batch.actions.shape[1:] == a_model.action_space.shape
+        assert batch.acts.shape[1:] == a_model.action_space.shape
         for m in models:
             assert a_model.observation_space == m.observation_space
             assert a_model.action_space == m.action_space
@@ -732,13 +721,15 @@ def make_feed_dict(models: Iterable[RewardModel], batch: Batch) -> Dict[tf.Tenso
     feed_dict = {}
     for m in models:
         feed_dict.update({ph: batch.obs for ph in m.obs_ph})
-        feed_dict.update({ph: batch.actions for ph in m.act_ph})
+        feed_dict.update({ph: batch.acts for ph in m.act_ph})
         feed_dict.update({ph: batch.next_obs for ph in m.next_obs_ph})
 
     return feed_dict
 
 
-def evaluate_models(models: Mapping[K, RewardModel], batch: Batch) -> Mapping[K, np.ndarray]:
+def evaluate_models(
+    models: Mapping[K, RewardModel], batch: data.Transitions
+) -> Mapping[K, np.ndarray]:
     """Computes prediction of reward models."""
     reward_outputs = {k: m.reward for k, m in models.items()}
     feed_dict = make_feed_dict(models.values(), batch)
@@ -761,8 +752,7 @@ def compute_returns(
     # expecting input shape (batch_size, ) + {obs,act}_shape. Flatten the
     # trajectories to accommodate this.
     transitions = rollout.flatten_trajectories(trajectories)
-    flattened = Batch(obs=transitions.obs, actions=transitions.acts, next_obs=transitions.next_obs)
-    preds = evaluate_models(models, flattened)
+    preds = evaluate_models(models, transitions)
 
     # To compute returns, we must sum over slices of the flattened reward
     # sequence corresponding to each episode. Find the episode boundaries.
@@ -777,11 +767,13 @@ def compute_returns(
     return ep_returns
 
 
-def evaluate_potentials(potentials: Iterable[PotentialShaping], batch: Batch) -> np.ndarray:
+def evaluate_potentials(
+    potentials: Iterable[PotentialShaping], transitions: data.Transitions
+) -> np.ndarray:
     """Computes prediction of potential shaping models."""
     old_pots = [p.old_potential for p in potentials]
     new_pots = [p.new_potential for p in potentials]
-    feed_dict = make_feed_dict(potentials, batch)
+    feed_dict = make_feed_dict(potentials, transitions)
     return tf.get_default_session().run([old_pots, new_pots], feed_dict=feed_dict)
 
 
