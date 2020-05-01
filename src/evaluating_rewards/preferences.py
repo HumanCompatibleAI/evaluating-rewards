@@ -307,7 +307,7 @@ class PreferenceComparisonTrainer:
         obs = _concatenate(preferences, "obs", slice(0, -1))
         acts = _concatenate(preferences, "acts", slice(None))
         next_obs = _concatenate(preferences, "obs", slice(1, None))
-        dones = np.zeros(obs.shape[0], dtype=np.bool)
+        dones = np.zeros(len(obs), dtype=np.bool)
         batch = data.Transitions(obs=obs, acts=acts, next_obs=next_obs, dones=dones)
         feed_dict = rewards.make_feed_dict([self.model], batch)
         labels = np.array([p.label for p in preferences])

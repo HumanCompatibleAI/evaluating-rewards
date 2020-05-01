@@ -196,7 +196,7 @@ def sample_mean_rews(
             obs=obs_repeated,
             acts=act_tiled[: len(obs_repeated), :],
             next_obs=next_obs_tiled[: len(obs_repeated), :],
-            dones=np.zeros(obs.shape[0], dtype=np.bool),
+            dones=np.zeros(len(obs), dtype=np.bool),
         )
         rews = rewards.evaluate_models(models, batch)
         rews = {k: v.reshape(len(obs), -1) for k, v in rews.items()}

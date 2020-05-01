@@ -65,7 +65,7 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
                     """Helper method computing reward for registered model."""
                     del steps
                     # TODO(adam): RewardFn should probably include dones?
-                    dones = np.zeros(obs.shape[0], dtype=np.bool)
+                    dones = np.zeros(len(obs), dtype=np.bool)
                     transitions = data.Transitions(
                         obs=obs, acts=actions, next_obs=next_obs, dones=dones
                     )
