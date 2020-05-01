@@ -18,6 +18,7 @@ import multiprocessing
 import multiprocessing.dummy
 from typing import Callable, Mapping, Optional, Tuple, TypeVar
 
+from imitation.util import data
 import numpy as np
 import tensorflow as tf
 
@@ -191,10 +192,11 @@ def sample_mean_rews(
     for start, end in zip(idxs[:-1], idxs[1:]):
         obs = mean_from_obs[start:end]
         obs_repeated = np.repeat(obs, len(act_samples), axis=0)
-        batch = rewards.Batch(
+        batch = data.Transitions(
             obs=obs_repeated,
-            actions=act_tiled[: len(obs_repeated), :],
+            acts=act_tiled[: len(obs_repeated), :],
             next_obs=next_obs_tiled[: len(obs_repeated), :],
+            dones=np.zeros(len(obs_repeated), dtype=np.bool),
         )
         rews = rewards.evaluate_models(models, batch)
         rews = {k: v.reshape(len(obs), -1) for k, v in rews.items()}
@@ -210,7 +212,7 @@ def sample_mean_rews(
 
 def sample_canon_shaping(
     models: Mapping[K, rewards.RewardModel],
-    batch: rewards.Batch,
+    batch: data.Transitions,
     act_dist: datasets.SampleDist,
     obs_dist: datasets.SampleDist,
     n_mean_samples: int,

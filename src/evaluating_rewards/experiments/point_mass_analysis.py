@@ -21,6 +21,7 @@ import itertools
 from typing import List, Tuple
 from unittest import mock
 
+from imitation.util import data
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -102,7 +103,7 @@ def mesh_input(
     vel_lim: float = 1.0,
     act_lim: float = 1.0,
     density: int = 21,
-) -> Tuple[List[List[int]], rewards.Batch]:
+) -> Tuple[List[List[int]], data.Transitions]:
     """Computes a grid dataset of observation, actions and next observations.
 
     Specifically, it computes a grid of position, velocity and actions
@@ -140,7 +141,8 @@ def mesh_input(
     next_states = env.transition(states, actions)
     next_obs = env.obs_from_state(next_states)
 
-    dataset = rewards.Batch(obs=obs, actions=actions, next_obs=next_obs)
+    dones = np.zeros(len(obs), dtype=np.bool)
+    dataset = data.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
     return idxs, dataset
 
 
@@ -168,7 +170,7 @@ def evaluate_reward_model(
 
 
 def plot_state_density(
-    dataset_generator: datasets.BatchCallable, nsamples: int = 2 ** 12, **kwargs
+    dataset_generator: datasets.TransitionsCallable, nsamples: int = 2 ** 12, **kwargs
 ):
     """Plots the density of a state distribution.
 

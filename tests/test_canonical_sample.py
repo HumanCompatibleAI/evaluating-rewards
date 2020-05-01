@@ -18,6 +18,7 @@ import itertools
 from typing import Mapping
 
 import gym
+from imitation.util import data
 import numpy as np
 import pytest
 from stable_baselines.common import vec_env
@@ -40,10 +41,15 @@ def mesh_evaluate_models_slow(
     also much slower (around 20x). We use it for testing to verify they produce the same results.
     It might also be useful in the future for other optimisations (e.g. a JIT like Numba).
     """
-    batch = list(itertools.product(obs, actions, next_obs))
-    batch = [np.array([m[i] for m in batch]) for i in range(3)]
-    batch = rewards.Batch(*batch)
-    rews = rewards.evaluate_models(models, batch)
+    transitions = list(itertools.product(obs, actions, next_obs))
+    tiled_obs, tiled_acts, tiled_next_obs = (
+        np.array([m[i] for m in transitions]) for i in range(3)  # pylint:disable=not-an-iterable
+    )
+    dones = np.zeros(len(tiled_obs), dtype=np.bool)
+    transitions = data.Transitions(
+        obs=tiled_obs, acts=tiled_acts, next_obs=tiled_next_obs, dones=dones
+    )
+    rews = rewards.evaluate_models(models, transitions)
     rews = {k: v.reshape(len(obs), len(actions), len(next_obs)) for k, v in rews.items()}
     return rews
 
