@@ -164,31 +164,6 @@ def test():
     del _
 
 
-@plot_canon_heatmap_ex.named_config
-def point_maze_learned():
-    """Compare rewards learned in PointMaze to the ground-truth reward."""
-    env_name = "imitation/PointMazeLeftVel-v0"
-    x_reward_cfgs = [
-        ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
-        ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", "dummy"),
-    ]
-    y_reward_cfgs = [
-        (
-            "imitation/RewardNet_unshaped-v0",
-            "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net/",
-        ),
-        (
-            "imitation/RewardNet_unshaped-v0",
-            "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net/",
-        ),
-        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model/"),
-        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model/"),
-    ]
-    kinds = None
-    _ = locals()
-    del _
-
-
 def load_models(
     env_name: str, reward_cfgs: Iterable[config.RewardCfg], discount: float,
 ) -> Mapping[config.RewardCfg, rewards.RewardModel]:
