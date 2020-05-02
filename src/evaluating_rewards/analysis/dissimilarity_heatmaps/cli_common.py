@@ -19,14 +19,87 @@ Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatma
 
 import functools
 import itertools
-from typing import Iterable, Tuple
+import os
+from typing import Iterable, Mapping, Tuple
 
+import gym
+import pandas as pd
 import sacred
+from stable_baselines.common import vec_env
 
-from evaluating_rewards import serialize
+from evaluating_rewards import rewards, serialize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
 RewardCfg = Tuple[str, str]  # (type, path)
+
+
+def canonicalize_reward_cfg(reward_cfg: Iterable[RewardCfg], data_root: str) -> Iterable[RewardCfg]:
+    """Canonicalize paths and cast configs to tuples.
+
+    Sacred has a bad habit of converting tuples in the config into lists, which makes
+    the rewards no longer `RewardCfg` -- we put this right by casting to tuples.
+
+    We also join paths with the `data_root`, unless they are the special "dummy" path.
+
+    Args:
+        reward_cfg: Iterable of configurations to canonicailze.
+        data_root: The root to join paths to.
+
+    Returns:
+        Iterable of canonicalized configurations.
+    """
+    res = []
+    for kind, path in reward_cfg:
+        if path != "dummy":
+            path = os.path.join(data_root, path)
+        res.append((kind, path))
+    return res
+
+
+def load_models(
+    env_name: str, reward_cfgs: Iterable[RewardCfg], discount: float,
+) -> Mapping[RewardCfg, rewards.RewardModel]:
+    """Load models specified by the `reward_cfgs`.
+
+    Args:
+        - env_name: The environment name in the Gym registry of the rewards to compare.
+        - reward_cfgs: Iterable of reward configurations.
+        - discount: Discount to use for reward models (mostly for shaping).
+
+    Returns:
+         A mapping from reward configurations to the loaded reward model.
+    """
+    venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
+    return {
+        (kind, path): serialize.load_reward(kind, path, venv, discount)
+        for kind, path in reward_cfgs
+    }
+
+
+def dissimilarity_mapping_to_series(
+    dissimilarity: Mapping[Tuple[RewardCfg, RewardCfg], float]
+) -> pd.Series:
+    """Converts dissimilarity mapping to a MultiIndex series.
+
+    Args:
+        dissimilarity: A mapping from pairs of configurations to a float.
+
+    Returns:
+        A Series with a multi-index based on the configurations.
+    """
+    dissimilarity = {
+        (xtype, xpath, ytype, ypath): v
+        for ((xtype, xpath), (ytype, ypath)), v in dissimilarity.items()
+    }
+    dissimilarity = pd.Series(dissimilarity)
+    dissimilarity.index.names = [
+        "target_reward_type",
+        "target_reward_path",
+        "source_reward_type",
+        "source_reward_path",
+    ]
+    return dissimilarity
+
 
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",

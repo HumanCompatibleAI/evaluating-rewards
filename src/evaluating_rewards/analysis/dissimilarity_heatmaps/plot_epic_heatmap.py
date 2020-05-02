@@ -23,13 +23,13 @@ import pandas as pd
 import sacred
 
 from evaluating_rewards.analysis import results, stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
+from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
 
 plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
 
 
-config.make_config(plot_epic_heatmap_ex)
+cli_common.make_config(plot_epic_heatmap_ex)
 
 
 @plot_epic_heatmap_ex.config
@@ -113,8 +113,8 @@ def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
 
 @plot_epic_heatmap_ex.main
 def plot_epic_heatmap(
-    x_reward_cfgs: Iterable[config.RewardCfg],
-    y_reward_cfgs: Iterable[config.RewardCfg],
+    x_reward_cfgs: Iterable[cli_common.RewardCfg],
+    y_reward_cfgs: Iterable[cli_common.RewardCfg],
     styles: Iterable[str],
     data_root: str,
     data_subdir: Optional[str],

@@ -18,24 +18,21 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
-import gym
 from imitation.util import data, util
 import matplotlib.pyplot as plt
-import pandas as pd
 import sacred
-from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import canonical_sample, datasets, rewards, serialize, tabular
+from evaluating_rewards import canonical_sample, datasets, rewards, tabular
 from evaluating_rewards.analysis import stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
+from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
 
 plot_return_heatmap_ex = sacred.Experiment("plot_return_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_return_heatmap")
 
 
-config.make_config(plot_return_heatmap_ex)
+cli_common.make_config(plot_return_heatmap_ex)
 
 
 @plot_return_heatmap_ex.config
@@ -87,58 +84,16 @@ def test():
     del _
 
 
-# TODO(adam): do we need this? if so, refactor into common file? duplicated!
-def load_models(
-    env_name: str, reward_cfgs: Iterable[config.RewardCfg], discount: float,
-) -> Mapping[config.RewardCfg, rewards.RewardModel]:
-    venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
-    return {
-        (kind, path): serialize.load_reward(kind, path, venv, discount)
-        for kind, path in reward_cfgs
-    }
-
-
-# TODO(adam): do we need this? if so, refactor into common file? duplicated!
-def dissimilarity_mapping_to_series(
-    dissimilarity: Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]
-) -> pd.Series:
-    """Converts dissimilarity mapping to a MultiIndex series."""
-    dissimilarity = {
-        (xtype, xpath, ytype, ypath): v
-        for ((xtype, xpath), (ytype, ypath)), v in dissimilarity.items()
-    }
-    dissimilarity = pd.Series(dissimilarity)
-    dissimilarity.index.names = [
-        "target_reward_type",
-        "target_reward_path",
-        "source_reward_type",
-        "source_reward_path",
-    ]
-    return dissimilarity
-
-
-# TODO(adam): do we need this? if so, refactor into common file? duplicated!
-def _canonicalize_reward_cfg(
-    reward_cfg: Iterable[config.RewardCfg], data_root: str
-) -> Iterable[config.RewardCfg]:
-    res = []
-    for kind, path in reward_cfg:
-        if path != "dummy":
-            path = os.path.join(data_root, path)
-        res.append((kind, path))
-    return res
-
-
 @plot_return_heatmap_ex.capture
 def correlation_distance(
     sess: tf.Session,
     trajectories: Sequence[data.Trajectory],
-    models: Mapping[config.RewardCfg, rewards.RewardModel],
-    x_reward_cfgs: Iterable[config.RewardCfg],
-    y_reward_cfgs: Iterable[config.RewardCfg],
+    models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
+    x_reward_cfgs: Iterable[cli_common.RewardCfg],
+    y_reward_cfgs: Iterable[cli_common.RewardCfg],
     corr_kind: str,
     discount: float,
-) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
+) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], float]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -177,8 +132,8 @@ def correlation_distance(
 def plot_return_heatmap(
     env_name: str,
     discount: float,
-    x_reward_cfgs: Iterable[config.RewardCfg],
-    y_reward_cfgs: Iterable[config.RewardCfg],
+    x_reward_cfgs: Iterable[cli_common.RewardCfg],
+    y_reward_cfgs: Iterable[cli_common.RewardCfg],
     trajectory_factory: datasets.TrajectoryFactory,
     trajectory_factory_kwargs: Dict[str, Any],
     n_episodes: int,
@@ -208,8 +163,8 @@ def plot_return_heatmap(
     """
     # TODO(adam): code duplication? :( merge plot_* into one CLI script?
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = _canonicalize_reward_cfg(x_reward_cfgs, data_root)
-    y_reward_cfgs = _canonicalize_reward_cfg(y_reward_cfgs, data_root)
+    x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
+    y_reward_cfgs = cli_common.canonicalize_reward_cfg(y_reward_cfgs, data_root)
 
     logger.info("Loading models")
     g = tf.Graph()
@@ -217,7 +172,7 @@ def plot_return_heatmap(
         sess = tf.Session()
         with sess.as_default():
             reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
-            models = load_models(env_name, reward_cfgs, discount)
+            models = cli_common.load_models(env_name, reward_cfgs, discount)
 
     logger.info("Sampling trajectories")
     with trajectory_factory(**trajectory_factory_kwargs) as trajectory_callable:
@@ -226,7 +181,7 @@ def plot_return_heatmap(
     dissimilarity = correlation_distance(  # pylint:disable=no-value-for-parameter
         sess, trajectories, models, x_reward_cfgs, y_reward_cfgs
     )
-    dissimilarity = dissimilarity_mapping_to_series(dissimilarity)
+    dissimilarity = cli_common.dissimilarity_mapping_to_series(dissimilarity)
 
     with stylesheets.setup_styles(styles):
         figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
