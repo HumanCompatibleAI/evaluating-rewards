@@ -29,7 +29,7 @@ train_regress_ex = sacred.Experiment("train_regress")
 def default_config():
     """Default configuration values."""
     locals().update(**regress_utils.DEFAULT_CONFIG)
-    dataset_factory = datasets.rollout_serialized_policy_generator
+    dataset_factory = datasets.transitions_factory_from_serialized_policy
     dataset_factory_kwargs = dict()
 
     # Model to train and hyperparameters
@@ -46,7 +46,7 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs):
     """Sets dataset_factory_kwargs to defaults when dataset_factory not overridden."""
     # TODO(): remove this function when Sacred issue #238 is fixed
     if (  # pylint:disable=comparison-with-callable
-        dataset_factory == datasets.rollout_serialized_policy_generator
+        dataset_factory == datasets.transitions_factory_from_serialized_policy
         and not dataset_factory_kwargs
     ):
         dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
@@ -64,7 +64,7 @@ def test():
 def dataset_random_transition():
     """Randomly samples state and action and computes next state from dynamics."""
     dataset_factory = (  # noqa: F841  pylint:disable=unused-variable
-        datasets.random_transition_generator
+        datasets.transitions_factory_from_random_model
     )
 
 

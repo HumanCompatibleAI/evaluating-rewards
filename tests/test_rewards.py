@@ -106,7 +106,7 @@ def fixture_serialize_identity(
 
     def f(make_model):
         policy = base.RandomPolicy(venv.observation_space, venv.action_space)
-        with datasets.rollout_policy_generator(venv, policy) as dataset_callable:
+        with datasets.transitions_factory_from_policy(venv, policy) as dataset_callable:
             batch = dataset_callable(1024)
 
             with graph.as_default(), session.as_default():

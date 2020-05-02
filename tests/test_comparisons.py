@@ -68,7 +68,7 @@ def test_regress(
     env_name = "evaluating_rewards/PointMassLine-v0"
     venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
 
-    with datasets.random_transition_generator(env_name) as dataset_generator:
+    with datasets.transitions_factory_from_random_model(env_name) as dataset_generator:
         with graph.as_default():
             with session.as_default():
                 with tf.variable_scope("source") as source_scope:

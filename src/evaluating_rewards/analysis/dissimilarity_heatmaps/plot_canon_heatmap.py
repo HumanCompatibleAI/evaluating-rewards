@@ -68,8 +68,8 @@ def default_config(env_name, log_root):
 @plot_canon_heatmap_ex.config
 def sample_dist_config(env_name):
     """Default sample distribution config: randomly sample from Gym spaces."""
-    obs_sample_dist_factory = functools.partial(datasets.env_name_to_sample, obs=True)
-    act_sample_dist_factory = functools.partial(datasets.env_name_to_sample, obs=False)
+    obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
+    act_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=False)
     sample_dist_factory_kwargs = {"env_name": env_name}
     sample_dist_tag = "random_space"  # only used for logging
     _ = locals()
@@ -109,7 +109,7 @@ def sample_from_serialized_policy():
     """Configure script to sample observations and actions from rollouts of a serialized policy."""
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
     sample_dist_factory_kwargs = {
-        "transitions_factory": datasets.rollout_serialized_policy_generator,
+        "transitions_factory": datasets.transitions_factory_from_serialized_policy,
         "policy_type": "random",
         "policy_path": "dummy",
     }
@@ -124,7 +124,7 @@ def dataset_from_serialized_policy():
 
     Only has effect when `computation_kind` equals `"sample"`.
     """
-    visitations_factory = datasets.rollout_serialized_policy_generator
+    visitations_factory = datasets.transitions_factory_from_serialized_policy
     visitations_factory_kwargs = {
         "policy_type": "random",
         "policy_path": "dummy",
@@ -137,7 +137,9 @@ def dataset_from_serialized_policy():
 @plot_canon_heatmap_ex.named_config
 def sample_from_random_transitions():
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
-    sample_dist_factory_kwargs = {"transitions_factory": datasets.random_transition_generator}
+    sample_dist_factory_kwargs = {
+        "transitions_factory": datasets.transitions_factory_from_random_model
+    }
     sample_dist_tag = "random_transitions"
     _ = locals()
     del _
@@ -145,7 +147,7 @@ def sample_from_random_transitions():
 
 @plot_canon_heatmap_ex.named_config
 def dataset_from_random_transitions():
-    visitations_factory = datasets.random_transition_generator
+    visitations_factory = datasets.transitions_factory_from_random_model
     dataset_tag = "random_transitions"
     _ = locals()
     del _
@@ -295,7 +297,7 @@ def sample_canon(
     del g
     logger.info("Sampling dataset")
     if visitations_factory is None:
-        visitations_factory = datasets.iid_transition_generator
+        visitations_factory = datasets.transitions_factory_iid_from_sample_dist
         visitations_factory_kwargs = dict(obs_dist=obs_dist, act_dist=act_dist)
     with visitations_factory(**visitations_factory_kwargs) as batch_callable:
         batch = batch_callable(n_samples)
