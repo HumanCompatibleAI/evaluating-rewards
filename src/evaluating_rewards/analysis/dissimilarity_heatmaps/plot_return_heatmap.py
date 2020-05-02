@@ -119,8 +119,7 @@ def correlation_distance(
     if corr_kind == "pearson":
         distance_fn = tabular.pearson_distance
     elif corr_kind == "spearman":
-        # TODO(adam): implement me!
-        raise NotImplementedError("")
+        distance_fn = tabular.spearman_distance
     else:
         raise ValueError(f"Unrecognized correlation '{corr_kind}'")
 
@@ -161,7 +160,6 @@ def plot_return_heatmap(
     Returns:
         A mapping of keywords to figures.
     """
-    # TODO(adam): code duplication? :( merge plot_* into one CLI script?
     # Sacred turns our tuples into lists :(, undo
     x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
     y_reward_cfgs = cli_common.canonicalize_reward_cfg(y_reward_cfgs, data_root)
