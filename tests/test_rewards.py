@@ -16,6 +16,9 @@
 
 import tempfile
 
+import hypothesis
+from hypothesis import strategies as st
+from hypothesis.extra import numpy as hp_numpy
 from imitation.policies import base
 from imitation.rewards import reward_net
 from imitation.util import rollout
@@ -250,3 +253,38 @@ def test_least_l2_affine_zero():
         params = rewards.least_l2_affine(source, np.zeros_like(source))
         assert np.allclose([0.0, 0.0], [params.shift, params.scale])
         assert params.scale >= 0
+
+
+@hypothesis.given(
+    dones=hp_numpy.arrays(
+        dtype=np.bool, shape=st.integers(min_value=0, max_value=1000), fill=st.booleans()
+    ),
+    discount=st.floats(min_value=0, max_value=1, allow_infinity=False, allow_nan=False),
+)
+def test_compute_return_from_rews(dones: np.ndarray, discount: float) -> None:
+    """Test logic to compute return."""
+    rews = {
+        "zero": np.zeros(len(dones)),
+        "ones": np.ones(len(dones)),
+        "increasing": np.concatenate(([0], np.cumsum(dones)[:-1])),
+    }
+    ep_returns = rewards.compute_return_from_rews(rews, dones, discount)
+    assert ep_returns.keys() == rews.keys()
+
+    num_eps = np.sum(dones)
+    for k, v in ep_returns.items():
+        assert v.shape == (num_eps,), f"violation at {k}"
+
+    assert np.all(ep_returns["zero"] == 0.0)
+
+    boundaries = np.where(dones)[0]
+    idxs = np.array([0] + list(boundaries + 1))
+    lengths = idxs[1:] - idxs[:-1]
+    if discount == 1.0:
+        one_expected_return = lengths
+    else:
+        one_expected_return = (1 - np.power(discount, lengths)) / (1 - discount)
+    assert np.allclose(ep_returns["ones"], one_expected_return)
+
+    ep_idx = rews["increasing"][idxs[:-1]]
+    assert np.allclose(ep_returns["increasing"], one_expected_return * ep_idx)

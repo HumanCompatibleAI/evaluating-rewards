@@ -362,7 +362,7 @@ class PreferenceComparisonTrainer:
             batch = []
             # Sample trajectories and compute their returns
             trajectories = generate_trajectories(venv, policy, trajectory_length, num_trajectories)
-            returns = rewards.compute_returns({"t": target}, trajectories)["t"]
+            returns = rewards.compute_return_of_models({"t": target}, trajectories)["t"]
 
             # Sample pairs of trajectories at random and compare
             idxs = np.random.choice(num_trajectories, size=(num_trajectories,), replace=False)

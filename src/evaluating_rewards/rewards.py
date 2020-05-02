@@ -736,14 +736,56 @@ def evaluate_models(
     return tf.get_default_session().run(reward_outputs, feed_dict=feed_dict)
 
 
-def compute_returns(
-    models: Mapping[K, RewardModel], trajectories: Sequence[data.Trajectory]
+def compute_return_from_rews(
+    rews: Mapping[K, np.ndarray], dones: np.ndarray, discount: float = 1.0
 ) -> Mapping[K, np.ndarray]:
-    """Computes the (undiscounted) returns of each trajectory under each model.
+    """Computes the returns freom rewards `rews` with episode endings given by `dones`.
+
+    Args:
+        rews: A mapping of reward arrays, each of shape (trajectory_len,).
+        dones: A boolean array of shape (trajectory_len,).
+        discount: The discount rate; defaults to undiscounted.
+
+    Returns:
+        A collection of NumPy arrays containing the returns from each model.
+    """
+    for v in rews.values():
+        assert v.shape == (len(dones),)
+
+    # To compute returns, we must sum rewards belonging to each episode in the flattened
+    # sequence. First, find the episode boundaries.
+    ep_boundaries = np.where(dones)[0]
+    # Convert ep_boundaries from inclusive to exclusive range.
+    idxs = ep_boundaries + 1
+    # NumPy equivalent of Python idxs = [0] + ep_boundaries
+    idxs = np.pad(idxs, (1, 0), "constant")
+
+    start_idxs = idxs[:-1]
+    end_idxs = idxs[1:]
+    if discount < 1.0:
+        # Discounted -- need to do the slow but general thing.
+        ep_returns = {}
+        for k, v in rews.items():
+            rets = []
+            for start, end in zip(start_idxs, end_idxs):
+                rets.append(np.polyval(np.flip(v[start:end]), discount))
+            ep_returns[k] = np.array(rets)
+    else:
+        # Fast path for undiscounted case: sum over the slices.
+        ep_returns = {k: np.add.reduceat(v, idxs[:-1]) for k, v in rews.items()}
+
+    return ep_returns
+
+
+def compute_return_of_models(
+    models: Mapping[K, RewardModel], trajectories: Sequence[data.Trajectory], discount: float = 1.0,
+) -> Mapping[K, np.ndarray]:
+    """Computes the returns of each trajectory under each model.
 
     Args:
         models: A collection of reward models.
         trajectories: A sequence of trajectories.
+        discount: The discount rate; defaults to undiscounted.
 
     Returns:
         A collection of NumPy arrays containing the returns from each model.
@@ -754,17 +796,7 @@ def compute_returns(
     transitions = rollout.flatten_trajectories(trajectories)
     preds = evaluate_models(models, transitions)
 
-    # To compute returns, we must sum over slices of the flattened reward
-    # sequence corresponding to each episode. Find the episode boundaries.
-    ep_boundaries = np.where(transitions.dones)[0]
-    # ep_boundaries is inclusive, but reduceat takes exclusive range
-    ep_boundaries = ep_boundaries + 1
-    # NumPy equivalent of Python idxs = [0] + ep_boundaries[:-1]
-    idxs = np.pad(ep_boundaries[:-1], (1, 0), "constant")
-    # Now, sum over the slices.
-    ep_returns = {k: np.add.reduceat(v, idxs) for k, v in preds.items()}
-
-    return ep_returns
+    return compute_return_from_rews(preds, transitions.dones, discount)
 
 
 def evaluate_potentials(
