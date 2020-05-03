@@ -176,16 +176,16 @@ class HopperGroundTruthReward(MujocoHardcodedReward):
         dt = 0.008  # model timestep 0.002, frameskip 4
         reward_vel = (self._proc_next_obs[:, 0] - self._proc_obs[:, 0]) / dt
         reward_ctrl = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
-        reward = self.alive_bonus + forward_sign * reward_vel - self.ctrl_coef * reward_ctrl
+        reward = forward_sign * reward_vel - self.ctrl_coef * reward_ctrl
 
-        height = self._proc_obs[:, 1]
-        angle = self._proc_obs[:, 2]
-        finite = tf.math.reduce_all(tf.math.is_finite(self._proc_obs), axis=-1)
-        small_enough = tf.math.reduce_all(tf.abs(self._proc_obs[:, 2:]) < 100, axis=-1)
+        height = self._proc_next_obs[:, 1]
+        angle = self._proc_next_obs[:, 2]
+        finite = tf.math.reduce_all(tf.math.is_finite(self._proc_next_obs), axis=-1)
+        small_enough = tf.math.reduce_all(tf.abs(self._proc_next_obs[:, 2:]) < 100, axis=-1)
         alive_conditions = [finite, small_enough, height > 0.7, tf.abs(angle) < 0.2]
         alive = tf.math.reduce_all(alive_conditions, axis=0)
         # zero out rewards when starting observation was terminal
-        reward = reward * tf.cast(alive, tf.float32)
+        reward += self.alive_bonus * tf.cast(alive, tf.float32)
 
         return reward
 
