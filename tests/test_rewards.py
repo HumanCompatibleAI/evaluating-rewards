@@ -263,10 +263,11 @@ def test_least_l2_affine_zero():
 )
 def test_compute_return_from_rews(dones: np.ndarray, discount: float) -> None:
     """Test logic to compute return."""
+    increasing = np.array([]) if len(dones) == 0 else np.concatenate(([0], np.cumsum(dones)[:-1]))
     rews = {
         "zero": np.zeros(len(dones)),
         "ones": np.ones(len(dones)),
-        "increasing": np.concatenate(([0], np.cumsum(dones)[:-1])),
+        "increasing": increasing,
     }
     ep_returns = rewards.compute_return_from_rews(rews, dones, discount)
     assert ep_returns.keys() == rews.keys()
