@@ -33,17 +33,17 @@ ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
 
 STANDALONE_REWARD_MODELS = {
     "halfcheetah_ground_truth": {
-        "env_name": "evaluating_rewards/HalfCheetah-v3",
+        "env_name": "benchmark_environments/HalfCheetah-v0",
         "model_class": mujoco.HalfCheetahGroundTruthReward,
         "kwargs": {},
     },
     "hopper_ground_truth": {
-        "env_name": "evaluating_rewards/Hopper-v3",
+        "env_name": "benchmark_environments/Hopper-v0",
         "model_class": mujoco.HopperGroundTruthReward,
         "kwargs": {},
     },
     "hopper_backflip": {
-        "env_name": "evaluating_rewards/Hopper-v3",
+        "env_name": "benchmark_environments/Hopper-v0",
         "model_class": mujoco.HopperBackflipReward,
         "kwargs": {},
     },
@@ -84,12 +84,16 @@ REWARD_WRAPPERS = [
 
 GROUND_TRUTH = {
     "half_cheetah": (
-        "evaluating_rewards/HalfCheetah-v3",
+        "benchmark_environments/HalfCheetah-v0",
         "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
     ),
     "hopper": (
-        "evaluating_rewards/Hopper-v3",
+        "benchmark_environments/Hopper-v0",
         "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
+    ),
+    "point_mass": (
+        "evaluating_rewards/PointMassLine-v0",
+        "evaluating_rewards/PointMassGroundTruth-v0",
     ),
     "point_maze": (
         "imitation/PointMazeLeftVel-v0",
