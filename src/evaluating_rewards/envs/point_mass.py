@@ -88,8 +88,12 @@ class PointMassEnv(resettable_env.ResettableEnv):
         return -dist - self.ctrl_coef * ctrl_penalty
 
     def terminal(self, state, step: int) -> bool:
-        dist = np.linalg.norm(state["pos"] - state["goal"])
-        return bool(dist < self.threshold)
+        """Always False, so never terminate early.
+
+        We still terminate after a fixed number of time steps,
+        specified in the environment registration.
+        """
+        return False
 
     def obs_from_state(self, state):
         return np.concatenate([state["pos"], state["vel"], state["goal"]], axis=-1)
@@ -122,7 +126,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
         def project(arr):
             if self.ndim == 1:
                 assert len(arr) == 1
-                return (arr[0], 0)
+                return arr[0], 0
             elif self.ndim == 2:
                 assert len(arr) == 2
                 return tuple(arr)
@@ -157,8 +161,8 @@ class PointMassGroundTruth(rewards.BasicRewardModel, serialize.LayersSerializabl
 
     def build_reward(self):
         """Computes reward from observation and action in PointMass environment."""
-        pos = self._proc_obs[:, 0 : self.ndim]
-        goal = self._proc_obs[:, 2 * self.ndim : 3 * self.ndim]
+        pos = self._proc_next_obs[:, 0 : self.ndim]
+        goal = self._proc_next_obs[:, 2 * self.ndim : 3 * self.ndim]
         dist = tf.norm(pos - goal, axis=-1)
         ctrl_cost = tf.reduce_sum(tf.square(self._proc_act), axis=-1)
         return -dist - self.ctrl_coef * ctrl_cost

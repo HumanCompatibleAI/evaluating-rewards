@@ -1,4 +1,4 @@
-benchmark-environments @ git+https://github.com/HumanCompatibleAI/benchmark-environments.git
+benchmark-environments @ git+https://github.com/HumanCompatibleAI/benchmark-environments.git@d5edf5c
 imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@b8b3de0
 stable-baselines @ git+https://github.com/hill-a/stable-baselines.git
 gym[mujoco]
