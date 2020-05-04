@@ -14,6 +14,7 @@
 
 """Module for Gym environments. __init__ registers environments."""
 
+import benchmark_environments  # noqa: F401  pylint:disable=unused-import
 import gym
 import imitation.envs.examples  # noqa: F401  pylint:disable=unused-import
 
@@ -37,40 +38,3 @@ register_point_mass("Line", ndim=1, threshold=0.05)
 register_point_mass("LineVariableHorizon", ndim=1, threshold=-1)
 register_point_mass("LineStateOnly", ndim=1, ctrl_coef=0.0)
 register_point_mass("Grid", ndim=2)
-
-
-def register_similar(existing_name: str, new_name: str, **kwargs_delta):
-    """Registers a gym environment at new_id modifying existing_id by kwargs.
-
-    Args:
-        existing_name: The name of an environment registered in Gym.
-        new_name: The new name to register with Gym.
-        **kwargs_delta: Arguments to override the specification from existing_id.
-    """
-    existing_spec = gym.spec(existing_name)
-    fields = ["entry_point", "reward_threshold", "nondeterministic", "max_episode_steps"]
-    kwargs = {k: getattr(existing_spec, k) for k in fields}
-    kwargs["kwargs"] = existing_spec._kwargs  # pylint:disable=protected-access
-    kwargs.update(**kwargs_delta)
-    gym.register(id=new_name, **kwargs)
-
-
-GYM_MUJOCO_V3_ENVS = [
-    "Ant-v3",
-    "HalfCheetah-v3",
-    "Hopper-v3",
-    "Humanoid-v3",
-    "Swimmer-v3",
-    "Walker2d-v3",
-]
-
-
-def register_mujoco():
-    kwargs = dict(exclude_current_positions_from_observation=False)
-    for env_name in GYM_MUJOCO_V3_ENVS:
-        register_similar(
-            existing_name=env_name, new_name=f"evaluating_rewards/{env_name}", kwargs=kwargs
-        )
-
-
-register_mujoco()
