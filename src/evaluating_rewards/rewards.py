@@ -95,7 +95,10 @@ class RewardModel(serialize.Serializable, abc.ABC):
     def next_obs_ph(self) -> Iterable[tf.Tensor]:
         """Gets the next observation placeholder(s)."""
 
-    # TODO(adam): should we have a dones_ph to handle terminal states/shaping
+    @property
+    @abc.abstractmethod
+    def dones_ph(self) -> Iterable[tf.Tensor]:
+        """Gets the terminal state placeholder(s)."""
 
 
 # pylint:disable=abstract-method
@@ -110,6 +113,7 @@ class BasicRewardModel(RewardModel):
         self._obs_ph, self._proc_obs = env_in.observation_input(obs_space)
         self._next_obs_ph, self._proc_next_obs = env_in.observation_input(obs_space)
         self._act_ph, self._proc_act = env_in.observation_input(act_space)
+        self._dones_ph = tf.placeholder(name="dones", shape=(None,), dtype=tf.bool)
 
     @property
     def observation_space(self):
@@ -131,10 +135,15 @@ class BasicRewardModel(RewardModel):
     def act_ph(self):
         return (self._act_ph,)
 
+    @property
+    def dones_ph(self):
+        return (self._dones_ph,)
+
 
 # pylint:enable=abstract-method
 
 
+# TODO(adam): do something with dones?
 class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
     """Feed-forward reward model r(s,a,s')."""
 
@@ -359,6 +368,12 @@ class RewardNetToRewardModel(RewardModel):
     def next_obs_ph(self):
         return (self.reward_net.next_obs_ph,)
 
+    @property
+    def dones_ph(self):
+        # RewardNet does not handle terminal states.
+        # TODO(adam): add support to imitation for this so I can do it for IRL too?
+        return ()
+
     @classmethod
     def _load(cls, directory: str) -> "RewardNetToRewardModel":
         with open(os.path.join(directory, "use_test"), "rb") as f:
@@ -419,6 +434,10 @@ class RewardModelWrapper(RewardModel):
     @property
     def next_obs_ph(self):
         return self.model.next_obs_ph
+
+    @property
+    def dones_ph(self):
+        return self.model.dones_ph
 
     @classmethod
     def _load(cls: Type[serialize.T], directory: str) -> serialize.T:
@@ -485,6 +504,10 @@ class LinearCombinationModelWrapper(RewardModelWrapper):
     @property
     def act_ph(self):
         return tuple(itertools.chain(*[m.act_ph for m, _ in self.models.values()]))
+
+    @property
+    def dones_ph(self):
+        return tuple(itertools.chain(*[m.dones_ph for m, _ in self.models.values()]))
 
     @classmethod
     def _load(cls, directory: str) -> "LinearCombinationModelWrapper":
@@ -723,6 +746,7 @@ def make_feed_dict(
         feed_dict.update({ph: batch.obs for ph in m.obs_ph})
         feed_dict.update({ph: batch.acts for ph in m.act_ph})
         feed_dict.update({ph: batch.next_obs for ph in m.next_obs_ph})
+        feed_dict.update({ph: batch.dones for ph in m.dones_ph})
 
     return feed_dict
 
