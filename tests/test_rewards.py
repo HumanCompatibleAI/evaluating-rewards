@@ -259,13 +259,7 @@ def test_least_l2_affine_zero():
         assert params.scale >= 0
 
 
-@hypothesis.given(
-    dones=hp_numpy.arrays(
-        dtype=np.bool, shape=st.integers(min_value=0, max_value=1000), fill=st.booleans()
-    ),
-    discount=st.floats(min_value=0, max_value=1, allow_infinity=False, allow_nan=False),
-)
-def test_compute_return_from_rews(dones: np.ndarray, discount: float) -> None:
+def _test_compute_return_from_rews(dones: np.ndarray, discount: float) -> None:
     """Test logic to compute return."""
     increasing = np.array([]) if len(dones) == 0 else np.concatenate(([0], np.cumsum(dones)[:-1]))
     rews = {
@@ -293,3 +287,28 @@ def test_compute_return_from_rews(dones: np.ndarray, discount: float) -> None:
 
     ep_idx = rews["increasing"][idxs[:-1]]
     assert np.allclose(ep_returns["increasing"], one_expected_return * ep_idx)
+
+
+_dones_strategy = hp_numpy.arrays(
+    dtype=np.bool, shape=st.integers(min_value=0, max_value=1000), fill=st.booleans()
+)
+
+
+@hypothesis.given(
+    dones=_dones_strategy,
+    discount=st.floats(
+        min_value=0, max_value=1, exclude_max=True, allow_infinity=False, allow_nan=False
+    ),
+)
+def test_compute_return_from_rews_discounted(dones: np.ndarray, discount: float) -> None:
+    """Test logic to compute return, in discounted case."""
+    return _test_compute_return_from_rews(dones, discount)
+
+
+@hypothesis.given(dones=_dones_strategy)
+def test_compute_return_from_rews_undiscounted(dones: np.ndarray) -> None:
+    """Test logic to compute return, in undiscounted case.
+
+    This ensures coverage of a different code path.
+    """
+    return _test_compute_return_from_rews(dones, discount=1.0)
