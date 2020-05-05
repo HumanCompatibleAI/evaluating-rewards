@@ -29,6 +29,6 @@ if [ -x "`which circleci`" ]; then
 fi
 
 if [ "$skipexpensive" != "true" ]; then
-    pytype ${TYPECHECK_FILES}
+    pytype -j 0 ${TYPECHECK_FILES}
     pylint --extension-pkg-whitelist=numpy -j 0 ${SRC_FILES}
 fi
