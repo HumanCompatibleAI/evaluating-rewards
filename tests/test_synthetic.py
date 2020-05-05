@@ -59,7 +59,7 @@ def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
     act_space = venv.action_space
 
     pm = point_mass.PointMassPolicy(obs_space, act_space)
-    with datasets.rollout_policy_generator(venv, pm) as dataset_generator:
+    with datasets.transitions_factory_from_policy(venv, pm) as dataset_generator:
         # It's OK to return dataset_generator outside the with context:
         # rollout_policy_generator doesn't actually have any internal resources
         # (some other datasets do).

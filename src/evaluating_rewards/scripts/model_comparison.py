@@ -30,7 +30,7 @@ model_comparison_ex = sacred.Experiment("model_comparison")
 def default_config():
     """Default configuration values."""
     locals().update(**regress_utils.DEFAULT_CONFIG)
-    dataset_factory = datasets.rollout_serialized_policy_generator
+    dataset_factory = datasets.transitions_factory_from_serialized_policy
     dataset_factory_kwargs = dict()
 
     # Model to fit to target
@@ -58,7 +58,7 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs, comparison_class, co
     """Sets dataset_factory_kwargs to defaults when dataset_factory not overridden."""
     # TODO(): remove this function when Sacred issue #238 is fixed
     if (  # pylint:disable=comparison-with-callable
-        dataset_factory == datasets.rollout_serialized_policy_generator
+        dataset_factory == datasets.transitions_factory_from_serialized_policy
         and not dataset_factory_kwargs
     ):
         dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
@@ -141,7 +141,7 @@ def test():
 @model_comparison_ex.named_config
 def dataset_random_transition():
     """Randomly samples state and action and computes next state from dynamics."""
-    dataset_factory = datasets.random_transition_generator
+    dataset_factory = datasets.transitions_factory_from_random_model
     dataset_factory_kwargs = {}
     _ = locals()  # quieten flake8 unused variable warning
     del _

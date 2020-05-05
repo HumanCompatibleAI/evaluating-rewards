@@ -19,25 +19,22 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
-import gym
 from imitation import util
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import sacred
-from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import canonical_sample, datasets, rewards, serialize, tabular
+from evaluating_rewards import canonical_sample, datasets, rewards, tabular
 from evaluating_rewards.analysis import stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import config, heatmaps
+from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
 
 plot_canon_heatmap_ex = sacred.Experiment("plot_canon_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_canon_heatmap")
 
 
-config.make_config(plot_canon_heatmap_ex)
+cli_common.make_config(plot_canon_heatmap_ex)
 
 
 @plot_canon_heatmap_ex.config
@@ -68,8 +65,8 @@ def default_config(env_name, log_root):
 @plot_canon_heatmap_ex.config
 def sample_dist_config(env_name):
     """Default sample distribution config: randomly sample from Gym spaces."""
-    obs_sample_dist_factory = functools.partial(datasets.env_name_to_sample, obs=True)
-    act_sample_dist_factory = functools.partial(datasets.env_name_to_sample, obs=False)
+    obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
+    act_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=False)
     sample_dist_factory_kwargs = {"env_name": env_name}
     sample_dist_tag = "random_space"  # only used for logging
     _ = locals()
@@ -109,7 +106,7 @@ def sample_from_serialized_policy():
     """Configure script to sample observations and actions from rollouts of a serialized policy."""
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
     sample_dist_factory_kwargs = {
-        "transitions_factory": datasets.rollout_serialized_policy_generator,
+        "transitions_factory": datasets.transitions_factory_from_serialized_policy,
         "policy_type": "random",
         "policy_path": "dummy",
     }
@@ -124,7 +121,7 @@ def dataset_from_serialized_policy():
 
     Only has effect when `computation_kind` equals `"sample"`.
     """
-    visitations_factory = datasets.rollout_serialized_policy_generator
+    visitations_factory = datasets.transitions_factory_from_serialized_policy
     visitations_factory_kwargs = {
         "policy_type": "random",
         "policy_path": "dummy",
@@ -137,7 +134,9 @@ def dataset_from_serialized_policy():
 @plot_canon_heatmap_ex.named_config
 def sample_from_random_transitions():
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
-    sample_dist_factory_kwargs = {"transitions_factory": datasets.random_transition_generator}
+    sample_dist_factory_kwargs = {
+        "transitions_factory": datasets.transitions_factory_from_random_model
+    }
     sample_dist_tag = "random_transitions"
     _ = locals()
     del _
@@ -145,7 +144,7 @@ def sample_from_random_transitions():
 
 @plot_canon_heatmap_ex.named_config
 def dataset_from_random_transitions():
-    visitations_factory = datasets.random_transition_generator
+    visitations_factory = datasets.transitions_factory_from_random_model
     dataset_tag = "random_transitions"
     _ = locals()
     del _
@@ -164,74 +163,21 @@ def test():
     del _
 
 
-@plot_canon_heatmap_ex.named_config
-def point_maze_learned():
-    """Compare rewards learned in PointMaze to the ground-truth reward."""
-    env_name = "imitation/PointMazeLeftVel-v0"
-    x_reward_cfgs = [
-        ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
-        ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", "dummy"),
-    ]
-    y_reward_cfgs = [
-        (
-            "imitation/RewardNet_unshaped-v0",
-            "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net/",
-        ),
-        (
-            "imitation/RewardNet_unshaped-v0",
-            "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net/",
-        ),
-        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model/"),
-        ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model/"),
-    ]
-    kinds = None
-    _ = locals()
-    del _
-
-
-def load_models(
-    env_name: str, reward_cfgs: Iterable[config.RewardCfg], discount: float,
-) -> Mapping[config.RewardCfg, rewards.RewardModel]:
-    venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
-    return {
-        (kind, path): serialize.load_reward(kind, path, venv, discount)
-        for kind, path in reward_cfgs
-    }
-
-
-def dissimilarity_mapping_to_series(
-    dissimilarity: Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]
-) -> pd.Series:
-    """Converts dissimilarity mapping to a MultiIndex series."""
-    dissimilarity = {
-        (xtype, xpath, ytype, ypath): v
-        for ((xtype, xpath), (ytype, ypath)), v in dissimilarity.items()
-    }
-    dissimilarity = pd.Series(dissimilarity)
-    dissimilarity.index.names = [
-        "target_reward_type",
-        "target_reward_path",
-        "source_reward_type",
-        "source_reward_path",
-    ]
-    return dissimilarity
-
-
 @plot_canon_heatmap_ex.capture
 def mesh_canon(
     g: tf.Graph,
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[config.RewardCfg, rewards.RewardModel],
-    x_reward_cfgs: Iterable[config.RewardCfg],
-    y_reward_cfgs: Iterable[config.RewardCfg],
+    models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
+    x_reward_cfgs: Iterable[cli_common.RewardCfg],
+    y_reward_cfgs: Iterable[cli_common.RewardCfg],
     distance_kind: str,
     discount: float,
     n_obs: int,
     n_act: int,
     direct_p: int,
-) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
+) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], float]:
     """
     Computes approximation of canon distance by discretizing and then using a tabular method.
 
@@ -286,9 +232,9 @@ def sample_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[config.RewardCfg, rewards.RewardModel],
-    x_reward_cfgs: Iterable[config.RewardCfg],
-    y_reward_cfgs: Iterable[config.RewardCfg],
+    models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
+    x_reward_cfgs: Iterable[cli_common.RewardCfg],
+    y_reward_cfgs: Iterable[cli_common.RewardCfg],
     distance_kind: str,
     discount: float,
     visitations_factory: Optional[datasets.TransitionsFactory],
@@ -296,7 +242,7 @@ def sample_canon(
     n_samples: int,
     n_mean_samples: int,
     direct_p: int,
-) -> Mapping[Tuple[config.RewardCfg, config.RewardCfg], float]:
+) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], float]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -320,7 +266,7 @@ def sample_canon(
     del g
     logger.info("Sampling dataset")
     if visitations_factory is None:
-        visitations_factory = datasets.iid_transition_generator
+        visitations_factory = datasets.transitions_factory_iid_from_sample_dist
         visitations_factory_kwargs = dict(obs_dist=obs_dist, act_dist=act_dist)
     with visitations_factory(**visitations_factory_kwargs) as batch_callable:
         batch = batch_callable(n_samples)
@@ -346,23 +292,12 @@ def sample_canon(
     )
 
 
-def _canonicalize_reward_cfg(
-    reward_cfg: Iterable[config.RewardCfg], data_root: str
-) -> Iterable[config.RewardCfg]:
-    res = []
-    for kind, path in reward_cfg:
-        if path != "dummy":
-            path = os.path.join(data_root, path)
-        res.append((kind, path))
-    return res
-
-
 @plot_canon_heatmap_ex.main
 def plot_canon_heatmap(
     env_name: str,
     discount: float,
-    x_reward_cfgs: Iterable[config.RewardCfg],
-    y_reward_cfgs: Iterable[config.RewardCfg],
+    x_reward_cfgs: Iterable[cli_common.RewardCfg],
+    y_reward_cfgs: Iterable[cli_common.RewardCfg],
     obs_sample_dist_factory: datasets.SampleDistFactory,
     act_sample_dist_factory: datasets.SampleDistFactory,
     sample_dist_factory_kwargs: Dict[str, Any],
@@ -390,8 +325,8 @@ def plot_canon_heatmap(
         A mapping of keywords to figures.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = _canonicalize_reward_cfg(x_reward_cfgs, data_root)
-    y_reward_cfgs = _canonicalize_reward_cfg(y_reward_cfgs, data_root)
+    x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
+    y_reward_cfgs = cli_common.canonicalize_reward_cfg(y_reward_cfgs, data_root)
 
     logger.info("Loading models")
     g = tf.Graph()
@@ -399,7 +334,7 @@ def plot_canon_heatmap(
         sess = tf.Session()
         with sess.as_default():
             reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
-            models = load_models(env_name, reward_cfgs, discount)
+            models = cli_common.load_models(env_name, reward_cfgs, discount)
 
     if computation_kind == "sample":
         computation_fn = sample_canon
@@ -414,7 +349,7 @@ def plot_canon_heatmap(
                 g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
             )
 
-    dissimilarity = dissimilarity_mapping_to_series(dissimilarity)
+    dissimilarity = cli_common.dissimilarity_mapping_to_series(dissimilarity)
 
     with stylesheets.setup_styles(styles):
         figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)

@@ -173,6 +173,13 @@ def compact_heatmaps(
         if serialize.ZERO_REWARD in dissimilarity.index.get_level_values("source_reward_type"):
             if serialize.ZERO_REWARD not in source_order:
                 source_order.append(serialize.ZERO_REWARD)
+
+        # This is meant to reorder, but not remove anything.
+        idx = dissimilarity.index
+        source_matches = set(source_order) == set(idx.get_level_values("source_reward_type"))
+        target_matches = set(order) == set(idx.get_level_values("target_reward_type"))
+        assert source_matches, "reindexing would remove/add elements not just change order"
+        assert target_matches, "reindexing would remove/add elements not just change order"
         dissimilarity = dissimilarity.reindex(index=source_order, level="source_reward_type")
         dissimilarity = dissimilarity.reindex(index=order, level="target_reward_type")
 

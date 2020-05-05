@@ -20,7 +20,8 @@ can be taken with respect to.
 """
 
 import contextlib
-from typing import Callable, ContextManager, Iterator, Union
+import functools
+from typing import Callable, ContextManager, Iterator, TypeVar, Union
 
 import gym
 from imitation.policies import serialize
@@ -28,37 +29,118 @@ from imitation.util import data, rollout, util
 import numpy as np
 from stable_baselines.common import base_class, policies, vec_env
 
-SampleDist = Callable[[int], np.ndarray]
-TransitionsCallable = Callable[[int], data.Transitions]
-# Expect DatasetFactory to accept a str specifying env_name as first argument,
-# int specifying seed as second argument and factory-specific keyword arguments
-# after this. There is no way to specify this in Python type annotations yet :(
-# See https://github.com/python/mypy/issues/5876
-TransitionsFactory = Callable[..., ContextManager[TransitionsCallable]]
-SampleDistFactory = Callable[..., ContextManager[SampleDist]]
+T = TypeVar("T")
+DatasetCallable = Callable[[int], T]
+"""Parameter specifies number of episodes (TrajectoryCallable) or timesteps (otherwise)."""
+TrajectoryCallable = DatasetCallable[data.Trajectory]
+TransitionsCallable = DatasetCallable[data.Transitions]
+SampleDist = DatasetCallable[np.ndarray]
+
+C = TypeVar("C")
+Factory = Callable[..., ContextManager[C]]
+TrajectoryFactory = Factory[TrajectoryCallable]
+TransitionsFactory = Factory[TransitionsCallable]
+SampleDistFactory = Factory[SampleDist]
+
+# *** Conversion functions ***
 
 
 @contextlib.contextmanager
-def space_to_sample(space: gym.Space) -> Iterator[SampleDist]:
-    """Creates function to sample `n` elements from from `space`."""
+def transitions_factory_iid_from_sample_dist(
+    obs_dist: SampleDist, act_dist: SampleDist
+) -> Iterator[TransitionsCallable]:
+    """Samples state and next state i.i.d. from `obs_dist` and actions i.i.d. from `act_dist`.
 
-    def f(n: int) -> np.ndarray:
-        return np.array([space.sample() for _ in range(n)])
+    This is an extremely weak prior. It's most useful in conjunction with methods in
+    `canonical_sample` which assume i.i.d. transitions internally.
+    """
+
+    def f(total_timesteps: int) -> data.Transitions:
+        obses = obs_dist(total_timesteps)
+        acts = act_dist(total_timesteps)
+        next_obses = obs_dist(total_timesteps)
+        dones = np.zeros(total_timesteps, dtype=np.bool)
+        return data.Transitions(
+            obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
+        )
 
     yield f
 
 
-@contextlib.contextmanager
-def env_name_to_sample(env_name: str, obs: bool) -> Iterator[SampleDist]:
-    env = gym.make(env_name)
-    space = env.observation_space if obs else env.action_space
-    with space_to_sample(space) as sample_dist:
-        yield sample_dist
-    env.close()
+def transitions_callable_to_sample_dist(
+    transitions_callable: TransitionsCallable, obs: bool
+) -> SampleDist:
+    """Samples state/actions from batches returned by `batch_callable`.
+
+    If `obs` is true, then samples observations from state and next state.
+    If `obs` is false, then samples actions.
+    """
+
+    def f(n: int) -> np.ndarray:
+        num_timesteps = ((n - 1) // 2 + 1) if obs else n
+        transitions = transitions_callable(num_timesteps)
+        if obs:
+            res = np.concatenate((transitions.obs, transitions.next_obs))
+        else:
+            res = transitions.acts
+        return res[:n]
+
+    return f
 
 
 @contextlib.contextmanager
-def rollout_policy_generator(
+def transitions_factory_to_sample_dist_factory(
+    transitions_factory: TransitionsFactory, obs: bool, **kwargs
+) -> Iterator[SampleDist]:
+    """Converts TransitionsFactory to a SampleDistFactory.
+
+    See `transitions_callable_to_sample_dist`.
+    """
+    with transitions_factory(**kwargs) as transitions_callable:
+        yield transitions_callable_to_sample_dist(transitions_callable, obs)
+
+
+# *** Trajectory factories ***
+
+
+@contextlib.contextmanager
+def _factory_via_serialized(
+    factory_from_policy: Callable[[vec_env.VecEnv, policies.BasePolicy], T],
+    env_name: str,
+    policy_type: str,
+    policy_path: str,
+    **kwargs,
+) -> Iterator[T]:
+    venv = util.make_vec_env(env_name, **kwargs)
+    with serialize.load_policy(policy_type, policy_path, venv) as policy:
+        with factory_from_policy(venv, policy) as generator:
+            yield generator
+
+
+@contextlib.contextmanager
+def trajectory_factory_from_policy(
+    venv: vec_env.VecEnv, policy: Union[base_class.BaseRLModel, policies.BasePolicy]
+) -> Iterator[TransitionsCallable]:
+    """Generator returning rollouts from a policy in a given environment."""
+
+    def f(total_episodes: int) -> data.Transitions:
+        return rollout.generate_trajectories(
+            policy, venv, sample_until=rollout.min_episodes(total_episodes)
+        )
+
+    yield f
+
+
+trajectory_factory_from_serialized_policy = functools.partial(
+    _factory_via_serialized, trajectory_factory_from_policy
+)
+
+
+# *** Transition factories ***
+
+
+@contextlib.contextmanager
+def transitions_factory_from_policy(
     venv: vec_env.VecEnv, policy: Union[base_class.BaseRLModel, policies.BasePolicy]
 ) -> Iterator[TransitionsCallable]:
     """Generator returning rollouts from a policy in a given environment."""
@@ -70,22 +152,19 @@ def rollout_policy_generator(
     yield f
 
 
+transitions_factory_from_serialized_policy = functools.partial(
+    _factory_via_serialized, transitions_factory_from_policy
+)
+
+
 @contextlib.contextmanager
-def rollout_serialized_policy_generator(
-    env_name: str, policy_type: str, policy_path: str, num_vec: int = 8, seed: int = 0
+def transitions_factory_from_random_model(
+    env_name: str, seed: int = 0
 ) -> Iterator[TransitionsCallable]:
-    venv = util.make_vec_env(env_name, n_envs=num_vec, seed=seed)
-    with serialize.load_policy(policy_type, policy_path, venv) as policy:
-        with rollout_policy_generator(venv, policy) as generator:
-            yield generator
-
-
-@contextlib.contextmanager
-def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[TransitionsCallable]:
     """Randomly samples state and action and computes next state from dynamics.
 
     This is one of the weakest possible priors, with broad support. It is similar
-    to `rollout_generator` with a random policy, with two key differences.
+    to `transitions_factory_from_policy` with a random policy, with two key differences.
     First, adjacent timesteps are independent from each other, as a state
     is randomly sampled at the start of each transition. Second, the initial
     state distribution is ignored. WARNING: This can produce physically impossible
@@ -125,51 +204,25 @@ def random_transition_generator(env_name: str, seed: int = 0) -> Iterator[Transi
     yield f
 
 
+# *** Sample distribution factories ***
+
+
 @contextlib.contextmanager
-def iid_transition_generator(
-    obs_dist: SampleDist, act_dist: SampleDist
-) -> Iterator[TransitionsCallable]:
-    """Samples state and next state i.i.d. from `obs_dist` and actions i.i.d. from `act_dist`.
+def sample_dist_from_space(space: gym.Space) -> Iterator[SampleDist]:
+    """Creates function to sample `n` elements from from `space`."""
 
-    This is an extremely weak prior. It's most useful in conjunction with methods in
-    `canonical_sample` which assume i.i.d. transitions internally."""
-
-    def f(total_timesteps: int) -> data.Transitions:
-        obses = obs_dist(total_timesteps)
-        acts = act_dist(total_timesteps)
-        next_obses = obs_dist(total_timesteps)
-        dones = np.zeros(total_timesteps, dtype=np.bool)
-        return data.Transitions(
-            obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
-        )
+    def f(n: int) -> np.ndarray:
+        return np.array([space.sample() for _ in range(n)])
 
     yield f
 
 
-def transitions_callable_to_sample_dist(
-    transitions_callable: TransitionsCallable, obs: bool
-) -> SampleDist:
-    """Samples state/actions from batches returned by `batch_callable`.
-
-    If `obs` is true, then samples observations from state and next state.
-    If `obs` is false, then samples actions.
-    """
-
-    def f(n: int) -> np.ndarray:
-        num_timesteps = ((n - 1) // 2 + 1) if obs else n
-        transitions = transitions_callable(num_timesteps)
-        if obs:
-            res = np.concatenate((transitions.obs, transitions.next_obs))
-        else:
-            res = transitions.acts
-        return res[:n]
-
-    return f
-
-
 @contextlib.contextmanager
-def transitions_factory_to_sample_dist_factory(
-    transitions_factory: TransitionsFactory, obs: bool, **kwargs
-) -> Iterator[SampleDist]:
-    with transitions_factory(**kwargs) as transitions_callable:
-        yield transitions_callable_to_sample_dist(transitions_callable, obs)
+def sample_dist_from_env_name(env_name: str, obs: bool) -> Iterator[SampleDist]:
+    env = gym.make(env_name)
+    try:
+        space = env.observation_space if obs else env.action_space
+        with sample_dist_from_space(space) as sample_dist:
+            yield sample_dist
+    finally:
+        env.close()
