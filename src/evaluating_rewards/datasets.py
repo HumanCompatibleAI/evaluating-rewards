@@ -52,7 +52,8 @@ def transitions_factory_iid_from_sample_dist(
     """Samples state and next state i.i.d. from `obs_dist` and actions i.i.d. from `act_dist`.
 
     This is an extremely weak prior. It's most useful in conjunction with methods in
-    `canonical_sample` which assume i.i.d. transitions internally."""
+    `canonical_sample` which assume i.i.d. transitions internally.
+    """
 
     def f(total_timesteps: int) -> data.Transitions:
         obses = obs_dist(total_timesteps)
@@ -93,7 +94,8 @@ def transitions_factory_to_sample_dist_factory(
 ) -> Iterator[SampleDist]:
     """Converts TransitionsFactory to a SampleDistFactory.
 
-    See `transitions_callable_to_sample_dist`."""
+    See `transitions_callable_to_sample_dist`.
+    """
     with transitions_factory(**kwargs) as transitions_callable:
         yield transitions_callable_to_sample_dist(transitions_callable, obs)
 
@@ -162,7 +164,7 @@ def transitions_factory_from_random_model(
     """Randomly samples state and action and computes next state from dynamics.
 
     This is one of the weakest possible priors, with broad support. It is similar
-    to `rollout_generator` with a random policy, with two key differences.
+    to `transitions_factory_from_policy` with a random policy, with two key differences.
     First, adjacent timesteps are independent from each other, as a state
     is randomly sampled at the start of each transition. Second, the initial
     state distribution is ignored. WARNING: This can produce physically impossible
@@ -218,7 +220,9 @@ def sample_dist_from_space(space: gym.Space) -> Iterator[SampleDist]:
 @contextlib.contextmanager
 def sample_dist_from_env_name(env_name: str, obs: bool) -> Iterator[SampleDist]:
     env = gym.make(env_name)
-    space = env.observation_space if obs else env.action_space
-    with sample_dist_from_space(space) as sample_dist:
-        yield sample_dist
-    env.close()
+    try:
+        space = env.observation_space if obs else env.action_space
+        with sample_dist_from_space(space) as sample_dist:
+            yield sample_dist
+    finally:
+        env.close()

@@ -739,11 +739,11 @@ def evaluate_models(
 def compute_return_from_rews(
     rews: Mapping[K, np.ndarray], dones: np.ndarray, discount: float = 1.0
 ) -> Mapping[K, np.ndarray]:
-    """Computes the returns freom rewards `rews` with episode endings given by `dones`.
+    """Computes the returns from rewards `rews` with episode endings given by `dones`.
 
     Args:
-        rews: A mapping of reward arrays, each of shape (trajectory_len,).
-        dones: A boolean array of shape (trajectory_len,).
+        rews: A mapping of reward arrays, each of shape `(trajectory_len,)`.
+        dones: A boolean array of shape `(trajectory_len,)`.
         discount: The discount rate; defaults to undiscounted.
 
     Returns:

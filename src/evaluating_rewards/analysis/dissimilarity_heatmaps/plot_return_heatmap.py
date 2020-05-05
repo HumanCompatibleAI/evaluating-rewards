@@ -146,6 +146,7 @@ def plot_return_heatmap(
 
     Args:
         env_name: the name of the environment to plot rewards for.
+        discount: the discount rate for shaping.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
         trajectory_factory: factory to generate trajectories.
