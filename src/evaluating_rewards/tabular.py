@@ -18,6 +18,7 @@ from typing import Callable, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import scipy.stats
 
 from evaluating_rewards import rewards
 
@@ -195,6 +196,23 @@ def pearson_distance(
     corr = cov / (np.sqrt(vara) * np.sqrt(varb))
     corr = min(corr, 1.0)  # floating point error sometimes rounds above 1.0
 
+    return np.sqrt(0.5 * (1 - corr))
+
+
+def spearman_distance(rewa: np.ndarray, rewb: np.ndarray,) -> float:
+    """Computes dissimilarity derived from Spearman correlation coefficient.
+
+    Args:
+        rewa: One three-dimensional reward array.
+        rewb: One three-dimensional reward array.
+
+    Returns:
+        Computes the Spearman correlation coefficient rho. Returns the square root of 1 minus rho.
+    """
+    # TODO(adam): is this a pseudometric?
+    # https://arxiv.org/pdf/1208.3145.pdf claims so but I do not follow their proof,
+    # should try to derive it myself if this method looks useful.
+    corr, _ = scipy.stats.spearmanr(rewa, rewb)
     return np.sqrt(0.5 * (1 - corr))
 
 

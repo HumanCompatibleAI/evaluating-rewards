@@ -24,6 +24,7 @@ from evaluating_rewards.analysis.dissimilarity_heatmaps import (
     plot_canon_heatmap,
     plot_epic_heatmap,
     plot_gridworld_heatmap,
+    plot_return_heatmap,
 )
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
 from evaluating_rewards.scripts import model_comparison, train_preferences, train_regress
@@ -33,6 +34,13 @@ EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates
     "plot_canon_heatmap": (plot_canon_heatmap.plot_canon_heatmap_ex, dict, [], {}),
     "plot_epic_heatmap": (plot_epic_heatmap.plot_epic_heatmap_ex, dict, [], {}),
+    "plot_return_heatmap": (plot_return_heatmap.plot_return_heatmap_ex, dict, [], {}),
+    "plot_return_heatmap_spearman": (
+        plot_return_heatmap.plot_return_heatmap_ex,
+        dict,
+        [],
+        {"corr_kind": "spearman"},
+    ),
     "plot_gridworld_heatmap": (plot_gridworld_heatmap.plot_gridworld_heatmap_ex, dict, [], {},),
     "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, plt.Figure, [], {}),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
