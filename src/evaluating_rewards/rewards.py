@@ -772,7 +772,15 @@ def compute_return_from_rews(
             ep_returns[k] = np.array(rets)
     else:
         # Fast path for undiscounted case: sum over the slices.
-        ep_returns = {k: np.add.reduceat(v, idxs[:-1]) for k, v in rews.items()}
+        if len(start_idxs) == 0:
+            # No completed episodes: nothing to compute returns over.
+            ep_returns = {k: np.array([]) for k in rews.keys()}
+        else:
+            # Truncate at last episode completion index.
+            last_idx = idxs[-1]
+            rews = {k: v[:last_idx] for k, v in rews.items()}
+            # Now add over each interval split by the episode boundaries.
+            ep_returns = {k: np.add.reduceat(v, start_idxs) for k, v in rews.items()}
 
     return ep_returns
 
