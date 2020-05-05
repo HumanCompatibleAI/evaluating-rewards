@@ -59,7 +59,7 @@ def _compare_synthetic_build_base_models(
         noise_reward = rewards.MLPRewardModel(
             observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
         )
-        noise_potential = rewards.PotentialShaping(
+        noise_potential = rewards.MLPPotentialShaping(
             observation_space,
             action_space,
             hid_sizes=dataset_potential_hids,
@@ -376,7 +376,7 @@ def summary_stats(
     """Compute summary statistics of a random reward and potential model."""
     # Construct randomly initialized reward and potential
     rew_model = rewards.MLPRewardModel(observation_space, action_space, reward_hids)
-    pot_model = rewards.PotentialShaping(observation_space, action_space, potential_hids)
+    pot_model = rewards.MLPPotentialShaping(observation_space, action_space, potential_hids)
     tf.get_default_session().run(tf.global_variables_initializer())
 
     # Compute their predictions on dataset

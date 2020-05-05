@@ -57,7 +57,7 @@ STANDALONE_REWARD_MODELS = {
 GENERAL_REWARD_MODELS = {
     "mlp": {"model_class": rewards.MLPRewardModel, "kwargs": {}},
     "mlp_wide": {"model_class": rewards.MLPRewardModel, "kwargs": {"hid_sizes": [64, 64]}},
-    "potential": {"model_class": rewards.PotentialShaping, "kwargs": {}},
+    "mlp_potential": {"model_class": rewards.MLPPotentialShaping, "kwargs": {}},
     "constant": {"model_class": rewards.ConstantReward, "kwargs": {}},
 }
 ENVS_KWARGS = {env: {"env_name": env} for env in ENVS}
@@ -79,7 +79,7 @@ REWARD_WRAPPERS = [
     rewards.RewardModelWrapper,
     rewards.StopGradientsModelWrapper,
     rewards.AffineTransform,
-    rewards.PotentialShapingWrapper,
+    rewards.MLPPotentialShapingWrapper,
 ]
 
 GROUND_TRUTH = {

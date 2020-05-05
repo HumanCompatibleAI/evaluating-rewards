@@ -346,7 +346,7 @@ def equivalence_model_wrapper(
             model = rewards.StopGradientsModelWrapper(model)
 
     if potential:
-        model = rewards.PotentialShapingWrapper(model, **kwargs)
+        model = rewards.MLPPotentialShapingWrapper(model, **kwargs)
         models["shaping"] = model
 
     return model, models, metrics

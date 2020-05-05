@@ -102,11 +102,22 @@ class RewardModel(serialize.Serializable, abc.ABC):
 
 
 # pylint:disable=abstract-method
-# This class is abstract but PyLint doesn't understand it; see pylint GH #179
+# These classes are abstract but PyLint don't understand them; see pylint GH #179
+# TODO(adam): in pylint 2.5.x adding abc.ABC as an inheritance should fix this
 class BasicRewardModel(RewardModel):
     """Abstract reward model class with basic default implementations."""
 
     def __init__(self, obs_space: gym.Space, act_space: gym.Space):
+        """Builds BasicRewardModel: adding placeholders and spaces but nothing else.
+
+        The spaces passed are used to define the `observation_space` and `action_space`
+        properties, and also are used to determine how to preprocess the observation
+        and action placeholders, made available as `self._proc_{obs,act,next_obs}`.
+
+        Args:
+            obs_space: The observation space.
+            act_space: The action space.
+        """
         RewardModel.__init__(self)
         self._obs_space = obs_space
         self._act_space = act_space
@@ -140,6 +151,62 @@ class BasicRewardModel(RewardModel):
         return (self._dones_ph,)
 
 
+class PotentialShaping(RewardModel):
+    """Mix-in to add potential shaping."""
+
+    def __init__(
+        self, old_potential: tf.Tensor, new_potential: tf.Tensor, discount: float = 0.99,
+    ):
+        """
+        Builds PotentialShaping mix-in, adding reward in terms of {old,new}_potential.
+
+        Args:
+            old_potential: The potential of the observation.
+            new_potential: The potential of the next observation.
+            discount: The initial discount rate to use.
+
+        Raises:
+            ValueError if self.dones_ph is empty.
+        """
+        try:
+            dones_ph = next(iter(self.dones_ph))
+        except StopIteration:
+            raise ValueError("self.dones_ph must be non-empty.")
+
+        self._discount = ConstantLayer("discount", initializer=tf.constant_initializer(discount))
+        self._discount.build(())
+
+        self._old_potential = old_potential
+        alive = 1 - tf.cast(dones_ph, dtype=tf.float32)
+        self._new_potential = new_potential * alive
+        self._reward_output = self.discount * self.new_potential - self.old_potential
+
+    @property
+    def reward(self):
+        """The reward: discount * new_potential - old_potential."""
+        return self._reward_output
+
+    @property
+    def discount(self) -> tf.Tensor:
+        return tf.stop_gradient(self._discount.constant)
+
+    def set_discount(self, discount: float) -> None:
+        self._discount.set_constant(discount)
+
+    @property
+    def old_potential(self) -> tf.Tensor:
+        """The potential of the observation."""
+        return self._old_potential
+
+    @property
+    def new_potential(self) -> tf.Tensor:
+        """The potential of the next observation.
+
+        This is fixed to zero when dones_ph is True.
+        """
+        return self._new_potential
+
+
 # pylint:enable=abstract-method
 
 
@@ -151,14 +218,22 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         self,
         obs_space: gym.Space,
         act_space: gym.Space,
-        hid_sizes: Optional[Iterable[int]] = None,
+        hid_sizes: Iterable[int] = (32, 32),
         use_act: bool = True,
         use_obs: bool = True,
         use_next_obs: bool = True,
     ):
+        """Builds MLPRewardModel.
+
+        Args:
+            obs_space: The observation space.
+            act_space: The action space.
+            hid_sizes: The number of hidden units at each layer in the network.
+            use_act: Whether to include actions in the input.
+            use_obs: Whether to include the observation in the input.
+            use_next_obs: Whether to include the next observation in the input.
+        """
         BasicRewardModel.__init__(self, obs_space, act_space)
-        if hid_sizes is None:
-            hid_sizes = [32, 32]
         params = dict(locals())
 
         kwargs = {
@@ -174,58 +249,37 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         return self._reward
 
 
-class PotentialShaping(BasicRewardModel, serialize.LayersSerializable):
-    r"""Models a state-only potential, reward is the difference in potential.
-
-    Specifically, contains a state-only potential $$\phi(s)$$. The reward
-    $$r(s,a,s') = \gamma \phi(s') - \phi(s)$$ where $$\gamma$$ is the discount.
-    """
+class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSerializable):
+    """Potential shaping using MLP to calculate potential."""
 
     def __init__(
         self,
         obs_space: gym.Space,
         act_space: gym.Space,
-        hid_sizes: Optional[Iterable[int]] = None,
+        hid_sizes: Iterable[int] = (32, 32),
         discount: float = 0.99,
         **kwargs,
     ):
-        BasicRewardModel.__init__(self, obs_space, act_space)
+        """Builds MLPPotentialShaping.
 
-        if hid_sizes is None:
-            hid_sizes = [32, 32]
+        Args:
+            obs_space: The observation space.
+            act_space: The action space.
+            hid_sizes: The number of hidden units at each layer in the network.
+            discount: The initial discount rate to use.
+        """
         params = dict(locals())
         del params["kwargs"]
         params.update(**kwargs)
 
+        BasicRewardModel.__init__(self, obs_space, act_space)
         res = reward_net.build_basic_phi_network(
             hid_sizes, self._proc_obs, self._proc_next_obs, **kwargs
         )
-        self._old_potential, self._new_potential, layers = res
-        self._discount = ConstantLayer("discount", initializer=tf.constant_initializer(discount))
-        self._discount.build(())
+        old_potential, new_potential, layers = res
+        PotentialShaping.__init__(self, old_potential, new_potential, discount)
         layers["discount"] = self._discount
-        self._reward_output = self.discount * self.new_potential - self.old_potential
-
         serialize.LayersSerializable.__init__(**params, layers=layers)
-
-    @property
-    def reward(self):
-        return self._reward_output
-
-    @property
-    def discount(self) -> tf.Tensor:
-        return tf.stop_gradient(self._discount.constant)
-
-    def set_discount(self, discount: float) -> None:
-        self._discount.set_constant(discount)
-
-    @property
-    def old_potential(self):
-        return self._old_potential
-
-    @property
-    def new_potential(self):
-        return self._new_potential
 
 
 class ConstantLayer(tf.keras.layers.Layer):
@@ -709,7 +763,7 @@ class AffineTransform(LinearCombinationModelWrapper):
         return obj
 
 
-class PotentialShapingWrapper(LinearCombinationModelWrapper):
+class MLPPotentialShapingWrapper(LinearCombinationModelWrapper):
     """Adds potential shaping to an underlying reward model."""
 
     def __init__(self, wrapped: RewardModel, **kwargs):
@@ -719,7 +773,7 @@ class PotentialShapingWrapper(LinearCombinationModelWrapper):
             wrapped: The model to add shaping to.
             **kwargs: Passed through to PotentialShaping.
         """
-        shaping = PotentialShaping(wrapped.observation_space, wrapped.action_space, **kwargs)
+        shaping = MLPPotentialShaping(wrapped.observation_space, wrapped.action_space, **kwargs)
 
         super().__init__(
             {"wrapped": (wrapped, tf.constant(1.0)), "shaping": (shaping, tf.constant(1.0))}
