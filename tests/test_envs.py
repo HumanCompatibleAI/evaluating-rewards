@@ -30,7 +30,7 @@ ENV_NAMES = [
     for env_spec in gym.envs.registration.registry.all()
     if env_spec.id.startswith("evaluating_rewards/")
 ]
-DETERMINISTIC_ENVS = []
+DETERMINISTIC_ENVS = ["evaluating_rewards/PointMassLineVar0.0Start-v0"]
 
 
 @pytest.mark.parametrize("env_name", ENV_NAMES)
