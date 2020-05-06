@@ -32,7 +32,12 @@ class PointMassEnv(resettable_env.ResettableEnv):
     """A simple point-mass environment."""
 
     def __init__(
-        self, ndim: int = 2, dt: float = 1e-1, ctrl_coef: float = 1.0, threshold: float = -1
+        self,
+        ndim: int = 2,
+        dt: float = 1e-1,
+        ctrl_coef: float = 1.0,
+        threshold: float = -1,
+        sd: float = 1.0,
     ):
         """Builds a PointMass environment.
 
@@ -42,6 +47,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
             ctrl_coef: Weight for control cost.
             threshold: Distance to goal within which episode terminates.
                     (Set negative to disable episode termination.)
+            sd: Standard deviation of components of initial state distribution.
         """
         super().__init__()
 
@@ -49,6 +55,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
         self.dt = dt
         self.ctrl_coef = ctrl_coef
         self.threshold = threshold
+        self.sd = sd
 
         substate_space = gym.spaces.Box(-np.inf, np.inf, shape=(ndim,))
         subspaces = {k: substate_space for k in ["pos", "vel", "goal"]}
@@ -63,9 +70,9 @@ class PointMassEnv(resettable_env.ResettableEnv):
     def initial_state(self):
         """Choose initial state randomly from region at least 1-step from goal."""
         while True:
-            pos = self.rand_state.randn(self.ndim)
-            vel = self.rand_state.randn(self.ndim)
-            goal = self.rand_state.randn(self.ndim)
+            pos = self.rand_state.randn(self.ndim) * self.sd
+            vel = self.rand_state.randn(self.ndim) * self.sd
+            goal = self.rand_state.randn(self.ndim) * self.sd
             dist = np.linalg.norm(pos - goal)
             min_dist_next = dist - self.dt * np.linalg.norm(vel)
             if min_dist_next > self.threshold:
