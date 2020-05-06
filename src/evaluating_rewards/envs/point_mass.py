@@ -88,12 +88,13 @@ class PointMassEnv(resettable_env.ResettableEnv):
         return -dist - self.ctrl_coef * ctrl_penalty
 
     def terminal(self, state, step: int) -> bool:
-        """Always False, so never terminate early.
+        """Terminate if agent within threshold of goal.
 
-        We still terminate after a fixed number of time steps,
-        specified in the environment registration.
+        Set threshold to be negative to disable early termination, making environment
+        fixed horizon.
         """
-        return False
+        dist = np.linalg.norm(state["pos"] - state["goal"])
+        return bool(dist < self.threshold)
 
     def obs_from_state(self, state):
         return np.concatenate([state["pos"], state["vel"], state["goal"]], axis=-1)

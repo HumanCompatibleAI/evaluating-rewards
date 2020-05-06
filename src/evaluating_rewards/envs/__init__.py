@@ -34,7 +34,7 @@ def register_point_mass(suffix, **kwargs):
     )
 
 
-register_point_mass("Line", ndim=1, threshold=0.05)
-register_point_mass("LineVariableHorizon", ndim=1, threshold=-1)
+register_point_mass("Line", ndim=1)
+register_point_mass("LineVariableHorizon", ndim=1, threshold=0.05)
 register_point_mass("LineStateOnly", ndim=1, ctrl_coef=0.0)
 register_point_mass("Grid", ndim=2)
