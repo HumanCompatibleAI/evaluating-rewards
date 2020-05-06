@@ -93,18 +93,20 @@ def mesh_evaluate_models(
         A mapping from keys to NumPy arrays of shape (l,m,n), with index (i,j,k) evaluated on the
         transition from `obs[i]` to `next_obs[k]` taking `actions[j]`.
     """
-    reward_outputs = {k: m.reward for k, m in models.items()}
     # TODO(adam): this is very memory intensive.
     # Should consider splitting up evaluation into chunks like with `discrete_mean_rews`.
     # Note observations and actions take up much more memory than the evaluated rewards.
     tensors = _make_mesh_tensors(dict(obs=obs, actions=actions, next_obs=next_obs))
+    dones = np.zeros(obs.shape[0] * actions.shape[0] * next_obs.shape[0], dtype=np.bool)
 
     feed_dict = {}
     for m in models.values():
         feed_dict.update({ph: tensors["obs"] for ph in m.obs_ph})
         feed_dict.update({ph: tensors["actions"] for ph in m.act_ph})
         feed_dict.update({ph: tensors["next_obs"] for ph in m.next_obs_ph})
+        feed_dict.update({ph: dones for ph in m.dones_ph})
 
+    reward_outputs = {k: m.reward for k, m in models.items()}
     rews = tf.get_default_session().run(reward_outputs, feed_dict=feed_dict)
     rews = {k: v.reshape(len(obs), len(actions), len(next_obs)) for k, v in rews.items()}
     return rews
