@@ -210,7 +210,6 @@ class PotentialShaping(RewardModel):
 # pylint:enable=abstract-method
 
 
-# TODO(adam): do something with dones?
 class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
     """Feed-forward reward model r(s,a,s')."""
 
@@ -219,8 +218,9 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         obs_space: gym.Space,
         act_space: gym.Space,
         hid_sizes: Iterable[int] = (32, 32),
-        use_act: bool = True,
+        *,
         use_obs: bool = True,
+        use_act: bool = True,
         use_next_obs: bool = True,
     ):
         """Builds MLPRewardModel.
@@ -229,19 +229,26 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
             obs_space: The observation space.
             act_space: The action space.
             hid_sizes: The number of hidden units at each layer in the network.
-            use_act: Whether to include actions in the input.
             use_obs: Whether to include the observation in the input.
+            use_act: Whether to include actions in the input.
             use_next_obs: Whether to include the next observation in the input.
         """
         BasicRewardModel.__init__(self, obs_space, act_space)
         params = dict(locals())
 
-        kwargs = {
-            "obs_input": self._proc_obs if use_obs else None,
-            "next_obs_input": self._proc_next_obs if use_next_obs else None,
-            "act_input": self._proc_act if use_act else None,
-        }
-        self._reward, self.layers = reward_net.build_basic_theta_network(hid_sizes, **kwargs)
+        inputs = []
+        if use_obs:
+            inputs.append(self._proc_obs)
+        if use_act:
+            inputs.append(self._proc_act)
+        if use_next_obs:
+            inputs.append(self._proc_next_obs)
+        if len(inputs) == 0:
+            msg = "At least one of `use_act`, `use_obs` and `use_next_obs` must be true."
+            raise ValueError(msg)
+        inputs.append(self._proc_dones)
+
+        self._reward, self.layers = reward_net.build_mlp(inputs, hid_sizes)
         serialize.LayersSerializable.__init__(**params, layers=self.layers)
 
     @property
