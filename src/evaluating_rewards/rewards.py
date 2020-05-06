@@ -125,6 +125,7 @@ class BasicRewardModel(RewardModel):
         self._next_obs_ph, self._proc_next_obs = env_in.observation_input(obs_space)
         self._act_ph, self._proc_act = env_in.observation_input(act_space)
         self._dones_ph = tf.placeholder(name="dones", shape=(None,), dtype=tf.bool)
+        self._proc_dones = tf.cast(self._dones_ph, dtype=tf.float32)
 
     @property
     def observation_space(self):
@@ -155,7 +156,11 @@ class PotentialShaping(RewardModel):
     """Mix-in to add potential shaping."""
 
     def __init__(
-        self, old_potential: tf.Tensor, new_potential: tf.Tensor, discount: float = 0.99,
+        self,
+        old_potential: tf.Tensor,
+        new_potential: tf.Tensor,
+        dones: tf.Tensor,
+        discount: float = 0.99,
     ):
         """
         Builds PotentialShaping mix-in, adding reward in terms of {old,new}_potential.
@@ -163,22 +168,17 @@ class PotentialShaping(RewardModel):
         Args:
             old_potential: The potential of the observation.
             new_potential: The potential of the next observation.
+            dones: Indicator variable (0 or 1 floating point tensor) for episode termination.
             discount: The initial discount rate to use.
 
         Raises:
             ValueError if self.dones_ph is empty.
         """
-        try:
-            dones_ph = next(iter(self.dones_ph))
-        except StopIteration:
-            raise ValueError("self.dones_ph must be non-empty.")
-
         self._discount = ConstantLayer("discount", initializer=tf.constant_initializer(discount))
         self._discount.build(())
 
         self._old_potential = old_potential
-        alive = 1 - tf.cast(dones_ph, dtype=tf.float32)
-        self._new_potential = new_potential * alive
+        self._new_potential = new_potential * (1 - dones)
         self._reward_output = self.discount * self.new_potential - self.old_potential
 
     @property
@@ -277,7 +277,7 @@ class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSe
             hid_sizes, self._proc_obs, self._proc_next_obs, **kwargs
         )
         old_potential, new_potential, layers = res
-        PotentialShaping.__init__(self, old_potential, new_potential, discount)
+        PotentialShaping.__init__(self, old_potential, new_potential, self._proc_dones, discount)
         layers["discount"] = self._discount
         serialize.LayersSerializable.__init__(**params, layers=layers)
 

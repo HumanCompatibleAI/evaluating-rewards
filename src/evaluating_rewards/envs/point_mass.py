@@ -265,7 +265,9 @@ class PointMassShaping(
 
         old_potential = _point_mass_dist(self._proc_obs, self.ndim)
         new_potential = _point_mass_dist(self._proc_next_obs, self.ndim)
-        rewards.PotentialShaping.__init__(self, old_potential, new_potential, discount)
+        rewards.PotentialShaping.__init__(
+            self, old_potential, new_potential, self._proc_dones, discount
+        )
 
         self.set_discount(discount)  # set it so no need for TF initializer to be called
         serialize.LayersSerializable.__init__(**params, layers={"discount": self._discount})
