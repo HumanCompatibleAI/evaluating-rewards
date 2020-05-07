@@ -158,6 +158,11 @@ SYNTHETIC_TEST = {
         "rescale": False,
         "fudge_factor": 1.0,  # follow upper bound in ARCHITECTURES
     },
+    "same_scale_no_pot_done": {  # TODO(adam): debugging -- remove
+        "kwargs": {"use_dones": False},
+        "rescale": False,
+        "fudge_factor": 1.0,  # follow upper bound in ARCHITECTURES
+    },
     "random_scale": {
         "kwargs": {
             "scale_fn": synthetic.log_normal,
@@ -172,7 +177,7 @@ SYNTHETIC_TEST = {
 # Some flakiness due to random seeds. This is exacebrate by size of the test suite.
 # Each individual test should pass >99% of the time; a consistently flaky test
 # is indicative of an error.
-@pytest.mark.flaky(max_runs=3)
+# @pytest.mark.flaky(max_runs=3)
 class TestSynthetic:
     """Unit tests for evaluating_rewards.synthetic."""
 

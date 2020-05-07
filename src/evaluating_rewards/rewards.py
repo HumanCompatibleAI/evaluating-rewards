@@ -161,6 +161,7 @@ class PotentialShaping(RewardModel):
         new_potential: tf.Tensor,
         dones: tf.Tensor,
         discount: float = 0.99,
+        use_dones: bool = True,
     ):
         """
         Builds PotentialShaping mix-in, adding reward in terms of {old,new}_potential.
@@ -178,7 +179,10 @@ class PotentialShaping(RewardModel):
         self._discount.build(())
 
         self._old_potential = old_potential
-        self._new_potential = new_potential * (1 - dones)
+        if use_dones:
+            self._new_potential = new_potential * (1 - dones)
+        else:
+            self._new_potential = new_potential
         self._reward_output = self.discount * self.new_potential - self.old_potential
 
     @property
@@ -222,6 +226,7 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         use_obs: bool = True,
         use_act: bool = True,
         use_next_obs: bool = True,
+        use_dones: bool = True,
     ):
         """Builds MLPRewardModel.
 
@@ -232,6 +237,7 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
             use_obs: Whether to include the observation in the input.
             use_act: Whether to include actions in the input.
             use_next_obs: Whether to include the next observation in the input.
+            use_dones: Whether to include episode termination in the input.
         """
         BasicRewardModel.__init__(self, obs_space, act_space)
         params = dict(locals())
@@ -246,7 +252,8 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         if len(inputs) == 0:
             msg = "At least one of `use_act`, `use_obs` and `use_next_obs` must be true."
             raise ValueError(msg)
-        inputs.append(self._proc_dones)
+        if use_dones:
+            inputs.append(self._proc_dones)
 
         self._reward, self.layers = reward_net.build_mlp(inputs, hid_sizes)
         serialize.LayersSerializable.__init__(**params, layers=self.layers)
@@ -265,6 +272,7 @@ class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSe
         act_space: gym.Space,
         hid_sizes: Iterable[int] = (32, 32),
         discount: float = 0.99,
+        use_dones: bool = True,
         **kwargs,
     ):
         """Builds MLPPotentialShaping.
@@ -284,7 +292,9 @@ class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSe
             hid_sizes, self._proc_obs, self._proc_next_obs, **kwargs
         )
         old_potential, new_potential, layers = res
-        PotentialShaping.__init__(self, old_potential, new_potential, self._proc_dones, discount)
+        PotentialShaping.__init__(
+            self, old_potential, new_potential, self._proc_dones, discount, use_dones
+        )
         layers["discount"] = self._discount
         serialize.LayersSerializable.__init__(**params, layers=layers)
 

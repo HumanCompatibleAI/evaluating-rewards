@@ -35,6 +35,8 @@ TensorCallable = Callable[..., tf.Tensor]
 
 log_normal = functools.partial(np.random.lognormal, mean=0.0, sigma=np.log(10))
 
+# TODO(adam): remove use_dones if not needed or document if important
+
 
 def _compare_synthetic_build_base_models(
     observation_space: gym.Space,
@@ -44,6 +46,7 @@ def _compare_synthetic_build_base_models(
     dataset_activation: Optional[TensorCallable],
     state_only: bool,
     discount: float,
+    use_dones: bool,
 ):
     # Graph construction
     noise_kwargs = {}
@@ -65,6 +68,7 @@ def _compare_synthetic_build_base_models(
             hid_sizes=dataset_potential_hids,
             activation=dataset_activation,
             discount=discount,
+            use_dones=use_dones,
         )
 
         # Additive constant and scaling of ground truth
@@ -92,6 +96,7 @@ def _compare_synthetic_build_comparison_graph(
     model_activation: Optional[TensorCallable],
     optimizer: Type[tf.train.Optimizer],
     learning_rate: float,
+    use_dones: bool,
 ):
     originals = {}
     matchings = {}
@@ -118,6 +123,7 @@ def _compare_synthetic_build_comparison_graph(
                         hid_sizes=model_potential_hids,
                         activation=model_activation,
                         discount=discount,
+                        use_dones=use_dones,
                     )
                     matched = comparisons.RegressWrappedModel(
                         noised_ground_shaped,
@@ -229,6 +235,7 @@ def compare_synthetic(
     pretrain: bool = True,
     pretrain_size: int = 4096,
     learning_rate: float = 1e-2,
+    use_dones: bool = True,
 ) -> pd.DataFrame:
     r"""Compares rewards with varying noise to a ground-truth reward.
 
@@ -300,6 +307,7 @@ def compare_synthetic(
         dataset_activation=dataset_activation,
         state_only=state_only,
         discount=discount,
+        use_dones=use_dones,
     )
     ground_truth, noise_reward, noise_potential, constant_one_model = models
 
@@ -321,6 +329,7 @@ def compare_synthetic(
         model_activation=model_activation,
         optimizer=optimizer,
         learning_rate=learning_rate,
+        use_dones=use_dones,
     )
 
     # Initialization
