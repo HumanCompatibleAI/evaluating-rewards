@@ -95,8 +95,8 @@ ARCHITECTURES = {
             "dataset_potential_hids": [],
             "model_potential_hids": [],
             "learning_rate": 1e-2,
-            "total_timesteps": 2 ** 22,
-            "batch_size": 1024,
+            "total_timesteps": 2 ** 18,
+            "batch_size": 256,
         },
         "rel_upperbound": 0.2,
     },
@@ -167,11 +167,6 @@ for scale, sign in zip([1e-3, 1e-1, 1e1, 1e3], [1, -1, 1, -1]):
 SYNTHETIC_TEST = {
     "same_scale": {
         "kwargs": {},
-        "rescale": False,
-        "fudge_factor": 1.0,  # follow upper bound in ARCHITECTURES
-    },
-    "same_scale_no_pot_done": {  # TODO(adam): debugging -- remove
-        "kwargs": {"use_dones": False},
         "rescale": False,
         "fudge_factor": 1.0,  # follow upper bound in ARCHITECTURES
     },

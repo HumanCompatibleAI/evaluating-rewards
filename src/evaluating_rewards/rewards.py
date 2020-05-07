@@ -161,7 +161,6 @@ class PotentialShaping(RewardModel):
         new_potential: tf.Tensor,
         dones: tf.Tensor,
         discount: float = 0.99,
-        use_dones: bool = True,
     ):
         """
         Builds PotentialShaping mix-in, adding reward in terms of {old,new}_potential.
@@ -179,10 +178,7 @@ class PotentialShaping(RewardModel):
         self._discount.build(())
 
         self._old_potential = old_potential
-        if use_dones:
-            self._new_potential = new_potential * (1 - dones)
-        else:
-            self._new_potential = new_potential
+        self._new_potential = new_potential * (1 - dones)
         self._reward_output = self.discount * self.new_potential - self.old_potential
 
     @property
@@ -275,7 +271,6 @@ class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSe
         act_space: gym.Space,
         hid_sizes: Iterable[int] = (32, 32),
         discount: float = 0.99,
-        use_dones: bool = True,
         **kwargs,
     ):
         """Builds MLPPotentialShaping.
@@ -296,7 +291,7 @@ class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSe
         )
         old_potential, new_potential, layers = res
         PotentialShaping.__init__(
-            self, old_potential, new_potential, self._proc_dones, discount, use_dones
+            self, old_potential, new_potential, self._proc_dones, discount,
         )
         layers["discount"] = self._discount
         serialize.LayersSerializable.__init__(**params, layers=layers)
