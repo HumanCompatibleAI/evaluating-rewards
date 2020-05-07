@@ -105,6 +105,14 @@ GROUND_TRUTH = {
     ),
 }
 
+ENV_POTENTIALS = [
+    # (env_name, potential_class)
+    # Tests require the environments are fixed length.
+    ("benchmark_environments/CartPole-v0", rewards.MLPPotentialShaping),
+    ("evaluating_rewards/PointMassLine-v0", point_mass.PointMassShaping),
+]
+DISCOUNTS = [0.9, 0.99, 1.0]
+
 
 @pytest.fixture(name="helper_serialize_identity")
 def fixture_serialize_identity(
@@ -217,14 +225,8 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
     np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)
 
 
-@pytest.mark.parametrize(
-    "env_name,potential_cls",
-    [
-        ("benchmark_environments/CartPole-v0", rewards.MLPPotentialShaping),
-        ("evaluating_rewards/PointMassLine-v0", point_mass.PointMassShaping),
-    ],
-)
-@pytest.mark.parametrize("discount", [0.9, 0.99, 1.0])
+@pytest.mark.parametrize("env_name,potential_cls", ENV_POTENTIALS)
+@pytest.mark.parametrize("discount", DISCOUNTS)
 def test_potential_shaping_cycle(
     graph, session, venv, potential_cls, discount: float, num_episodes: int = 10
 ) -> None:
@@ -259,6 +261,58 @@ def test_potential_shaping_cycle(
 
     rets = rewards.compute_return_from_rews(rews, transitions.dones, discount=discount)["m"]
     assert np.allclose(rets, np.mean(rets), atol=1e-5)
+
+
+@pytest.mark.parametrize("env_name,potential_cls", ENV_POTENTIALS)
+@pytest.mark.parametrize("discount", DISCOUNTS)
+def test_potential_shaping_invariants(
+    graph, session, venv, potential_cls, discount: float, num_timesteps: int = 100
+):
+    """Test that potential shaping obeys several invariants.
+
+    Specifically:
+        1. new_potential must be zero when dones is true.
+        2. new_potential depends only on next observation.
+        3. old_potential depends only on current observation.
+        4. Shaping is discount * new_potential - old_potential.
+    """
+    # Invariants:
+    # When done, new_potential should always be zero.
+    # self.discount * new_potential - old_potential should equal the output
+    # Same old_obs should have same old_potential; same new_obs should have same new_potential.
+    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    transitions = rollout.generate_transitions(policy, venv, n_timesteps=num_timesteps)
+
+    with graph.as_default(), session.as_default():
+        potential = potential_cls(venv.observation_space, venv.action_space, discount=discount)
+        session.run(tf.global_variables_initializer())
+        (old_pot,), (new_pot,) = rewards.evaluate_potentials([potential], transitions)
+
+    # Check invariant 1: new_potential must be zero when dones is true
+    transitions_all_done = dataclasses.replace(
+        transitions, dones=np.ones_like(transitions.dones, dtype=np.bool)
+    )
+    with session.as_default():
+        _, new_pot_done = rewards.evaluate_potentials([potential], transitions_all_done)
+    assert np.allclose(new_pot_done, 0.0)
+
+    # Check invariants 2 and 3: {new,old}_potential depend only on {next,current} observation
+    def _shuffle(fld: str):
+        arr = np.array(getattr(transitions, fld))
+        np.random.shuffle(arr)
+        trans = dataclasses.replace(transitions, **{fld: arr})
+        with session.as_default():
+            return rewards.evaluate_potentials([potential], trans)
+
+    (old_pot_shuffled,), _ = _shuffle("next_obs")
+    _, (new_pot_shuffled,) = _shuffle("obs")
+    assert np.all(old_pot == old_pot_shuffled)
+    assert np.all(new_pot == new_pot_shuffled)
+
+    # Check invariant 4: that reward output is as expected given potentials
+    with session.as_default():
+        rew = rewards.evaluate_models({"m": potential}, transitions)["m"]
+    assert np.allclose(rew, discount * new_pot - old_pot)
 
 
 REWARD_LEN = 10000
