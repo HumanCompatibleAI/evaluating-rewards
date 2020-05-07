@@ -55,7 +55,18 @@ def dummy_env_and_dataset(dims: int = 5):
 
 
 def make_pm(env_name="evaluating_rewards/PointMassLine-v0", extra_dones: Optional[int] = None):
-    """Make Point Mass environment and dataset generator."""
+    """Make Point Mass environment and dataset generator.
+
+    Args:
+        env_name: The name of the environment in the Gym registry.
+        extra_dones: If specified, the frequency at which to artificially insert dones.
+            At episode termination, the next potential is fixed to zero, making the
+            constant bias of the potential important. At all other points the constant
+            bias has no effect (undiscounted) or minimal effect (discounted) to the
+            reward output. Increasing the frequency of dones is a form of dataset
+            augmentation, that lets us learn the constant bias more quickly. This is
+            definitely "cheating", but it seems worth it to keep the unit tests quick.
+    """
     venv = util.make_vec_env(env_name)
     obs_space = venv.observation_space
     act_space = venv.action_space
@@ -84,8 +95,7 @@ def make_pm(env_name="evaluating_rewards/PointMassLine-v0", extra_dones: Optiona
 ENVIRONMENTS = {
     "Uniform5D": dummy_env_and_dataset(dims=5),
     "PointLine": make_pm("evaluating_rewards/PointMassLine-v0"),
-    "PointGrid": make_pm("evaluating_rewards/PointMassGrid-v0"),
-    "PointGridShort": make_pm("evaluating_rewards/PointMassGrid-v0", extra_dones=10),
+    "PointGrid": make_pm("evaluating_rewards/PointMassGrid-v0", extra_dones=10),
 }
 
 ARCHITECTURES = {
@@ -181,10 +191,10 @@ SYNTHETIC_TEST = {
 }
 
 
-# Some flakiness due to random seeds. This is exacebrate by size of the test suite.
+# Some flakiness due to random seeds. This is exacebrated by size of the test suite.
 # Each individual test should pass >99% of the time; a consistently flaky test
 # is indicative of an error.
-# @pytest.mark.flaky(max_runs=3)
+@pytest.mark.flaky(max_runs=3)
 class TestSynthetic:
     """Unit tests for evaluating_rewards.synthetic."""
 
