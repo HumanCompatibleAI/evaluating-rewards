@@ -238,6 +238,9 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
             use_act: Whether to include actions in the input.
             use_next_obs: Whether to include the next observation in the input.
             use_dones: Whether to include episode termination in the input.
+
+        Raises:
+            ValueError if none of `use_obs`, `use_act` or `use_next_obs` are True.
         """
         BasicRewardModel.__init__(self, obs_space, act_space)
         params = dict(locals())

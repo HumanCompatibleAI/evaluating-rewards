@@ -18,7 +18,9 @@ Also indirectly tests evaluating_rewards.deep, evaluating_rewards.datasets and
 evaluating_rewards.util.
 """
 
+import dataclasses
 import logging
+from typing import Optional
 
 import gym
 from imitation.util import data, util
@@ -52,7 +54,7 @@ def dummy_env_and_dataset(dims: int = 5):
     }
 
 
-def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
+def make_pm(env_name="evaluating_rewards/PointMassLine-v0", extra_dones: Optional[int] = None):
     """Make Point Mass environment and dataset generator."""
     venv = util.make_vec_env(env_name)
     obs_space = venv.observation_space
@@ -60,13 +62,22 @@ def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
 
     pm = point_mass.PointMassPolicy(obs_space, act_space)
     with datasets.transitions_factory_from_policy(venv, pm) as dataset_generator:
+
+        def f(total_timesteps: int):
+            trans = dataset_generator(total_timesteps)
+            if extra_dones is not None:
+                dones = np.array(trans.dones)
+                dones[::extra_dones] = True
+                trans = dataclasses.replace(trans, dones=dones)
+            return trans
+
         # It's OK to return dataset_generator outside the with context:
         # rollout_policy_generator doesn't actually have any internal resources
         # (some other datasets do).
         return {
             "observation_space": obs_space,
             "action_space": act_space,
-            "dataset_generator": dataset_generator,
+            "dataset_generator": f,
         }
 
 
@@ -74,6 +85,7 @@ ENVIRONMENTS = {
     "Uniform5D": dummy_env_and_dataset(dims=5),
     "PointLine": make_pm("evaluating_rewards/PointMassLine-v0"),
     "PointGrid": make_pm("evaluating_rewards/PointMassGrid-v0"),
+    "PointGridShort": make_pm("evaluating_rewards/PointMassGrid-v0", extra_dones=10),
 }
 
 ARCHITECTURES = {
@@ -83,8 +95,8 @@ ARCHITECTURES = {
             "dataset_potential_hids": [],
             "model_potential_hids": [],
             "learning_rate": 1e-2,
-            "total_timesteps": 2 ** 18,
-            "batch_size": 256,
+            "total_timesteps": 2 ** 22,
+            "batch_size": 1024,
         },
         "rel_upperbound": 0.2,
     },
