@@ -14,6 +14,7 @@
 
 """Unit tests for evaluating_rewards.rewards."""
 
+import dataclasses
 import tempfile
 
 import hypothesis
@@ -214,6 +215,50 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
 
     # Are the predictions close to true Gym reward?
     np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)
+
+
+@pytest.mark.parametrize(
+    "env_name,potential_cls",
+    [
+        ("benchmark_environments/CartPole-v0", rewards.MLPPotentialShaping),
+        ("evaluating_rewards/PointMassLine-v0", point_mass.PointMassShaping),
+    ],
+)
+@pytest.mark.parametrize("discount", [0.9, 0.99, 1.0])
+def test_potential_shaping_cycle(
+    graph, session, venv, potential_cls, discount: float, num_episodes: int = 10
+) -> None:
+    """Test that potential shaping is constant on any fixed-length cycle.
+
+    Specifically, performs rollouts of a random policy in the environment.
+    Fixes the starting state for each trajectory at the all-zero state.
+    Then computes episode return, and checks they're all equal.
+
+    Requires environment be fixed length, otherwise the episode return will vary
+    (except in the undiscounted case).
+    """
+    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    trajectories = rollout.generate_trajectories(
+        policy, venv, sample_until=rollout.min_episodes(num_episodes)
+    )
+    transitions = rollout.flatten_trajectories(trajectories)
+
+    # Make initial state fixed as all-zero.
+    # Note don't need to change final state, since `dones` being `True` should
+    # force potential to be zero at those states.
+    obs = np.array(transitions.obs)
+    idxs = np.where(transitions.dones)[0] + 1
+    idxs = np.pad(idxs[:-1], (1, 0), "constant")
+    obs[idxs, :] = 0
+    transitions = dataclasses.replace(transitions, obs=obs)
+
+    with graph.as_default(), session.as_default():
+        reward_model = potential_cls(venv.observation_space, venv.action_space, discount=discount)
+        session.run(tf.global_variables_initializer())
+        rews = rewards.evaluate_models({"m": reward_model}, transitions)
+
+    rets = rewards.compute_return_from_rews(rews, transitions.dones, discount=discount)["m"]
+    assert np.allclose(rets, np.mean(rets), atol=1e-5)
 
 
 REWARD_LEN = 10000
