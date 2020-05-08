@@ -153,7 +153,28 @@ class BasicRewardModel(RewardModel):
 
 
 class PotentialShaping(RewardModel):
-    """Mix-in to add potential shaping."""
+    """Mix-in to add potential shaping.
+
+    We follow Ng et al (1999)'s definition of potential shaping. In the discounted
+    infinite-horizon case, this is simple. Define a state-only function `pot(s)`,
+    and then the reward output is `discount * pot(s') - pot(s)` where `s'` is the
+    next state and `s` the current state.
+
+    In finite-horizon cases, however, we must always transition into a special
+    absorbing state when the episode terminates. This ensures that you pay back
+    the potential gained earlier in the episode -- otherwise potential shaping
+    would change the optimal policy. We handle this by introducing a special
+    end_potential Tensor, which should *not* depend on the state (so may be a
+    trainable scalar variable or constant).
+
+    In the undiscounted finite-horizon case, a constant shift in potential has
+    no effect on the shaping output. We follow Ng et al in assuming WLOG that the
+    potential is zero at the terminal state. Ng et al need this for their derivation,
+    but it isn't needed computationally. However, removing an unnecessary degree of
+    freedom does make the learning problem better conditioned.
+
+    Andrew Y. Ng, Daishi Harada & Stuart Russell (1999). ICML.
+    """
 
     def __init__(
         self,
@@ -171,7 +192,7 @@ class PotentialShaping(RewardModel):
             new_potential: The potential of the next observation.
             end_potential: The potential of a terminal state at the end of an episode.
                 If discount is 1.0, this is ignored and it is fixed at 0.0 instead,
-                the only permissible value in the undiscounted case (see Ng et al, 1999).
+                following Ng et al (1999).
             dones: Indicator variable (0 or 1 floating point tensor) for episode termination.
             discount: The initial discount rate to use.
 
