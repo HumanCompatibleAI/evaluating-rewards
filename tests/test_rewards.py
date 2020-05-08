@@ -260,6 +260,8 @@ def test_potential_shaping_cycle(
         rews = rewards.evaluate_models({"m": reward_model}, transitions)
 
     rets = rewards.compute_return_from_rews(rews, transitions.dones, discount=discount)["m"]
+    if discount == 1.0:
+        assert np.allclose(rets, 0.0, atol=1e-5)
     assert np.allclose(rets, np.mean(rets), atol=1e-5)
 
 

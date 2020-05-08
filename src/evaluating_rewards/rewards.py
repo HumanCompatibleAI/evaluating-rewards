@@ -159,6 +159,7 @@ class PotentialShaping(RewardModel):
         self,
         old_potential: tf.Tensor,
         new_potential: tf.Tensor,
+        end_potential: tf.Tensor,
         dones: tf.Tensor,
         discount: float = 0.99,
     ):
@@ -168,6 +169,9 @@ class PotentialShaping(RewardModel):
         Args:
             old_potential: The potential of the observation.
             new_potential: The potential of the next observation.
+            end_potential: The potential of a terminal state at the end of an episode.
+                If discount is 1.0, this is ignored and it is fixed at 0.0 instead,
+                the only permissible value in the undiscounted case (see Ng et al, 1999).
             dones: Indicator variable (0 or 1 floating point tensor) for episode termination.
             discount: The initial discount rate to use.
 
@@ -178,7 +182,9 @@ class PotentialShaping(RewardModel):
         self._discount.build(())
 
         self._old_potential = old_potential
-        self._new_potential = new_potential * (1 - dones)
+        is_discounted = tf.cast(self.discount == 1.0, dtype=tf.float32)
+        end_potential = is_discounted * end_potential
+        self._new_potential = end_potential * dones + new_potential * (1 - dones)
         self._reward_output = self.discount * self.new_potential - self.old_potential
 
     @property
@@ -290,9 +296,13 @@ class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSe
             hid_sizes, self._proc_obs, self._proc_next_obs, **kwargs
         )
         old_potential, new_potential, layers = res
+        end_potential = ConstantLayer("end_potential")
+        end_potential.build(())
         PotentialShaping.__init__(
-            self, old_potential, new_potential, self._proc_dones, discount,
+            self, old_potential, new_potential, end_potential.constant, self._proc_dones, discount,
         )
+
+        layers["end_potential"] = end_potential
         layers["discount"] = self._discount
         serialize.LayersSerializable.__init__(**params, layers=layers)
 

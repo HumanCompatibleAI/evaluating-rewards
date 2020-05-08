@@ -265,8 +265,9 @@ class PointMassShaping(
 
         old_potential = _point_mass_dist(self._proc_obs, self.ndim)
         new_potential = _point_mass_dist(self._proc_next_obs, self.ndim)
+        end_potential = tf.constant(0.0)
         rewards.PotentialShaping.__init__(
-            self, old_potential, new_potential, self._proc_dones, discount
+            self, old_potential, new_potential, end_potential, self._proc_dones, discount
         )
 
         self.set_discount(discount)  # set it so no need for TF initializer to be called
