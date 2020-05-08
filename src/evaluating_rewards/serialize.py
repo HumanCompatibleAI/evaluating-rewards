@@ -21,9 +21,8 @@ from typing import Callable, Iterator, Optional
 import uuid
 
 from imitation.rewards import common, reward_net, serialize
-from imitation.util import data, registry
+from imitation.util import data, networks, registry
 from imitation.util import serialize as util_serialize
-from imitation.util import util
 import numpy as np
 from stable_baselines.common import vec_env
 import tensorflow as tf
@@ -56,7 +55,7 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
         def reward_fn_loader(path: str, venv: vec_env.VecEnv) -> Iterator[common.RewardFn]:
             """Load a TensorFlow reward model, then convert it into a Callable."""
             reward_model_loader = self.get(key)
-            with util.make_session() as (_, sess):
+            with networks.make_session() as (_, sess):
                 reward_model = reward_model_loader(path, venv)
 
                 def reward_fn(

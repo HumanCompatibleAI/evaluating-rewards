@@ -21,7 +21,7 @@ import os
 from typing import Any, Iterable, Mapping, Sequence, Tuple
 
 import gym
-from imitation import util
+from imitation.util import networks
 import numpy as np
 import sacred
 from stable_baselines.common import vec_env
@@ -153,7 +153,7 @@ def plot_pm_reward(
         goal = np.array([0.0])
 
         rewards = {}
-        with util.make_session():
+        with networks.make_session():
             for model_name, reward_type, reward_path in models:
                 reward_path = os.path.join(data_root, reward_path)
                 model = serialize.load_reward(reward_type, reward_path, venv, discount)

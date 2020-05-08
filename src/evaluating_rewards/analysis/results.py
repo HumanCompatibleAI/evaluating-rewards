@@ -21,7 +21,7 @@ import pickle
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
 
 import gym
-from imitation import util as imitation_util
+from imitation.util import networks
 import numpy as np
 import pandas as pd
 from stable_baselines.common import vec_env
@@ -196,7 +196,7 @@ def get_affine_from_models(env_name: str, paths: Iterable[str]):
     """Extract affine parameters from reward model."""
     venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
     res = {}
-    with imitation_util.make_session():
+    with networks.make_session():
         for path in paths:
             model = serialize.load_reward(
                 "evaluating_rewards/RewardModel-v0", os.path.join(path, "model"), venv,

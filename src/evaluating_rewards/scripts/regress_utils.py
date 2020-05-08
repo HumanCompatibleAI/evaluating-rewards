@@ -19,7 +19,7 @@ import pickle
 from typing import Callable, TypeVar
 
 import gym
-from imitation import util
+from imitation.util import networks, util
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
@@ -71,7 +71,7 @@ def regress(
     # This venv is needed by serialize.load_reward, but is never stepped.
     venv = vec_env.DummyVecEnv([lambda: gym.make(env_name)])
 
-    with util.make_session() as (_, sess):
+    with networks.make_session() as (_, sess):
         tf.random.set_random_seed(seed)
 
         with tf.variable_scope("source") as model_scope:

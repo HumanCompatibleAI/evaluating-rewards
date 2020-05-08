@@ -22,7 +22,7 @@ from typing import Dict, Iterable, Mapping, NamedTuple, Optional, Sequence, Tupl
 
 import gym
 from imitation.rewards import reward_net
-from imitation.util import data, rollout, serialize
+from imitation.util import data, networks, rollout, serialize
 import numpy as np
 import scipy.optimize
 from stable_baselines.common import input as env_in  # avoid name clash
@@ -254,7 +254,7 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         if use_dones:
             inputs.append(self._proc_dones)
 
-        self._reward, self.layers = reward_net.build_mlp(inputs, hid_sizes)
+        self._reward, self.layers = networks.build_and_apply_mlp(inputs, hid_sizes)
         serialize.LayersSerializable.__init__(**params, layers=self.layers)
 
     @property
