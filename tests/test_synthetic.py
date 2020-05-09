@@ -56,7 +56,7 @@ def dummy_env_and_dataset(dims: int = 5):
 
 
 def make_pm(env_name="evaluating_rewards/PointMassLine-v0", extra_dones: Optional[int] = None):
-    """Make Point Mass environment and dataset generator.
+    """Make transitions factory for Point Mass environment.
 
     Args:
         env_name: The name of the environment in the Gym registry.
@@ -67,16 +67,19 @@ def make_pm(env_name="evaluating_rewards/PointMassLine-v0", extra_dones: Optiona
             reward output. Increasing the frequency of dones is a form of dataset
             augmentation, that lets us learn the constant bias more quickly. This is
             definitely "cheating", but it seems worth it to keep the unit tests quick.
+
+    Returns:
+        A dict of observation space, action space and dataset generator.
     """
     venv = util.make_vec_env(env_name)
     obs_space = venv.observation_space
     act_space = venv.action_space
 
     pm = point_mass.PointMassPolicy(obs_space, act_space)
-    with datasets.transitions_factory_from_policy(venv, pm) as dataset_generator:
+    with datasets.transitions_factory_from_policy(venv, pm) as transitions_factory:
 
         def f(total_timesteps: int):
-            trans = dataset_generator(total_timesteps)
+            trans = transitions_factory(total_timesteps)
             if extra_dones is not None:
                 dones = np.array(trans.dones)
                 dones[::extra_dones] = True

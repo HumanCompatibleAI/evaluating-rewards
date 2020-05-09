@@ -91,7 +91,7 @@ GROUND_TRUTH = {
         "seals/HalfCheetah-v0",
         "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
     ),
-    "hopper": ("seals/Hopper-v0", "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",),
+    "hopper": ("seals/Hopper-v0", "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0"),
     "point_mass": (
         "evaluating_rewards/PointMassLine-v0",
         "evaluating_rewards/PointMassGroundTruth-v0",
@@ -270,7 +270,7 @@ def test_potential_shaping_invariants(
     """Test that potential shaping obeys several invariants.
 
     Specifically:
-        1. new_potential must be zero when dones is true.
+        1. new_potential must be constant when dones is true, and zero when `discount == 1.0`.
         2. new_potential depends only on next observation.
         3. old_potential depends only on current observation.
         4. Shaping is discount * new_potential - old_potential.
@@ -293,7 +293,8 @@ def test_potential_shaping_invariants(
     )
     with session.as_default():
         _, new_pot_done = rewards.evaluate_potentials([potential], transitions_all_done)
-    assert np.allclose(new_pot_done, 0.0)
+    expected_new_pot_done = 0.0 if discount == 1.0 else np.mean(new_pot_done)
+    assert np.allclose(new_pot_done, expected_new_pot_done)
 
     # Check invariants 2 and 3: {new,old}_potential depend only on {next,current} observation
     def _shuffle(fld: str):

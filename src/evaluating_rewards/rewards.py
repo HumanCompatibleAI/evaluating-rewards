@@ -103,13 +103,13 @@ class RewardModel(serialize.Serializable, abc.ABC):
 
 
 # pylint:disable=abstract-method
-# These classes are abstract but PyLint don't understand them; see pylint GH #179
+# These classes are abstract but PyLint doesn't understand them; see pylint GH #179
 # TODO(adam): in pylint 2.5.x adding abc.ABC as an inheritance should fix this
 class BasicRewardModel(RewardModel):
     """Abstract reward model class with basic default implementations."""
 
     def __init__(self, obs_space: gym.Space, act_space: gym.Space):
-        """Builds BasicRewardModel: adding placeholders and spaces but nothing else.
+        """Builds BasicRewardModel: adds placeholders and spaces but nothing else.
 
         The spaces passed are used to define the `observation_space` and `action_space`
         properties, and also are used to determine how to preprocess the observation
@@ -165,7 +165,7 @@ class PotentialShaping(RewardModel):
     absorbing state when the episode terminates. This ensures that you pay back
     the potential gained earlier in the episode -- otherwise potential shaping
     would change the optimal policy. We handle this by introducing a special
-    end_potential Tensor, which should *not* depend on the state (so may be a
+    Tensor `end_potential`, which should *not* depend on the state (so may be a
     trainable scalar variable or constant).
 
     In the undiscounted finite-horizon case, a constant shift in potential has
@@ -186,7 +186,7 @@ class PotentialShaping(RewardModel):
         discount: float = 0.99,
     ):
         """
-        Builds PotentialShaping mix-in, adding reward in terms of {old,new}_potential.
+        Builds PotentialShaping mix-in, computing reward in terms of {old,new,end}_potential.
 
         Args:
             old_potential: The potential of the observation.
@@ -230,7 +230,8 @@ class PotentialShaping(RewardModel):
     def new_potential(self) -> tf.Tensor:
         """The potential of the next observation.
 
-        This is fixed to zero when dones_ph is True.
+        This is equal to the constructor argument `new_potential` when `dones` is false,
+        and `end_potential` when `dones` is true.
         """
         return self._new_potential
 
