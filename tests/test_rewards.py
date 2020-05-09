@@ -14,14 +14,15 @@
 
 """Unit tests for evaluating_rewards.rewards."""
 
+import dataclasses
 import tempfile
 
 import hypothesis
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hp_numpy
+from imitation.data import rollout
 from imitation.policies import base
 from imitation.rewards import reward_net
-from imitation.util import rollout
 from imitation.util import serialize as util_serialize
 import numpy as np
 import pytest
@@ -36,17 +37,17 @@ ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
 
 STANDALONE_REWARD_MODELS = {
     "halfcheetah_ground_truth": {
-        "env_name": "benchmark_environments/HalfCheetah-v0",
+        "env_name": "seals/HalfCheetah-v0",
         "model_class": mujoco.HalfCheetahGroundTruthReward,
         "kwargs": {},
     },
     "hopper_ground_truth": {
-        "env_name": "benchmark_environments/Hopper-v0",
+        "env_name": "seals/Hopper-v0",
         "model_class": mujoco.HopperGroundTruthReward,
         "kwargs": {},
     },
     "hopper_backflip": {
-        "env_name": "benchmark_environments/Hopper-v0",
+        "env_name": "seals/Hopper-v0",
         "model_class": mujoco.HopperBackflipReward,
         "kwargs": {},
     },
@@ -60,7 +61,7 @@ STANDALONE_REWARD_MODELS = {
 GENERAL_REWARD_MODELS = {
     "mlp": {"model_class": rewards.MLPRewardModel, "kwargs": {}},
     "mlp_wide": {"model_class": rewards.MLPRewardModel, "kwargs": {"hid_sizes": [64, 64]}},
-    "potential": {"model_class": rewards.PotentialShaping, "kwargs": {}},
+    "mlp_potential": {"model_class": rewards.MLPPotentialShaping, "kwargs": {}},
     "constant": {"model_class": rewards.ConstantReward, "kwargs": {}},
 }
 ENVS_KWARGS = {env: {"env_name": env} for env in ENVS}
@@ -82,18 +83,15 @@ REWARD_WRAPPERS = [
     rewards.RewardModelWrapper,
     rewards.StopGradientsModelWrapper,
     rewards.AffineTransform,
-    rewards.PotentialShapingWrapper,
+    rewards.MLPPotentialShapingWrapper,
 ]
 
 GROUND_TRUTH = {
     "half_cheetah": (
-        "benchmark_environments/HalfCheetah-v0",
+        "seals/HalfCheetah-v0",
         "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
     ),
-    "hopper": (
-        "benchmark_environments/Hopper-v0",
-        "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
-    ),
+    "hopper": ("seals/Hopper-v0", "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0"),
     "point_mass": (
         "evaluating_rewards/PointMassLine-v0",
         "evaluating_rewards/PointMassGroundTruth-v0",
@@ -103,6 +101,14 @@ GROUND_TRUTH = {
         "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
     ),
 }
+
+ENV_POTENTIALS = [
+    # (env_name, potential_class)
+    # Tests require the environments are fixed length.
+    ("seals/CartPole-v0", rewards.MLPPotentialShaping),
+    ("evaluating_rewards/PointMassLine-v0", point_mass.PointMassShaping),
+]
+DISCOUNTS = [0.9, 0.99, 1.0]
 
 
 @pytest.fixture(name="helper_serialize_identity")
@@ -189,11 +195,12 @@ def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls, disc
     return helper_serialize_identity(make_model)
 
 
+@pytest.mark.parametrize("cls", [reward_net.BasicRewardNet, reward_net.BasicShapedRewardNet])
 @pytest.mark.parametrize("env_name", ENVS)
 @pytest.mark.parametrize("use_test", [True, False])
-def test_serialize_identity_reward_net(helper_serialize_identity, use_test):
+def test_serialize_identity_reward_net(helper_serialize_identity, cls, use_test):
     def make_model(env):
-        net = reward_net.BasicRewardNet(env.observation_space, env.action_space)
+        net = cls(env.observation_space, env.action_space)
         return rewards.RewardNetToRewardModel(net, use_test=use_test)
 
     return helper_serialize_identity(make_model)
@@ -214,6 +221,99 @@ def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
 
     # Are the predictions close to true Gym reward?
     np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)
+
+
+@pytest.mark.parametrize("env_name,potential_cls", ENV_POTENTIALS)
+@pytest.mark.parametrize("discount", DISCOUNTS)
+def test_potential_shaping_cycle(
+    graph, session, venv, potential_cls, discount: float, num_episodes: int = 10
+) -> None:
+    """Test that potential shaping is constant on any fixed-length cycle.
+
+    Specifically, performs rollouts of a random policy in the environment.
+    Fixes the starting state for each trajectory at the all-zero state.
+    Then computes episode return, and checks they're all equal.
+
+    Requires environment be fixed length, otherwise the episode return will vary
+    (except in the undiscounted case).
+    """
+    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    trajectories = rollout.generate_trajectories(
+        policy, venv, sample_until=rollout.min_episodes(num_episodes)
+    )
+    transitions = rollout.flatten_trajectories(trajectories)
+
+    # Make initial state fixed as all-zero.
+    # Note don't need to change final state, since `dones` being `True` should
+    # force potential to be zero at those states.
+    obs = np.array(transitions.obs)
+    idxs = np.where(transitions.dones)[0] + 1
+    idxs = np.pad(idxs[:-1], (1, 0), "constant")
+    obs[idxs, :] = 0
+    transitions = dataclasses.replace(transitions, obs=obs)
+
+    with graph.as_default(), session.as_default():
+        reward_model = potential_cls(venv.observation_space, venv.action_space, discount=discount)
+        session.run(tf.global_variables_initializer())
+        rews = rewards.evaluate_models({"m": reward_model}, transitions)
+
+    rets = rewards.compute_return_from_rews(rews, transitions.dones, discount=discount)["m"]
+    if discount == 1.0:
+        assert np.allclose(rets, 0.0, atol=1e-5)
+    assert np.allclose(rets, np.mean(rets), atol=1e-5)
+
+
+@pytest.mark.parametrize("env_name,potential_cls", ENV_POTENTIALS)
+@pytest.mark.parametrize("discount", DISCOUNTS)
+def test_potential_shaping_invariants(
+    graph, session, venv, potential_cls, discount: float, num_timesteps: int = 100
+):
+    """Test that potential shaping obeys several invariants.
+
+    Specifically:
+        1. new_potential must be constant when dones is true, and zero when `discount == 1.0`.
+        2. new_potential depends only on next observation.
+        3. old_potential depends only on current observation.
+        4. Shaping is discount * new_potential - old_potential.
+    """
+    # Invariants:
+    # When done, new_potential should always be zero.
+    # self.discount * new_potential - old_potential should equal the output
+    # Same old_obs should have same old_potential; same new_obs should have same new_potential.
+    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    transitions = rollout.generate_transitions(policy, venv, n_timesteps=num_timesteps)
+
+    with graph.as_default(), session.as_default():
+        potential = potential_cls(venv.observation_space, venv.action_space, discount=discount)
+        session.run(tf.global_variables_initializer())
+        (old_pot,), (new_pot,) = rewards.evaluate_potentials([potential], transitions)
+
+    # Check invariant 1: new_potential must be zero when dones is true
+    transitions_all_done = dataclasses.replace(
+        transitions, dones=np.ones_like(transitions.dones, dtype=np.bool)
+    )
+    with session.as_default():
+        _, new_pot_done = rewards.evaluate_potentials([potential], transitions_all_done)
+    expected_new_pot_done = 0.0 if discount == 1.0 else np.mean(new_pot_done)
+    assert np.allclose(new_pot_done, expected_new_pot_done)
+
+    # Check invariants 2 and 3: {new,old}_potential depend only on {next,current} observation
+    def _shuffle(fld: str):
+        arr = np.array(getattr(transitions, fld))
+        np.random.shuffle(arr)
+        trans = dataclasses.replace(transitions, **{fld: arr})
+        with session.as_default():
+            return rewards.evaluate_potentials([potential], trans)
+
+    (old_pot_shuffled,), _ = _shuffle("next_obs")
+    _, (new_pot_shuffled,) = _shuffle("obs")
+    assert np.all(old_pot == old_pot_shuffled)
+    assert np.all(new_pot == new_pot_shuffled)
+
+    # Check invariant 4: that reward output is as expected given potentials
+    with session.as_default():
+        rew = rewards.evaluate_models({"m": potential}, transitions)["m"]
+    assert np.allclose(rew, discount * new_pot - old_pot)
 
 
 REWARD_LEN = 10000

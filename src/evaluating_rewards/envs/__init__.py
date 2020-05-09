@@ -14,9 +14,9 @@
 
 """Module for Gym environments. __init__ registers environments."""
 
-import benchmark_environments  # noqa: F401  pylint:disable=unused-import
 import gym
 import imitation.envs.examples  # noqa: F401  pylint:disable=unused-import
+import seals  # noqa: F401  pylint:disable=unused-import
 
 from evaluating_rewards.envs import mujoco, point_mass  # noqa: F401  pylint:disable=unused-import
 
@@ -34,7 +34,9 @@ def register_point_mass(suffix, **kwargs):
     )
 
 
-register_point_mass("Line", ndim=1, threshold=0.05)
-register_point_mass("LineVariableHorizon", ndim=1, threshold=-1)
+register_point_mass("Line", ndim=1)
+for i in range(10):
+    register_point_mass(f"LineVar0.{i}Start", ndim=1, var=i / 10)
+register_point_mass("LineVariableHorizon", ndim=1, threshold=0.05)
 register_point_mass("LineStateOnly", ndim=1, ctrl_coef=0.0)
 register_point_mass("Grid", ndim=2)

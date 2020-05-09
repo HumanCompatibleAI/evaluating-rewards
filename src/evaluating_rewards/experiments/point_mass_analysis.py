@@ -21,7 +21,7 @@ import itertools
 from typing import List, Tuple
 from unittest import mock
 
-from imitation.util import data
+from imitation.data import types
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -103,7 +103,7 @@ def mesh_input(
     vel_lim: float = 1.0,
     act_lim: float = 1.0,
     density: int = 21,
-) -> Tuple[List[List[int]], data.Transitions]:
+) -> Tuple[List[List[int]], types.Transitions]:
     """Computes a grid dataset of observation, actions and next observations.
 
     Specifically, it computes a grid of position, velocity and actions
@@ -142,7 +142,7 @@ def mesh_input(
     next_obs = env.obs_from_state(next_states)
 
     dones = np.zeros(len(obs), dtype=np.bool)
-    dataset = data.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
+    dataset = types.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
     return idxs, dataset
 
 

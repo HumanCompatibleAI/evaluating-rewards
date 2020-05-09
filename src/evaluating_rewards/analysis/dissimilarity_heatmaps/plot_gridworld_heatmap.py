@@ -18,7 +18,7 @@ import collections
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional
 
-from imitation import util
+from imitation.util import util
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

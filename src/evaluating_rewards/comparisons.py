@@ -19,7 +19,7 @@ import functools
 import logging
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Type, TypeVar
 
-from imitation.util import data
+from imitation.data import types
 import numpy as np
 import tensorflow as tf
 
@@ -81,7 +81,7 @@ class RegressModel:
             if gradient is not None
         }
 
-    def build_feed_dict(self, batch: data.Transitions):
+    def build_feed_dict(self, batch: types.Transitions):
         """Construct feed dict given a batch of data."""
         models = [self.model, self.target]
         return rewards.make_feed_dict(models, batch)
@@ -149,7 +149,7 @@ class RegressWrappedModel(RegressModel):
         self.metrics["unwrapped_loss"] = loss_fn(self.target.reward, self.unwrapped_source.reward)
         self.metrics.update(metrics)
 
-    def fit_affine(self, batch: data.Transitions):
+    def fit_affine(self, batch: types.Transitions):
         """Fits affine parameters only (not e.g. potential)."""
         affine_model = self.model_extra["affine"]
         return affine_model.fit_lstsq(batch, target=self.target, shaping=None)
@@ -204,7 +204,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
             **kwargs,
         )
 
-    def fit_affine(self, batch: data.Transitions) -> rewards.AffineParameters:
+    def fit_affine(self, batch: types.Transitions) -> rewards.AffineParameters:
         """
         Set affine transformation parameters to analytic least-squares solution.
 
@@ -272,7 +272,7 @@ def summary_comparison(
     original: rewards.RewardModel,
     matched: rewards.RewardModel,
     target: rewards.RewardModel,
-    test_set: rewards.data.Transitions,
+    test_set: types.Transitions,
     shaping: Optional[rewards.RewardModel] = None,
 ) -> Tuple[float, float, float]:
     """Compare rewards in terms of intrinsic and shaping difference.
@@ -346,7 +346,7 @@ def equivalence_model_wrapper(
             model = rewards.StopGradientsModelWrapper(model)
 
     if potential:
-        model = rewards.PotentialShapingWrapper(model, **kwargs)
+        model = rewards.MLPPotentialShapingWrapper(model, **kwargs)
         models["shaping"] = model
 
     return model, models, metrics

@@ -18,7 +18,7 @@ import multiprocessing
 import multiprocessing.dummy
 from typing import Callable, Mapping, Optional, Tuple, TypeVar
 
-from imitation.util import data
+from imitation.data import types
 import numpy as np
 import tensorflow as tf
 
@@ -93,18 +93,20 @@ def mesh_evaluate_models(
         A mapping from keys to NumPy arrays of shape (l,m,n), with index (i,j,k) evaluated on the
         transition from `obs[i]` to `next_obs[k]` taking `actions[j]`.
     """
-    reward_outputs = {k: m.reward for k, m in models.items()}
     # TODO(adam): this is very memory intensive.
     # Should consider splitting up evaluation into chunks like with `discrete_mean_rews`.
     # Note observations and actions take up much more memory than the evaluated rewards.
     tensors = _make_mesh_tensors(dict(obs=obs, actions=actions, next_obs=next_obs))
+    dones = np.zeros(obs.shape[0] * actions.shape[0] * next_obs.shape[0], dtype=np.bool)
 
     feed_dict = {}
     for m in models.values():
         feed_dict.update({ph: tensors["obs"] for ph in m.obs_ph})
         feed_dict.update({ph: tensors["actions"] for ph in m.act_ph})
         feed_dict.update({ph: tensors["next_obs"] for ph in m.next_obs_ph})
+        feed_dict.update({ph: dones for ph in m.dones_ph})
 
+    reward_outputs = {k: m.reward for k, m in models.items()}
     rews = tf.get_default_session().run(reward_outputs, feed_dict=feed_dict)
     rews = {k: v.reshape(len(obs), len(actions), len(next_obs)) for k, v in rews.items()}
     return rews
@@ -192,7 +194,7 @@ def sample_mean_rews(
     for start, end in zip(idxs[:-1], idxs[1:]):
         obs = mean_from_obs[start:end]
         obs_repeated = np.repeat(obs, len(act_samples), axis=0)
-        batch = data.Transitions(
+        batch = types.Transitions(
             obs=obs_repeated,
             acts=act_tiled[: len(obs_repeated), :],
             next_obs=next_obs_tiled[: len(obs_repeated), :],
@@ -212,7 +214,7 @@ def sample_mean_rews(
 
 def sample_canon_shaping(
     models: Mapping[K, rewards.RewardModel],
-    batch: data.Transitions,
+    batch: types.Transitions,
     act_dist: datasets.SampleDist,
     obs_dist: datasets.SampleDist,
     n_mean_samples: int,

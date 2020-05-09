@@ -22,7 +22,7 @@ import logging
 from typing import Any, Callable, Iterable, List, Mapping, Optional, Tuple, Type
 
 import gym
-from imitation.util import data
+from imitation.data import types
 import numpy as np
 import pandas as pd
 import scipy as sp
@@ -59,7 +59,7 @@ def _compare_synthetic_build_base_models(
         noise_reward = rewards.MLPRewardModel(
             observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
         )
-        noise_potential = rewards.PotentialShaping(
+        noise_potential = rewards.MLPPotentialShaping(
             observation_space,
             action_space,
             hid_sizes=dataset_potential_hids,
@@ -135,7 +135,7 @@ def _compare_synthetic_eval(
     metrics: Mapping[str, List[Mapping[Tuple[float, float], Any]]],
     originals,
     matchings,
-    test_set: data.Transitions,
+    test_set: types.Transitions,
     initial_constants: Mapping[Tuple[float, float], float],
     initial_scales: Mapping[Tuple[float, float], float],
     gt_constant: float,
@@ -369,14 +369,14 @@ def compare_synthetic(
 def summary_stats(
     observation_space: gym.Space,
     action_space: gym.Space,
-    dataset: data.Transitions,
+    dataset: types.Transitions,
     reward_hids: Optional[Iterable[int]] = None,
     potential_hids: Optional[Iterable[int]] = None,
 ):
     """Compute summary statistics of a random reward and potential model."""
     # Construct randomly initialized reward and potential
     rew_model = rewards.MLPRewardModel(observation_space, action_space, reward_hids)
-    pot_model = rewards.PotentialShaping(observation_space, action_space, potential_hids)
+    pot_model = rewards.MLPPotentialShaping(observation_space, action_space, potential_hids)
     tf.get_default_session().run(tf.global_variables_initializer())
 
     # Compute their predictions on dataset

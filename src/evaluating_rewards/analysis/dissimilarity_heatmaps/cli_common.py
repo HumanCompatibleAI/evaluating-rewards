@@ -253,7 +253,7 @@ def make_config(
     @experiment.named_config
     def half_cheetah():
         """Heatmaps for HalfCheetah-v3."""
-        env_name = "benchmark_environments/HalfCheetah-v0"
+        env_name = "seals/HalfCheetah-v0"
         kinds = [
             f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
             for suffix in MUJOCO_STANDARD_ORDER
@@ -273,7 +273,7 @@ def make_config(
     @experiment.named_config
     def hopper():
         """Heatmaps for Hopper-v3."""
-        env_name = "benchmark_environments/Hopper-v0"
+        env_name = "seals/Hopper-v0"
         activities = ["GroundTruth", "Backflip"]
         kinds = [
             f"evaluating_rewards/Hopper{prefix}{suffix}-v0"

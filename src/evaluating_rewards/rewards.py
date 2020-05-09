@@ -21,8 +21,9 @@ import pickle
 from typing import Dict, Iterable, Mapping, NamedTuple, Optional, Sequence, Tuple, Type, TypeVar
 
 import gym
+from imitation.data import rollout, types
 from imitation.rewards import reward_net
-from imitation.util import data, rollout, serialize
+from imitation.util import networks, serialize
 import numpy as np
 import scipy.optimize
 from stable_baselines.common import input as env_in  # avoid name clash
@@ -95,21 +96,37 @@ class RewardModel(serialize.Serializable, abc.ABC):
     def next_obs_ph(self) -> Iterable[tf.Tensor]:
         """Gets the next observation placeholder(s)."""
 
-    # TODO(adam): should we have a dones_ph to handle terminal states/shaping
+    @property
+    @abc.abstractmethod
+    def dones_ph(self) -> Iterable[tf.Tensor]:
+        """Gets the terminal state placeholder(s)."""
 
 
 # pylint:disable=abstract-method
-# This class is abstract but PyLint doesn't understand it; see pylint GH #179
+# These classes are abstract but PyLint doesn't understand them; see pylint GH #179
+# TODO(adam): in pylint 2.5.x adding abc.ABC as an inheritance should fix this
 class BasicRewardModel(RewardModel):
     """Abstract reward model class with basic default implementations."""
 
     def __init__(self, obs_space: gym.Space, act_space: gym.Space):
+        """Builds BasicRewardModel: adds placeholders and spaces but nothing else.
+
+        The spaces passed are used to define the `observation_space` and `action_space`
+        properties, and also are used to determine how to preprocess the observation
+        and action placeholders, made available as `self._proc_{obs,act,next_obs}`.
+
+        Args:
+            obs_space: The observation space.
+            act_space: The action space.
+        """
         RewardModel.__init__(self)
         self._obs_space = obs_space
         self._act_space = act_space
         self._obs_ph, self._proc_obs = env_in.observation_input(obs_space)
         self._next_obs_ph, self._proc_next_obs = env_in.observation_input(obs_space)
         self._act_ph, self._proc_act = env_in.observation_input(act_space)
+        self._dones_ph = tf.placeholder(name="dones", shape=(None,), dtype=tf.bool)
+        self._proc_dones = tf.cast(self._dones_ph, dtype=tf.float32)
 
     @property
     def observation_space(self):
@@ -131,6 +148,93 @@ class BasicRewardModel(RewardModel):
     def act_ph(self):
         return (self._act_ph,)
 
+    @property
+    def dones_ph(self):
+        return (self._dones_ph,)
+
+
+class PotentialShaping(RewardModel):
+    """Mix-in to add potential shaping.
+
+    We follow Ng et al (1999)'s definition of potential shaping. In the discounted
+    infinite-horizon case, this is simple. Define a state-only function `pot(s)`,
+    and then the reward output is `discount * pot(s') - pot(s)` where `s'` is the
+    next state and `s` the current state.
+
+    In finite-horizon cases, however, we must always transition into a special
+    absorbing state when the episode terminates. This ensures that you pay back
+    the potential gained earlier in the episode -- otherwise potential shaping
+    would change the optimal policy. We handle this by introducing a special
+    Tensor `end_potential`, which should *not* depend on the state (so may be a
+    trainable scalar variable or constant).
+
+    In the undiscounted finite-horizon case, a constant shift in potential has
+    no effect on the shaping output. We follow Ng et al in assuming WLOG that the
+    potential is zero at the terminal state. Ng et al need this for their derivation,
+    but it isn't needed computationally. However, removing an unnecessary degree of
+    freedom does make the learning problem better conditioned.
+
+    Andrew Y. Ng, Daishi Harada & Stuart Russell (1999). ICML.
+    """
+
+    def __init__(
+        self,
+        old_potential: tf.Tensor,
+        new_potential: tf.Tensor,
+        end_potential: tf.Tensor,
+        dones: tf.Tensor,
+        discount: float = 0.99,
+    ):
+        """
+        Builds PotentialShaping mix-in, computing reward in terms of {old,new,end}_potential.
+
+        Args:
+            old_potential: The potential of the observation.
+            new_potential: The potential of the next observation.
+            end_potential: The potential of a terminal state at the end of an episode.
+                If discount is 1.0, this is ignored and it is fixed at 0.0 instead,
+                following Ng et al (1999).
+            dones: Indicator variable (0 or 1 floating point tensor) for episode termination.
+            discount: The initial discount rate to use.
+
+        Raises:
+            ValueError if self.dones_ph is empty.
+        """
+        self._discount = ConstantLayer("discount", initializer=tf.constant_initializer(discount))
+        self._discount.build(())
+
+        self._old_potential = old_potential
+        is_discounted = tf.cast(self.discount == 1.0, dtype=tf.float32)
+        end_potential = is_discounted * end_potential
+        self._new_potential = end_potential * dones + new_potential * (1 - dones)
+        self._reward_output = self.discount * self.new_potential - self.old_potential
+
+    @property
+    def reward(self):
+        """The reward: discount * new_potential - old_potential."""
+        return self._reward_output
+
+    @property
+    def discount(self) -> tf.Tensor:
+        return tf.stop_gradient(self._discount.constant)
+
+    def set_discount(self, discount: float) -> None:
+        self._discount.set_constant(discount)
+
+    @property
+    def old_potential(self) -> tf.Tensor:
+        """The potential of the observation."""
+        return self._old_potential
+
+    @property
+    def new_potential(self) -> tf.Tensor:
+        """The potential of the next observation.
+
+        This is equal to the constructor argument `new_potential` when `dones` is false,
+        and `end_potential` when `dones` is true.
+        """
+        return self._new_potential
+
 
 # pylint:enable=abstract-method
 
@@ -142,22 +246,44 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         self,
         obs_space: gym.Space,
         act_space: gym.Space,
-        hid_sizes: Optional[Iterable[int]] = None,
-        use_act: bool = True,
+        hid_sizes: Iterable[int] = (32, 32),
+        *,
         use_obs: bool = True,
+        use_act: bool = True,
         use_next_obs: bool = True,
+        use_dones: bool = True,
     ):
+        """Builds MLPRewardModel.
+
+        Args:
+            obs_space: The observation space.
+            act_space: The action space.
+            hid_sizes: The number of hidden units at each layer in the network.
+            use_obs: Whether to include the observation in the input.
+            use_act: Whether to include actions in the input.
+            use_next_obs: Whether to include the next observation in the input.
+            use_dones: Whether to include episode termination in the input.
+
+        Raises:
+            ValueError if none of `use_obs`, `use_act` or `use_next_obs` are True.
+        """
         BasicRewardModel.__init__(self, obs_space, act_space)
-        if hid_sizes is None:
-            hid_sizes = [32, 32]
         params = dict(locals())
 
-        kwargs = {
-            "obs_input": self._proc_obs if use_obs else None,
-            "next_obs_input": self._proc_next_obs if use_next_obs else None,
-            "act_input": self._proc_act if use_act else None,
-        }
-        self._reward, self.layers = reward_net.build_basic_theta_network(hid_sizes, **kwargs)
+        inputs = []
+        if use_obs:
+            inputs.append(self._proc_obs)
+        if use_act:
+            inputs.append(self._proc_act)
+        if use_next_obs:
+            inputs.append(self._proc_next_obs)
+        if len(inputs) == 0:
+            msg = "At least one of `use_act`, `use_obs` and `use_next_obs` must be true."
+            raise ValueError(msg)
+        if use_dones:
+            inputs.append(self._proc_dones)
+
+        self._reward, self.layers = networks.build_and_apply_mlp(inputs, hid_sizes)
         serialize.LayersSerializable.__init__(**params, layers=self.layers)
 
     @property
@@ -165,58 +291,43 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         return self._reward
 
 
-class PotentialShaping(BasicRewardModel, serialize.LayersSerializable):
-    r"""Models a state-only potential, reward is the difference in potential.
-
-    Specifically, contains a state-only potential $$\phi(s)$$. The reward
-    $$r(s,a,s') = \gamma \phi(s') - \phi(s)$$ where $$\gamma$$ is the discount.
-    """
+class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSerializable):
+    """Potential shaping using MLP to calculate potential."""
 
     def __init__(
         self,
         obs_space: gym.Space,
         act_space: gym.Space,
-        hid_sizes: Optional[Iterable[int]] = None,
+        hid_sizes: Iterable[int] = (32, 32),
         discount: float = 0.99,
         **kwargs,
     ):
-        BasicRewardModel.__init__(self, obs_space, act_space)
+        """Builds MLPPotentialShaping.
 
-        if hid_sizes is None:
-            hid_sizes = [32, 32]
+        Args:
+            obs_space: The observation space.
+            act_space: The action space.
+            hid_sizes: The number of hidden units at each layer in the network.
+            discount: The initial discount rate to use.
+        """
         params = dict(locals())
         del params["kwargs"]
         params.update(**kwargs)
 
+        BasicRewardModel.__init__(self, obs_space, act_space)
         res = reward_net.build_basic_phi_network(
             hid_sizes, self._proc_obs, self._proc_next_obs, **kwargs
         )
-        self._old_potential, self._new_potential, layers = res
-        self._discount = ConstantLayer("discount", initializer=tf.constant_initializer(discount))
-        self._discount.build(())
+        old_potential, new_potential, layers = res
+        end_potential = ConstantLayer("end_potential")
+        end_potential.build(())
+        PotentialShaping.__init__(
+            self, old_potential, new_potential, end_potential.constant, self._proc_dones, discount,
+        )
+
+        layers["end_potential"] = end_potential
         layers["discount"] = self._discount
-        self._reward_output = self.discount * self.new_potential - self.old_potential
-
         serialize.LayersSerializable.__init__(**params, layers=layers)
-
-    @property
-    def reward(self):
-        return self._reward_output
-
-    @property
-    def discount(self) -> tf.Tensor:
-        return tf.stop_gradient(self._discount.constant)
-
-    def set_discount(self, discount: float) -> None:
-        self._discount.set_constant(discount)
-
-    @property
-    def old_potential(self):
-        return self._old_potential
-
-    @property
-    def new_potential(self):
-        return self._new_potential
 
 
 class ConstantLayer(tf.keras.layers.Layer):
@@ -359,6 +470,10 @@ class RewardNetToRewardModel(RewardModel):
     def next_obs_ph(self):
         return (self.reward_net.next_obs_ph,)
 
+    @property
+    def dones_ph(self):
+        return (self.reward_net.done_ph,)
+
     @classmethod
     def _load(cls, directory: str) -> "RewardNetToRewardModel":
         with open(os.path.join(directory, "use_test"), "rb") as f:
@@ -419,6 +534,10 @@ class RewardModelWrapper(RewardModel):
     @property
     def next_obs_ph(self):
         return self.model.next_obs_ph
+
+    @property
+    def dones_ph(self):
+        return self.model.dones_ph
 
     @classmethod
     def _load(cls: Type[serialize.T], directory: str) -> serialize.T:
@@ -485,6 +604,10 @@ class LinearCombinationModelWrapper(RewardModelWrapper):
     @property
     def act_ph(self):
         return tuple(itertools.chain(*[m.act_ph for m, _ in self.models.values()]))
+
+    @property
+    def dones_ph(self):
+        return tuple(itertools.chain(*[m.dones_ph for m, _ in self.models.values()]))
 
     @classmethod
     def _load(cls, directory: str) -> "LinearCombinationModelWrapper":
@@ -571,7 +694,7 @@ class AffineTransform(LinearCombinationModelWrapper):
         super().__init__(models)
 
     def fit_lstsq(
-        self, batch: data.Transitions, target: RewardModel, shaping: Optional[RewardModel]
+        self, batch: types.Transitions, target: RewardModel, shaping: Optional[RewardModel]
     ) -> AffineParameters:
         """Sets the shift and scale parameters to try and match target, given shaping.
 
@@ -686,7 +809,7 @@ class AffineTransform(LinearCombinationModelWrapper):
         return obj
 
 
-class PotentialShapingWrapper(LinearCombinationModelWrapper):
+class MLPPotentialShapingWrapper(LinearCombinationModelWrapper):
     """Adds potential shaping to an underlying reward model."""
 
     def __init__(self, wrapped: RewardModel, **kwargs):
@@ -696,7 +819,7 @@ class PotentialShapingWrapper(LinearCombinationModelWrapper):
             wrapped: The model to add shaping to.
             **kwargs: Passed through to PotentialShaping.
         """
-        shaping = PotentialShaping(wrapped.observation_space, wrapped.action_space, **kwargs)
+        shaping = MLPPotentialShaping(wrapped.observation_space, wrapped.action_space, **kwargs)
 
         super().__init__(
             {"wrapped": (wrapped, tf.constant(1.0)), "shaping": (shaping, tf.constant(1.0))}
@@ -704,7 +827,7 @@ class PotentialShapingWrapper(LinearCombinationModelWrapper):
 
 
 def make_feed_dict(
-    models: Iterable[RewardModel], batch: data.Transitions
+    models: Iterable[RewardModel], batch: types.Transitions
 ) -> Dict[tf.Tensor, np.ndarray]:
     """Construct a feed dictionary for models for data in batch."""
     assert batch.obs.shape == batch.next_obs.shape
@@ -723,12 +846,13 @@ def make_feed_dict(
         feed_dict.update({ph: batch.obs for ph in m.obs_ph})
         feed_dict.update({ph: batch.acts for ph in m.act_ph})
         feed_dict.update({ph: batch.next_obs for ph in m.next_obs_ph})
+        feed_dict.update({ph: batch.dones for ph in m.dones_ph})
 
     return feed_dict
 
 
 def evaluate_models(
-    models: Mapping[K, RewardModel], batch: data.Transitions
+    models: Mapping[K, RewardModel], batch: types.Transitions
 ) -> Mapping[K, np.ndarray]:
     """Computes prediction of reward models."""
     reward_outputs = {k: m.reward for k, m in models.items()}
@@ -786,7 +910,9 @@ def compute_return_from_rews(
 
 
 def compute_return_of_models(
-    models: Mapping[K, RewardModel], trajectories: Sequence[data.Trajectory], discount: float = 1.0,
+    models: Mapping[K, RewardModel],
+    trajectories: Sequence[types.Trajectory],
+    discount: float = 1.0,
 ) -> Mapping[K, np.ndarray]:
     """Computes the returns of each trajectory under each model.
 
@@ -808,7 +934,7 @@ def compute_return_of_models(
 
 
 def evaluate_potentials(
-    potentials: Iterable[PotentialShaping], transitions: data.Transitions
+    potentials: Iterable[PotentialShaping], transitions: types.Transitions
 ) -> np.ndarray:
     """Computes prediction of potential shaping models."""
     old_pots = [p.old_potential for p in potentials]

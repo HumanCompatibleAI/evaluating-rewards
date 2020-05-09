@@ -18,7 +18,7 @@ import itertools
 from typing import Mapping
 
 import gym
-from imitation.util import data
+from imitation.data import types
 import numpy as np
 import pytest
 from stable_baselines.common import vec_env
@@ -46,7 +46,7 @@ def mesh_evaluate_models_slow(
         np.array([m[i] for m in transitions]) for i in range(3)  # pylint:disable=not-an-iterable
     )
     dones = np.zeros(len(tiled_obs), dtype=np.bool)
-    transitions = data.Transitions(
+    transitions = types.Transitions(
         obs=tiled_obs, acts=tiled_acts, next_obs=tiled_next_obs, dones=dones
     )
     rews = rewards.evaluate_models(models, transitions)

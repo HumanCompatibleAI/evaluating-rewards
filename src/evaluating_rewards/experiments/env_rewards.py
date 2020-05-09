@@ -20,8 +20,8 @@ from typing import Iterable, Set
 from evaluating_rewards import serialize
 
 REWARDS_BY_ENV = {
-    "benchmark_environments/HalfCheetah-v0": ["evaluating_rewards/HalfCheetahGroundTruth.*-v0"],
-    "benchmark_environments/Hopper-v0": ["evaluating_rewards/Hopper.*-v0"],
+    "seals/HalfCheetah-v0": ["evaluating_rewards/HalfCheetahGroundTruth.*-v0"],
+    "seals/Hopper-v0": ["evaluating_rewards/Hopper.*-v0"],
     "evaluating_rewards/PointMassLine-v0": ["evaluating_rewards/PointMass.*-v0"],
     "imitation/PointMazeLeftVel-v0": ["evaluating_rewards/PointMaze.*-v0"],
     "imitation/PointMazeRightVel-v0": ["evaluating_rewards/PointMaze.*-v0"],

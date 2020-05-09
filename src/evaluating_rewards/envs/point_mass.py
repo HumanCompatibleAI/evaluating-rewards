@@ -32,7 +32,12 @@ class PointMassEnv(resettable_env.ResettableEnv):
     """A simple point-mass environment."""
 
     def __init__(
-        self, ndim: int = 2, dt: float = 1e-1, ctrl_coef: float = 1.0, threshold: float = -1
+        self,
+        ndim: int = 2,
+        dt: float = 1e-1,
+        ctrl_coef: float = 1.0,
+        threshold: float = -1,
+        var: float = 1.0,
     ):
         """Builds a PointMass environment.
 
@@ -42,6 +47,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
             ctrl_coef: Weight for control cost.
             threshold: Distance to goal within which episode terminates.
                     (Set negative to disable episode termination.)
+            var: Standard deviation of components of initial state distribution.
         """
         super().__init__()
 
@@ -49,6 +55,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
         self.dt = dt
         self.ctrl_coef = ctrl_coef
         self.threshold = threshold
+        self.var = var
 
         substate_space = gym.spaces.Box(-np.inf, np.inf, shape=(ndim,))
         subspaces = {k: substate_space for k in ["pos", "vel", "goal"]}
@@ -63,9 +70,9 @@ class PointMassEnv(resettable_env.ResettableEnv):
     def initial_state(self):
         """Choose initial state randomly from region at least 1-step from goal."""
         while True:
-            pos = self.rand_state.randn(self.ndim)
-            vel = self.rand_state.randn(self.ndim)
-            goal = self.rand_state.randn(self.ndim)
+            pos = self.rand_state.randn(self.ndim) * np.sqrt(self.var)
+            vel = self.rand_state.randn(self.ndim) * np.sqrt(self.var)
+            goal = self.rand_state.randn(self.ndim) * np.sqrt(self.var)
             dist = np.linalg.norm(pos - goal)
             min_dist_next = dist - self.dt * np.linalg.norm(vel)
             if min_dist_next > self.threshold:
@@ -88,12 +95,13 @@ class PointMassEnv(resettable_env.ResettableEnv):
         return -dist - self.ctrl_coef * ctrl_penalty
 
     def terminal(self, state, step: int) -> bool:
-        """Always False, so never terminate early.
+        """Terminate if agent within threshold of goal.
 
-        We still terminate after a fixed number of time steps,
-        specified in the environment registration.
+        Set threshold to be negative to disable early termination, making environment
+        fixed horizon.
         """
-        return False
+        dist = np.linalg.norm(state["pos"] - state["goal"])
+        return bool(dist < self.threshold)
 
     def obs_from_state(self, state):
         return np.concatenate([state["pos"], state["vel"], state["goal"]], axis=-1)
@@ -227,49 +235,43 @@ class PointMassSparseReward(rewards.BasicRewardModel, serialize.LayersSerializab
         return self._reward
 
 
-class PointMassShaping(rewards.BasicRewardModel, serialize.LayersSerializable):
+def _point_mass_dist(obs: tf.Tensor, ndim: int) -> tf.Tensor:
+    pos = obs[:, 0:ndim]
+    goal = obs[:, 2 * ndim : 3 * ndim]
+    return tf.norm(pos - goal, axis=-1)
+
+
+# pylint false positive: thinks `reward` is missing, but defined in `rewards.PotentialShaping`
+class PointMassShaping(
+    rewards.BasicRewardModel, rewards.PotentialShaping, serialize.LayersSerializable
+):  # pylint:disable=abstract-method
     """Potential shaping term, based on distance to goal."""
 
     def __init__(
         self, observation_space: gym.Space, action_space: gym.Space, discount: float = 1.0,
     ):
-        self._discount = rewards.ConstantLayer(
-            "discount", initializer=tf.constant_initializer(discount)
-        )
-        self._discount.build(())
-        serialize.LayersSerializable.__init__(**locals(), layers={"discount": self._discount})
+        """Builds PointMassShaping.
 
+        Args:
+            observation_space: The observation space.
+            action_space: The action space.
+            discount: The initial discount rate to use.
+        """
+        params = dict(locals())
+
+        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
 
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
-        self._reward = self.build_reward()
-        self.set_discount(discount)
+        old_potential = _point_mass_dist(self._proc_obs, self.ndim)
+        new_potential = _point_mass_dist(self._proc_next_obs, self.ndim)
+        end_potential = tf.constant(0.0)
+        rewards.PotentialShaping.__init__(
+            self, old_potential, new_potential, end_potential, self._proc_dones, discount
+        )
 
-    def build_reward(self):
-        """Computes shaping from current and next observations."""
-
-        def dist(obs):
-            pos = obs[:, 0 : self.ndim]
-            goal = obs[:, 2 * self.ndim : 3 * self.ndim]
-            return tf.norm(pos - goal, axis=-1)
-
-        old_dist = dist(self._proc_obs)
-        new_dist = dist(self._proc_next_obs)
-
-        return old_dist - self.discount * new_dist
-
-    @property
-    def discount(self) -> Optional[tf.Tensor]:
-        return tf.stop_gradient(self._discount.constant)
-
-    def set_discount(self, discount: float) -> None:
-        self._discount.set_constant(discount)
-
-    @property
-    def reward(self):
-        """Reward tensor."""
-        return self._reward
+        self.set_discount(discount)  # set it so no need for TF initializer to be called
+        serialize.LayersSerializable.__init__(**params, layers={"discount": self._discount})
 
 
 class PointMassDenseReward(rewards.LinearCombinationModelWrapper):
@@ -279,7 +281,10 @@ class PointMassDenseReward(rewards.LinearCombinationModelWrapper):
         self, observation_space: gym.Space, action_space: gym.Space, discount: float = 1.0, **kwargs
     ):
         sparse = PointMassSparseReward(observation_space, action_space, **kwargs)
-        shaping = PointMassShaping(observation_space, action_space, discount)
+        # pylint thinks PointMassShaping is abstract but it's concrete.
+        shaping = PointMassShaping(  # pylint:disable=abstract-class-instantiated
+            observation_space, action_space, discount
+        )
         models = {"sparse": (sparse, tf.constant(1.0)), "shaping": (shaping, tf.constant(10.0))}
         super().__init__(models)
 

@@ -17,7 +17,7 @@
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional
 
-from imitation import util
+from imitation.util import util
 from matplotlib import pyplot as plt
 import pandas as pd
 import sacred

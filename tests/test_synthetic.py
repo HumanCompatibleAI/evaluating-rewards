@@ -18,10 +18,13 @@ Also indirectly tests evaluating_rewards.deep, evaluating_rewards.datasets and
 evaluating_rewards.util.
 """
 
+import dataclasses
 import logging
+from typing import Optional
 
 import gym
-from imitation.util import data, util
+from imitation.data import types
+from imitation.util import util
 import numpy as np
 import pandas as pd
 import pytest
@@ -43,7 +46,7 @@ def dummy_env_and_dataset(dims: int = 5):
         actions = np.array([act_space.sample() for _ in range(total_timesteps)])
         next_obs = (obs + actions).clip(0.0, 1.0)
         dones = np.zeros(total_timesteps, dtype=np.bool)
-        return data.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
+        return types.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
 
     return {
         "observation_space": obs_space,
@@ -52,28 +55,51 @@ def dummy_env_and_dataset(dims: int = 5):
     }
 
 
-def make_pm(env_name="evaluating_rewards/PointMassLine-v0"):
-    """Make Point Mass environment and dataset generator."""
+def make_pm(env_name="evaluating_rewards/PointMassLine-v0", extra_dones: Optional[int] = None):
+    """Make transitions factory for Point Mass environment.
+
+    Args:
+        env_name: The name of the environment in the Gym registry.
+        extra_dones: If specified, the frequency at which to artificially insert dones.
+            At episode termination, the next potential is fixed to zero, making the
+            constant bias of the potential important. At all other points the constant
+            bias has no effect (undiscounted) or minimal effect (discounted) to the
+            reward output. Increasing the frequency of dones is a form of dataset
+            augmentation, that lets us learn the constant bias more quickly. This is
+            definitely "cheating", but it seems worth it to keep the unit tests quick.
+
+    Returns:
+        A dict of observation space, action space and dataset generator.
+    """
     venv = util.make_vec_env(env_name)
     obs_space = venv.observation_space
     act_space = venv.action_space
 
     pm = point_mass.PointMassPolicy(obs_space, act_space)
-    with datasets.transitions_factory_from_policy(venv, pm) as dataset_generator:
+    with datasets.transitions_factory_from_policy(venv, pm) as transitions_factory:
+
+        def f(total_timesteps: int):
+            trans = transitions_factory(total_timesteps)
+            if extra_dones is not None:
+                dones = np.array(trans.dones)
+                dones[::extra_dones] = True
+                trans = dataclasses.replace(trans, dones=dones)
+            return trans
+
         # It's OK to return dataset_generator outside the with context:
         # rollout_policy_generator doesn't actually have any internal resources
         # (some other datasets do).
         return {
             "observation_space": obs_space,
             "action_space": act_space,
-            "dataset_generator": dataset_generator,
+            "dataset_generator": f,
         }
 
 
 ENVIRONMENTS = {
     "Uniform5D": dummy_env_and_dataset(dims=5),
     "PointLine": make_pm("evaluating_rewards/PointMassLine-v0"),
-    "PointGrid": make_pm("evaluating_rewards/PointMassGrid-v0"),
+    "PointGrid": make_pm("evaluating_rewards/PointMassGrid-v0", extra_dones=10),
 }
 
 ARCHITECTURES = {
@@ -169,7 +195,7 @@ SYNTHETIC_TEST = {
 }
 
 
-# Some flakiness due to random seeds. This is exacebrate by size of the test suite.
+# Some flakiness due to random seeds. This is exacebrated by size of the test suite.
 # Each individual test should pass >99% of the time; a consistently flaky test
 # is indicative of an error.
 @pytest.mark.flaky(max_runs=3)

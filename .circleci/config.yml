@@ -87,7 +87,7 @@ jobs:
 
       - run:
           name: pytype
-          command: pytype ${TYPECHECK_FILES}
+          command: pytype -j ${NUM_CPUS} ${TYPECHECK_FILES}
 
   unit-test:
     executor: my-executor
