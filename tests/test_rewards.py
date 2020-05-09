@@ -195,11 +195,12 @@ def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls, disc
     return helper_serialize_identity(make_model)
 
 
+@pytest.mark.parametrize("cls", [reward_net.BasicRewardNet, reward_net.BasicShapedRewardNet])
 @pytest.mark.parametrize("env_name", ENVS)
 @pytest.mark.parametrize("use_test", [True, False])
-def test_serialize_identity_reward_net(helper_serialize_identity, use_test):
+def test_serialize_identity_reward_net(helper_serialize_identity, cls, use_test):
     def make_model(env):
-        net = reward_net.BasicRewardNet(env.observation_space, env.action_space)
+        net = cls(env.observation_space, env.action_space)
         return rewards.RewardNetToRewardModel(net, use_test=use_test)
 
     return helper_serialize_identity(make_model)

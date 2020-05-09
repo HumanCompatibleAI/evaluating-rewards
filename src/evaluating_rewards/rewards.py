@@ -472,9 +472,7 @@ class RewardNetToRewardModel(RewardModel):
 
     @property
     def dones_ph(self):
-        # RewardNet does not handle terminal states.
-        # TODO(adam): add support to imitation for this so I can do it for IRL too?
-        return ()
+        return (self.reward_net.done_ph,)
 
     @classmethod
     def _load(cls, directory: str) -> "RewardNetToRewardModel":
