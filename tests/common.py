@@ -17,8 +17,8 @@ import contextlib
 import copy
 from typing import Dict, Iterator, Tuple, TypeVar
 
-from benchmark_environments.testing import envs as test_envs
 import pytest
+from seals.testing import envs as seals_test
 from stable_baselines.common import vec_env
 
 
@@ -96,7 +96,7 @@ def combine_dicts(*dicts: Dict[str, Dict[K, V]],) -> Iterator[Tuple[str, Dict[K,
                 yield name, cfg
 
 
-make_env = test_envs.make_env_fixture(skip_fn=pytest.skip)
+make_env = seals_test.make_env_fixture(skip_fn=pytest.skip)
 make_env_ctx = contextlib.contextmanager(make_env)
 
 

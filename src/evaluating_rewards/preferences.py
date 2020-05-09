@@ -26,7 +26,7 @@ import logging
 import math
 from typing import Any, Dict, Iterable, List, NamedTuple, Sequence, Type
 
-from imitation.util import data, rollout
+from imitation.data import rollout, types
 import numpy as np
 import pandas as pd
 from stable_baselines.common import policies, vec_env
@@ -44,8 +44,8 @@ class TrajectoryPreference(NamedTuple):
         - label: 0 if traja is best, 1 if trajb is best.
     """
 
-    traja: data.Trajectory
-    trajb: data.Trajectory
+    traja: types.Trajectory
+    trajb: types.Trajectory
     label: int
 
 
@@ -71,17 +71,17 @@ def _concatenate(preferences: List[TrajectoryPreference], attr: str, idx: slice)
     return stacked.reshape((-1,) + stacked.shape[3:])
 
 
-def _slice_trajectory(trajectory: data.Trajectory, start: int, end: int) -> data.Trajectory:
+def _slice_trajectory(trajectory: types.Trajectory, start: int, end: int) -> types.Trajectory:
     """Slice trajectory from timestep start to timestep end."""
     infos = trajectory.infos[start:end] if trajectory.infos is not None else None
-    return data.Trajectory(
+    return types.Trajectory(
         obs=trajectory.obs[start : end + 1], acts=trajectory.acts[start:end], infos=infos,
     )
 
 
 def generate_trajectories(
     venv: vec_env.VecEnv, policy: policies.BasePolicy, trajectory_length: int, num_trajectories: int
-) -> Sequence[data.Trajectory]:
+) -> Sequence[types.Trajectory]:
     """Rollouts policy in venv collecting num_trajectories segments.
 
     Complete episodes are collected. An episode of length N is split into
@@ -100,7 +100,7 @@ def generate_trajectories(
         trajectory_length.
     """
 
-    def sample_until(episodes: Sequence[data.Trajectory]):
+    def sample_until(episodes: Sequence[types.Trajectory]):
         """Computes whether a full batch of data has been collected."""
         episode_lengths = np.array([len(t.acts) for t in episodes])
         num_trajs = episode_lengths // trajectory_length
@@ -308,7 +308,7 @@ class PreferenceComparisonTrainer:
         acts = _concatenate(preferences, "acts", slice(None))
         next_obs = _concatenate(preferences, "obs", slice(1, None))
         dones = np.zeros(len(obs), dtype=np.bool)
-        batch = data.Transitions(obs=obs, acts=acts, next_obs=next_obs, dones=dones)
+        batch = types.Transitions(obs=obs, acts=acts, next_obs=next_obs, dones=dones)
         feed_dict = rewards.make_feed_dict([self.model], batch)
         labels = np.array([p.label for p in preferences])
         feed_dict[self._preference_labels] = labels

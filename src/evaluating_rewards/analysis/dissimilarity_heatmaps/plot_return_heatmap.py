@@ -18,7 +18,8 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
-from imitation.util import data, util
+from imitation.data import types
+from imitation.util import util
 import matplotlib.pyplot as plt
 import sacred
 import tensorflow as tf
@@ -87,7 +88,7 @@ def test():
 @plot_return_heatmap_ex.capture
 def correlation_distance(
     sess: tf.Session,
-    trajectories: Sequence[data.Trajectory],
+    trajectories: Sequence[types.Trajectory],
     models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
     y_reward_cfgs: Iterable[cli_common.RewardCfg],

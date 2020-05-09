@@ -23,7 +23,8 @@ import logging
 from typing import Optional
 
 import gym
-from imitation.util import data, util
+from imitation.data import types
+from imitation.util import util
 import numpy as np
 import pandas as pd
 import pytest
@@ -45,7 +46,7 @@ def dummy_env_and_dataset(dims: int = 5):
         actions = np.array([act_space.sample() for _ in range(total_timesteps)])
         next_obs = (obs + actions).clip(0.0, 1.0)
         dones = np.zeros(total_timesteps, dtype=np.bool)
-        return data.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
+        return types.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
 
     return {
         "observation_space": obs_space,

@@ -14,9 +14,9 @@
 
 """Module for Gym environments. __init__ registers environments."""
 
-import benchmark_environments  # noqa: F401  pylint:disable=unused-import
 import gym
 import imitation.envs.examples  # noqa: F401  pylint:disable=unused-import
+import seals  # noqa: F401  pylint:disable=unused-import
 
 from evaluating_rewards.envs import mujoco, point_mass  # noqa: F401  pylint:disable=unused-import
 

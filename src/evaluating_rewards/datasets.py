@@ -24,16 +24,17 @@ import functools
 from typing import Callable, ContextManager, Iterator, TypeVar, Union
 
 import gym
+from imitation.data import rollout, types
 from imitation.policies import serialize
-from imitation.util import data, rollout, util
+from imitation.util import util
 import numpy as np
 from stable_baselines.common import base_class, policies, vec_env
 
 T = TypeVar("T")
 DatasetCallable = Callable[[int], T]
 """Parameter specifies number of episodes (TrajectoryCallable) or timesteps (otherwise)."""
-TrajectoryCallable = DatasetCallable[data.Trajectory]
-TransitionsCallable = DatasetCallable[data.Transitions]
+TrajectoryCallable = DatasetCallable[types.Trajectory]
+TransitionsCallable = DatasetCallable[types.Transitions]
 SampleDist = DatasetCallable[np.ndarray]
 
 C = TypeVar("C")
@@ -55,12 +56,12 @@ def transitions_factory_iid_from_sample_dist(
     `canonical_sample` which assume i.i.d. transitions internally.
     """
 
-    def f(total_timesteps: int) -> data.Transitions:
+    def f(total_timesteps: int) -> types.Transitions:
         obses = obs_dist(total_timesteps)
         acts = act_dist(total_timesteps)
         next_obses = obs_dist(total_timesteps)
         dones = np.zeros(total_timesteps, dtype=np.bool)
-        return data.Transitions(
+        return types.Transitions(
             obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
         )
 
@@ -123,7 +124,7 @@ def trajectory_factory_from_policy(
 ) -> Iterator[TransitionsCallable]:
     """Generator returning rollouts from a policy in a given environment."""
 
-    def f(total_episodes: int) -> data.Transitions:
+    def f(total_episodes: int) -> types.Transitions:
         return rollout.generate_trajectories(
             policy, venv, sample_until=rollout.min_episodes(total_episodes)
         )
@@ -145,7 +146,7 @@ def transitions_factory_from_policy(
 ) -> Iterator[TransitionsCallable]:
     """Generator returning rollouts from a policy in a given environment."""
 
-    def f(total_timesteps: int) -> data.Transitions:
+    def f(total_timesteps: int) -> types.Transitions:
         # TODO(adam): inefficient -- discards partial trajectories and resets environment
         return rollout.generate_transitions(policy, venv, n_timesteps=total_timesteps)
 
@@ -181,7 +182,7 @@ def transitions_factory_from_random_model(
     env = gym.make(env_name)
     env.seed(seed)
 
-    def f(total_timesteps: int) -> data.Transitions:
+    def f(total_timesteps: int) -> types.Transitions:
         """Helper function."""
         obses = []
         acts = []
@@ -197,7 +198,7 @@ def transitions_factory_from_random_model(
             acts.append(act)
             next_obses.append(next_obs)
         dones = np.zeros(total_timesteps, dtype=np.bool)
-        return data.Transitions(
+        return types.Transitions(
             obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
         )
 

@@ -20,9 +20,9 @@ import tempfile
 import hypothesis
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hp_numpy
+from imitation.data import rollout
 from imitation.policies import base
 from imitation.rewards import reward_net
-from imitation.util import rollout
 from imitation.util import serialize as util_serialize
 import numpy as np
 import pytest
@@ -37,17 +37,17 @@ ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
 
 STANDALONE_REWARD_MODELS = {
     "halfcheetah_ground_truth": {
-        "env_name": "benchmark_environments/HalfCheetah-v0",
+        "env_name": "seals/HalfCheetah-v0",
         "model_class": mujoco.HalfCheetahGroundTruthReward,
         "kwargs": {},
     },
     "hopper_ground_truth": {
-        "env_name": "benchmark_environments/Hopper-v0",
+        "env_name": "seals/Hopper-v0",
         "model_class": mujoco.HopperGroundTruthReward,
         "kwargs": {},
     },
     "hopper_backflip": {
-        "env_name": "benchmark_environments/Hopper-v0",
+        "env_name": "seals/Hopper-v0",
         "model_class": mujoco.HopperBackflipReward,
         "kwargs": {},
     },
@@ -88,13 +88,10 @@ REWARD_WRAPPERS = [
 
 GROUND_TRUTH = {
     "half_cheetah": (
-        "benchmark_environments/HalfCheetah-v0",
+        "seals/HalfCheetah-v0",
         "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
     ),
-    "hopper": (
-        "benchmark_environments/Hopper-v0",
-        "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
-    ),
+    "hopper": ("seals/Hopper-v0", "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",),
     "point_mass": (
         "evaluating_rewards/PointMassLine-v0",
         "evaluating_rewards/PointMassGroundTruth-v0",
@@ -108,7 +105,7 @@ GROUND_TRUTH = {
 ENV_POTENTIALS = [
     # (env_name, potential_class)
     # Tests require the environments are fixed length.
-    ("benchmark_environments/CartPole-v0", rewards.MLPPotentialShaping),
+    ("seals/CartPole-v0", rewards.MLPPotentialShaping),
     ("evaluating_rewards/PointMassLine-v0", point_mass.PointMassShaping),
 ]
 DISCOUNTS = [0.9, 0.99, 1.0]

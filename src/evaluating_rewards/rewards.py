@@ -21,8 +21,9 @@ import pickle
 from typing import Dict, Iterable, Mapping, NamedTuple, Optional, Sequence, Tuple, Type, TypeVar
 
 import gym
+from imitation.data import rollout, types
 from imitation.rewards import reward_net
-from imitation.util import data, networks, rollout, serialize
+from imitation.util import networks, serialize
 import numpy as np
 import scipy.optimize
 from stable_baselines.common import input as env_in  # avoid name clash
@@ -694,7 +695,7 @@ class AffineTransform(LinearCombinationModelWrapper):
         super().__init__(models)
 
     def fit_lstsq(
-        self, batch: data.Transitions, target: RewardModel, shaping: Optional[RewardModel]
+        self, batch: types.Transitions, target: RewardModel, shaping: Optional[RewardModel]
     ) -> AffineParameters:
         """Sets the shift and scale parameters to try and match target, given shaping.
 
@@ -827,7 +828,7 @@ class MLPPotentialShapingWrapper(LinearCombinationModelWrapper):
 
 
 def make_feed_dict(
-    models: Iterable[RewardModel], batch: data.Transitions
+    models: Iterable[RewardModel], batch: types.Transitions
 ) -> Dict[tf.Tensor, np.ndarray]:
     """Construct a feed dictionary for models for data in batch."""
     assert batch.obs.shape == batch.next_obs.shape
@@ -852,7 +853,7 @@ def make_feed_dict(
 
 
 def evaluate_models(
-    models: Mapping[K, RewardModel], batch: data.Transitions
+    models: Mapping[K, RewardModel], batch: types.Transitions
 ) -> Mapping[K, np.ndarray]:
     """Computes prediction of reward models."""
     reward_outputs = {k: m.reward for k, m in models.items()}
@@ -910,7 +911,9 @@ def compute_return_from_rews(
 
 
 def compute_return_of_models(
-    models: Mapping[K, RewardModel], trajectories: Sequence[data.Trajectory], discount: float = 1.0,
+    models: Mapping[K, RewardModel],
+    trajectories: Sequence[types.Trajectory],
+    discount: float = 1.0,
 ) -> Mapping[K, np.ndarray]:
     """Computes the returns of each trajectory under each model.
 
@@ -932,7 +935,7 @@ def compute_return_of_models(
 
 
 def evaluate_potentials(
-    potentials: Iterable[PotentialShaping], transitions: data.Transitions
+    potentials: Iterable[PotentialShaping], transitions: types.Transitions
 ) -> np.ndarray:
     """Computes prediction of potential shaping models."""
     old_pots = [p.old_potential for p in potentials]

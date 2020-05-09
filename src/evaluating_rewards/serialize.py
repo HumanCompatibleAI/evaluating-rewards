@@ -20,8 +20,9 @@ import os
 from typing import Callable, Iterator, Optional
 import uuid
 
+from imitation.data import types
 from imitation.rewards import common, reward_net, serialize
-from imitation.util import data, networks, registry
+from imitation.util import networks, registry
 from imitation.util import serialize as util_serialize
 import numpy as np
 from stable_baselines.common import vec_env
@@ -65,7 +66,7 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
                     del steps
                     # TODO(adam): RewardFn should probably include dones?
                     dones = np.zeros(len(obs), dtype=np.bool)
-                    transitions = data.Transitions(
+                    transitions = types.Transitions(
                         obs=obs, acts=actions, next_obs=next_obs, dones=dones
                     )
                     fd = rewards.make_feed_dict([reward_model], transitions)
