@@ -25,6 +25,7 @@ import tensorflow as tf
 from evaluating_rewards import datasets, rewards, tabular
 
 K = TypeVar("K")
+V = TypeVar("V")
 
 
 def _make_mesh_tensors(inputs: Mapping[K, np.ndarray]) -> Mapping[K, tf.Tensor]:
@@ -298,10 +299,10 @@ def sample_canon_shaping(
 def cross_distance(
     rewxs: Mapping[K, np.ndarray],
     rewys: Mapping[K, np.ndarray],
-    distance_fn: Callable[[np.ndarray, np.ndarray], float],
+    distance_fn: Callable[[np.ndarray, np.ndarray], V],
     parallelism: Optional[int] = None,
     threading: bool = True,
-) -> Mapping[Tuple[K, K], float]:
+) -> Mapping[Tuple[K, K], V]:
     """Helper function to compute distance between all pairs of rewards from `rewxs` and `rewys`.
 
     Args:

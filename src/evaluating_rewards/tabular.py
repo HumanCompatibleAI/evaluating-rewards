@@ -19,8 +19,12 @@ from typing import Callable, Optional, Tuple
 import numpy as np
 import pandas as pd
 import scipy.stats
+import sklearn.utils
 
 from evaluating_rewards import rewards
+
+DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
+DistanceFn = Callable[[np.ndarray, np.ndarray], float]
 
 
 def shape(reward: np.ndarray, potential: np.ndarray, discount: float) -> np.ndarray:
@@ -164,6 +168,51 @@ def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
     return x - mean
 
 
+def bootstrap(
+    rewa: np.ndarray,
+    rewb: np.ndarray,
+    distance_fn: DistanceFn,
+    n_samples: int = 100,
+    random_state=None,
+) -> np.ndarray:
+    """Evaluates distance_fn for n_samples of rewa and rewb with replacement.
+
+    Args:
+        rewa: A reward array.
+        rewb: A reward array.
+        distance_fn: A function computing the distance between two reward arrays.
+        n_samples: The number of bootstrapped samples to take.
+        random_state: Random state passed to `sklearn.utils.resample`.
+
+    Returns:
+        n_samples of the distance computed by `distance_fn`, each on an independent sample with
+        replacement from `rewa` and `rewb` of the same shape as `rewa` and `rewb`.
+    """
+    assert rewa.shape == rewb.shape
+    distances = []
+    for _ in range(n_samples):
+        samplea, sampleb = sklearn.utils.resample(
+            rewa, rewb, n_samples=len(rewa), random_state=random_state
+        )
+        distances.append(distance_fn(samplea, sampleb))
+    return np.array(distances)
+
+
+def empirical_ci(arr: np.ndarray, alpha: float = 0.95) -> np.ndarray:
+    """Computes percentile range in an array of values.
+
+    Args:
+        arr: An array.
+        alpha: The proportion the confidence interval should span.
+
+    Returns:
+        A percentile range of `arr`, centred at 50%, with a width of alpha.
+    """
+    delta = (alpha * 100) / 2
+    percentiles = 50 - delta, 50 + delta
+    return np.percentile(arr, percentiles)
+
+
 def pearson_distance(
     rewa: np.ndarray, rewb: np.ndarray, dist: Optional[np.ndarray] = None
 ) -> float:
@@ -172,8 +221,8 @@ def pearson_distance(
     It is invariant to positive affine transformations like the Pearson correlation coefficient.
 
     Args:
-        rewa: One three-dimensional reward array.
-        rewb: One three-dimensional reward array.
+        rewa: A reward array.
+        rewb: A reward array.
         dist: Optionally, a probability distribution of the same shape as rewa and rewb.
 
     Returns:
@@ -199,12 +248,12 @@ def pearson_distance(
     return np.sqrt(0.5 * (1 - corr))
 
 
-def spearman_distance(rewa: np.ndarray, rewb: np.ndarray,) -> float:
+def spearman_distance(rewa: np.ndarray, rewb: np.ndarray) -> float:
     """Computes dissimilarity derived from Spearman correlation coefficient.
 
     Args:
-        rewa: One three-dimensional reward array.
-        rewb: One three-dimensional reward array.
+        rewa: A reward array.
+        rewb: A reward array.
 
     Returns:
         Computes the Spearman correlation coefficient rho. Returns the square root of 1 minus rho.
@@ -382,9 +431,6 @@ def canonical_scale_normalizer(
     """
     scale = lp_norm(rew, p, dist)
     return 0 if abs(scale) < eps else 1 / scale
-
-
-DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
 
 
 def canonical_reward(

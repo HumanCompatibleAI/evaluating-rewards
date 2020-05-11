@@ -21,6 +21,7 @@ from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 from imitation.data import types
 from imitation.util import util
 import matplotlib.pyplot as plt
+import numpy as np
 import sacred
 import tensorflow as tf
 
@@ -85,6 +86,9 @@ def test():
     del _
 
 
+ConfidenceInterval = Tuple[float, float, float]  # lower, mean, upper
+
+
 @plot_return_heatmap_ex.capture
 def correlation_distance(
     sess: tf.Session,
@@ -94,7 +98,8 @@ def correlation_distance(
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
     corr_kind: str,
     discount: float,
-) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], float]:
+    alpha: float = 0.95,
+) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], ConfidenceInterval]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -106,6 +111,7 @@ def correlation_distance(
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
         corr_kind: method to compute results, either "pearson" or "spearman".
         discount: the discount rate for shaping.
+        alpha: The proportion to give a confidence interval over.
 
     Returns:
         Dissimilarity matrix.
@@ -124,8 +130,14 @@ def correlation_distance(
     else:
         raise ValueError(f"Unrecognized correlation '{corr_kind}'")
 
+    def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> ConfidenceInterval:
+        distances = tabular.bootstrap(rewa, rewb, distance_fn)
+        lower, upper = tabular.empirical_ci(distances, alpha)
+        middle = np.mean(distances)
+        return lower, middle, upper
+
     logger.info("Computing distance")
-    return canonical_sample.cross_distance(x_rets, y_rets, distance_fn, parallelism=1)
+    return canonical_sample.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
 
 
 @plot_return_heatmap_ex.main
@@ -181,11 +193,18 @@ def plot_return_heatmap(
     dissimilarity = correlation_distance(  # pylint:disable=no-value-for-parameter
         sess, trajectories, models, x_reward_cfgs, y_reward_cfgs
     )
-    dissimilarity = cli_common.dissimilarity_mapping_to_series(dissimilarity)
+    keys = "lower", "middle", "upper"
+    vals = {
+        k: cli_common.dissimilarity_mapping_to_series(
+            {k2: v2[i] for k2, v2 in dissimilarity.items()}
+        )
+        for i, k in enumerate(keys)
+    }
 
     with stylesheets.setup_styles(styles):
-        figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        for name, val in vals.items():
+            figs = heatmaps.compact_heatmaps(dissimilarity=val, **heatmap_kwargs)
+            visualize.save_figs(os.path.join(log_dir, name), figs.items(), **save_kwargs)
 
     return figs
 
