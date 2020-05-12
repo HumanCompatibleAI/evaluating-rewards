@@ -139,6 +139,7 @@ def make_config(
         - x_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for x-axis.
         - y_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for y-axis.
         - log_root (str): the root directory to log; subdirectory path automatically constructed.
+        - n_bootstrap (int): the number of bootstrap samples to take.
         - heatmap_kwargs (dict): passed through to `analysis.compact_heatmaps`.
         - styles (Iterable[str]): styles to apply from `evaluating_rewards.analysis.stylesheets`.
         - save_kwargs (dict): passed through to `analysis.save_figs`.
@@ -150,6 +151,8 @@ def make_config(
         env_name = "evaluating_rewards/PointMassLine-v0"
         kinds = POINT_MASS_KINDS
         log_root = serialize.get_output_dir()  # where results are read from/written to
+        n_bootstrap = 1000  # number of bootstrap samples
+        alpha = 95  # percentile confidence interval
 
         # Reward configurations: models to compare
         x_reward_cfgs = None

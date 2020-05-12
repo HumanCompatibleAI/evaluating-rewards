@@ -45,6 +45,7 @@ def default_config(env_name, log_root):
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance
     discount = 0.99  # discount rate for shaping
+    n_seeds = 3
 
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
@@ -89,6 +90,19 @@ def logging_config(
         f"discount{discount}",
         util.make_unique_timestamp(),
     )
+
+
+@plot_canon_heatmap_ex.named_config
+def high_precision():
+    """Compute tight confidence intervals for publication quality figures.
+
+    Slow and not that much more informative so not worth it for exploratory data analysis.
+    """
+    n_seeds = 10
+    n_samples = 16384
+    n_mean_samples = 16384
+    _ = locals()
+    del _
 
 
 SAMPLE_FROM_DATASET_FACTORY = dict(
@@ -301,6 +315,9 @@ def plot_canon_heatmap(
     obs_sample_dist_factory: datasets.SampleDistFactory,
     act_sample_dist_factory: datasets.SampleDistFactory,
     sample_dist_factory_kwargs: Dict[str, Any],
+    n_seeds: int,
+    n_bootstrap: int,
+    alpha: float,
     computation_kind: str,
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
@@ -314,6 +331,12 @@ def plot_canon_heatmap(
         env_name: the name of the environment to plot rewards for.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        obs_sample_dist_factory: factory to generate sample distribution for observations.
+        act_sample_dist_factory: factory to generate sample distribution for actions.
+        sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
+        n_seeds: the number of independent seeds to take.
+        n_bootstrap: the number of bootstrap samples to take when computing the mean of seeds.
+        alpha: percentile confidence interval.
         computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
@@ -343,17 +366,34 @@ def plot_canon_heatmap(
     else:
         raise ValueError(f"Unrecognized computation kind '{computation_kind}'")
 
-    with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
-        with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
-            dissimilarity = computation_fn(
-                g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
-            )
+    dissimilarities = {}
+    for _ in range(n_seeds):
+        with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
+            with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
+                dissimilarity = computation_fn(
+                    g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
+                )
+                for k, v in dissimilarity.items():
+                    dissimilarities.setdefault(k, []).append(v)
 
-    dissimilarity = cli_common.dissimilarity_mapping_to_series(dissimilarity)
+    dissimilarities = {
+        k: tabular.bootstrap(np.array(v), stat_fn=np.mean, n_samples=n_bootstrap)
+        for k, v in dissimilarities.items()
+    }
+    dissimilarities = {k: tabular.empirical_ci(v, alpha=alpha) for k, v in dissimilarities.items()}
+    # TODO(adam): code duplication
+    keys = "lower", "middle", "upper"
+    vals = {
+        k: cli_common.dissimilarity_mapping_to_series(
+            {k2: v2[i] for k2, v2 in dissimilarities.items()}
+        )
+        for i, k in enumerate(keys)
+    }
 
     with stylesheets.setup_styles(styles):
-        figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        for name, val in vals.items():
+            figs = heatmaps.compact_heatmaps(dissimilarity=val, **heatmap_kwargs)
+            visualize.save_figs(os.path.join(log_dir, name), figs.items(), **save_kwargs)
 
     return figs
 

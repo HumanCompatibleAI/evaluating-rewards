@@ -98,6 +98,7 @@ def correlation_distance(
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
     corr_kind: str,
     discount: float,
+    n_bootstrap: int,
     alpha: float = 0.95,
 ) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], ConfidenceInterval]:
     """
@@ -111,6 +112,7 @@ def correlation_distance(
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
         corr_kind: method to compute results, either "pearson" or "spearman".
         discount: the discount rate for shaping.
+        n_bootstrap: The number of bootstrap samples to take.
         alpha: The proportion to give a confidence interval over.
 
     Returns:
@@ -131,10 +133,8 @@ def correlation_distance(
         raise ValueError(f"Unrecognized correlation '{corr_kind}'")
 
     def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> ConfidenceInterval:
-        distances = tabular.bootstrap(rewa, rewb, distance_fn)
-        lower, upper = tabular.empirical_ci(distances, alpha)
-        middle = np.mean(distances)
-        return lower, middle, upper
+        distances = tabular.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
+        return tuple(tabular.empirical_ci(distances, alpha))
 
     logger.info("Computing distance")
     return canonical_sample.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
@@ -193,6 +193,7 @@ def plot_return_heatmap(
     dissimilarity = correlation_distance(  # pylint:disable=no-value-for-parameter
         sess, trajectories, models, x_reward_cfgs, y_reward_cfgs
     )
+    # TODO(adam): code duplication
     keys = "lower", "middle", "upper"
     vals = {
         k: cli_common.dissimilarity_mapping_to_series(

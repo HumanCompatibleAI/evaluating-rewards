@@ -169,18 +169,13 @@ def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
 
 
 def bootstrap(
-    rewa: np.ndarray,
-    rewb: np.ndarray,
-    distance_fn: DistanceFn,
-    n_samples: int = 100,
-    random_state=None,
+    *inputs, stat_fn, n_samples: int = 100, random_state: Optional[np.random.RandomState] = None
 ) -> np.ndarray:
-    """Evaluates distance_fn for n_samples of rewa and rewb with replacement.
+    """Evaluates stat_fn for n_samples of rewa and rewb with replacement.
 
     Args:
-        rewa: A reward array.
-        rewb: A reward array.
-        distance_fn: A function computing the distance between two reward arrays.
+        inputs: The inputs to bootstrap over.
+        stat_fn: A function computing a statistic on inputs.
         n_samples: The number of bootstrapped samples to take.
         random_state: Random state passed to `sklearn.utils.resample`.
 
@@ -188,28 +183,30 @@ def bootstrap(
         n_samples of the distance computed by `distance_fn`, each on an independent sample with
         replacement from `rewa` and `rewb` of the same shape as `rewa` and `rewb`.
     """
-    assert rewa.shape == rewb.shape
-    distances = []
+    vals = []
     for _ in range(n_samples):
-        samplea, sampleb = sklearn.utils.resample(
-            rewa, rewb, n_samples=len(rewa), random_state=random_state
-        )
-        distances.append(distance_fn(samplea, sampleb))
-    return np.array(distances)
+        samples = sklearn.utils.resample(*inputs, random_state=random_state)
+        if len(inputs) > 1:
+            val = stat_fn(*samples)
+        else:
+            val = stat_fn(samples)
+        vals.append(val)
+
+    return np.array(vals)
 
 
-def empirical_ci(arr: np.ndarray, alpha: float = 0.95) -> np.ndarray:
+def empirical_ci(arr: np.ndarray, alpha: float = 95) -> np.ndarray:
     """Computes percentile range in an array of values.
 
     Args:
         arr: An array.
-        alpha: The proportion the confidence interval should span.
+        alpha: Percentile confidence interval.
 
     Returns:
-        A percentile range of `arr`, centred at 50%, with a width of alpha.
+        A triple of the lower bound, median and upper bound of the confidence interval
+        with a width of alpha.
     """
-    delta = (alpha * 100) / 2
-    percentiles = 50 - delta, 50 + delta
+    percentiles = 50 - alpha / 2, 50, 50 + alpha / 2
     return np.percentile(arr, percentiles)
 
 
