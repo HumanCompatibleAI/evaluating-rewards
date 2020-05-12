@@ -21,6 +21,7 @@ import functools
 import itertools
 import logging
 import os
+import pickle
 from typing import Any, Callable, Iterable, Mapping, Sequence, Tuple
 
 import gym
@@ -32,6 +33,7 @@ import scipy.stats
 from stable_baselines.common import vec_env
 
 from evaluating_rewards import rewards, serialize, tabular
+from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
 AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
@@ -169,7 +171,7 @@ def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mappi
     """Compute `alpha` %ile confidence interval of mean of `vals` from `n_bootstrap` samples."""
     bootstrapped = tabular.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
     lower, middle, upper = tabular.empirical_ci(bootstrapped, alpha)
-    return {"lower": lower, "middle": middle, "upper": upper}
+    return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
 
 
 def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
@@ -179,13 +181,29 @@ def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
     mu = np.mean(vals)
     stderr = scipy.stats.sem(vals)
     lower, upper = scipy.stats.t.interval(alpha / 100, df, loc=mu, scale=stderr)
-    return {"lower": lower, "middle": mu, "upper": upper}
+    return {"lower": lower, "middle": mu, "upper": upper, "width": upper - lower}
 
 
 def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
     """Returns sample mean and (unbiased) standard deviation."""
     assert len(vals) > 1
     return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
+
+
+def save_artifacts(
+    vals: Mapping[str, pd.Series], styles: Iterable[str], log_dir: str, heatmap_kwargs, save_kwargs
+) -> None:
+    """Plot a figure for each entry in `vals`, and save figures as well as pickled raw values."""
+    os.makedirs(log_dir, exist_ok=True)
+
+    logging.info("Saving raw values")
+    with open(os.path.join(log_dir, "vals.pkl"), "wb") as f:
+        pickle.dump(vals, f)
+
+    logging.info("Plotting figures")
+    with stylesheets.setup_styles(styles):
+        figs = multi_heatmaps(vals, **heatmap_kwargs)
+        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
 
 MUJOCO_STANDARD_ORDER = [

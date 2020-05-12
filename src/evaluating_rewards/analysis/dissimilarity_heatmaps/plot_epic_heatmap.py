@@ -138,7 +138,7 @@ def plot_epic_heatmap(
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     save_kwargs: Mapping[str, Any],
-) -> Mapping[str, plt.Figure]:
+) -> None:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -197,10 +197,9 @@ def plot_epic_heatmap(
         figs = {}
         figs["loss"] = loss_heatmap(loss, res["loss"]["unwrapped_loss"])
         figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
-        figs.update(cli_common.multi_heatmaps(vals, **heatmap_kwargs))
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
-        return figs
+    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
 
 
 if __name__ == "__main__":

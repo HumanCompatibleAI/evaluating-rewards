@@ -20,13 +20,11 @@ import os
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from imitation.util import util
-import matplotlib.pyplot as plt
 import numpy as np
 import sacred
 import tensorflow as tf
 
 from evaluating_rewards import canonical_sample, datasets, rewards, tabular
-from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
@@ -324,7 +322,7 @@ def plot_canon_heatmap(
     log_dir: str,
     data_root: str,
     save_kwargs: Mapping[str, Any],
-) -> Mapping[str, plt.Figure]:
+) -> None:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -385,11 +383,7 @@ def plot_canon_heatmap(
         aggregated = cli_common.twod_mapping_to_multi_series(aggregated)
         vals.update({f"{name}_{k}": v for k, v in aggregated.items()})
 
-    with stylesheets.setup_styles(styles):
-        figs = cli_common.multi_heatmaps(vals, **heatmap_kwargs)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-
-    return figs
+    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
 
 
 if __name__ == "__main__":
