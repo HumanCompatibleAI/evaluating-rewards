@@ -23,11 +23,12 @@ import os
 from typing import Iterable, Mapping, Tuple
 
 import gym
+import numpy as np
 import pandas as pd
 import sacred
 from stable_baselines.common import vec_env
 
-from evaluating_rewards import rewards, serialize
+from evaluating_rewards import rewards, serialize, tabular
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
 RewardCfg = Tuple[str, str]  # (type, path)
@@ -99,6 +100,12 @@ def dissimilarity_mapping_to_series(
         "source_reward_path",
     ]
     return dissimilarity
+
+
+def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:
+    bootstrapped = tabular.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
+    lower, middle, upper = tabular.empirical_ci(bootstrapped, alpha)
+    return {"lower": lower, "middle": middle, "upper": upper}
 
 
 MUJOCO_STANDARD_ORDER = [

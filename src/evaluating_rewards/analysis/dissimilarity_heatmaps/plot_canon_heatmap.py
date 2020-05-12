@@ -376,19 +376,12 @@ def plot_canon_heatmap(
                 for k, v in dissimilarity.items():
                     dissimilarities.setdefault(k, []).append(v)
 
-    dissimilarities = {
-        k: tabular.bootstrap(np.array(v), stat_fn=np.mean, n_samples=n_bootstrap)
-        for k, v in dissimilarities.items()
-    }
-    dissimilarities = {k: tabular.empirical_ci(v, alpha=alpha) for k, v in dissimilarities.items()}
-    # TODO(adam): code duplication
-    keys = "lower", "middle", "upper"
-    vals = {
-        k: cli_common.dissimilarity_mapping_to_series(
-            {k2: v2[i] for k2, v2 in dissimilarities.items()}
-        )
-        for i, k in enumerate(keys)
-    }
+    aggregate_fn = functools.partial(cli_common.bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha)
+    aggregated = {k: aggregate_fn(v) for k, v in dissimilarities.items()}
+    keys = list(set((tuple(v.keys()) for v in aggregated.values())))
+    assert len(keys) == 1
+    vals = {outer_key: {k: v[outer_key] for k, v in aggregated.items()} for outer_key in keys[0]}
+    vals = {k: cli_common.dissimilarity_mapping_to_series(v) for k, v in vals.items()}
 
     with stylesheets.setup_styles(styles):
         for name, val in vals.items():

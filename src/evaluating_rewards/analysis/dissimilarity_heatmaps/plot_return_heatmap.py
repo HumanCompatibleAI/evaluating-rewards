@@ -86,9 +86,6 @@ def test():
     del _
 
 
-ConfidenceInterval = Tuple[float, float, float]  # lower, mean, upper
-
-
 @plot_return_heatmap_ex.capture
 def correlation_distance(
     sess: tf.Session,
@@ -100,7 +97,7 @@ def correlation_distance(
     discount: float,
     n_bootstrap: int,
     alpha: float = 0.95,
-) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], ConfidenceInterval]:
+) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], Mapping[str, float]]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -132,9 +129,10 @@ def correlation_distance(
     else:
         raise ValueError(f"Unrecognized correlation '{corr_kind}'")
 
-    def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> ConfidenceInterval:
+    def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> Mapping[str, float]:
         distances = tabular.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
-        return tuple(tabular.empirical_ci(distances, alpha))
+        lower, middle, upper = tabular.empirical_ci(distances, alpha)
+        return {"lower": lower, "middle": middle, "upper": upper}
 
     logger.info("Computing distance")
     return canonical_sample.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
@@ -190,17 +188,14 @@ def plot_return_heatmap(
     with trajectory_factory(**trajectory_factory_kwargs) as trajectory_callable:
         trajectories = trajectory_callable(n_episodes)
 
-    dissimilarity = correlation_distance(  # pylint:disable=no-value-for-parameter
+    aggregated = correlation_distance(  # pylint:disable=no-value-for-parameter
         sess, trajectories, models, x_reward_cfgs, y_reward_cfgs
     )
     # TODO(adam): code duplication
-    keys = "lower", "middle", "upper"
-    vals = {
-        k: cli_common.dissimilarity_mapping_to_series(
-            {k2: v2[i] for k2, v2 in dissimilarity.items()}
-        )
-        for i, k in enumerate(keys)
-    }
+    keys = list(set((tuple(v.keys()) for v in aggregated.values())))
+    assert len(keys) == 1
+    vals = {outer_key: {k: v[outer_key] for k, v in aggregated.items()} for outer_key in keys[0]}
+    vals = {k: cli_common.dissimilarity_mapping_to_series(v) for k, v in vals.items()}
 
     with stylesheets.setup_styles(styles):
         for name, val in vals.items():

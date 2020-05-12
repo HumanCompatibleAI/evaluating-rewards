@@ -14,16 +14,15 @@
 
 """CLI script to plot heatmap of EPIC distance between pairs of reward models."""
 
+import functools
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from imitation.util import util
 from matplotlib import pyplot as plt
-import numpy as np
 import pandas as pd
 import sacred
 
-from evaluating_rewards import tabular
 from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
@@ -171,12 +170,12 @@ def plot_epic_heatmap(
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
 
-    bootstrapped = loss.groupby(list(keys[:-1])).apply(
-        lambda v: tabular.bootstrap(np.array(v), stat_fn=np.mean, n_samples=n_bootstrap)
-    )
-    cis = bootstrapped.apply(lambda v: tabular.empirical_ci(v, alpha=alpha))
-    keys = "lower", "middle", "upper"
-    vals = {k: cis.str[i] for i, k in enumerate(keys)}
+    aggregate_fn = functools.partial(cli_common.bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha)
+    aggregated = loss.groupby(list(keys[:-1])).apply(aggregate_fn)
+    vals = {
+        k: aggregated.loc[(slice(None), slice(None), slice(None), k)]
+        for k in aggregated.index.levels[-1]
+    }
 
     with stylesheets.setup_styles(styles):
         figs = {}
