@@ -19,9 +19,11 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 
 from imitation.util import util
 from matplotlib import pyplot as plt
+import numpy as np
 import pandas as pd
 import sacred
 
+from evaluating_rewards import tabular
 from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
@@ -119,6 +121,8 @@ def plot_epic_heatmap(
     data_root: str,
     data_subdir: Optional[str],
     search: Mapping[str, Any],
+    n_bootstrap: int,
+    alpha: float,
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     save_kwargs: Mapping[str, Any],
@@ -132,6 +136,8 @@ def plot_epic_heatmap(
         data_root: where to load data from.
         data_subdir: subdirectory to load data from.
         search: mapping which Sacred configs must match to be included in results.
+        n_bootstrap: the number of bootstrap samples to take when computing the mean of seeds.
+        alpha: percentile confidence interval.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
@@ -160,17 +166,25 @@ def plot_epic_heatmap(
         matches_target = target_cfg in x_reward_cfgs
         return matches_search and matches_source and matches_target
 
-    keys = ("source_reward_type", "source_reward_path", "target_reward_type", "seed")
+    keys = "source_reward_type", "source_reward_path", "target_reward_type", "seed"
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
+
+    bootstrapped = loss.groupby(list(keys[:-1])).apply(
+        lambda v: tabular.bootstrap(np.array(v), stat_fn=np.mean, n_samples=n_bootstrap)
+    )
+    cis = bootstrapped.apply(lambda v: tabular.empirical_ci(v, alpha=alpha))
+    keys = "lower", "middle", "upper"
+    vals = {k: cis.str[i] for i, k in enumerate(keys)}
 
     with stylesheets.setup_styles(styles):
         figs = {}
         figs["loss"] = loss_heatmap(loss, res["loss"]["unwrapped_loss"])
         figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
-        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=loss, **heatmap_kwargs)
-        figs.update(heatmap_figs)
+        for name, val in vals.items():
+            heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=val, **heatmap_kwargs)
+            figs.update({f"{name}_{k}": v for k, v in heatmap_figs.items()})
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
         return figs
