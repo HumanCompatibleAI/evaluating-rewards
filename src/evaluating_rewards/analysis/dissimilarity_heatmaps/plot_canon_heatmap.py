@@ -101,6 +101,7 @@ def high_precision():
     n_seeds = 10
     n_samples = 16384
     n_mean_samples = 16384
+    n_bootstrap = 10000
     _ = locals()
     del _
 
@@ -316,8 +317,7 @@ def plot_canon_heatmap(
     act_sample_dist_factory: datasets.SampleDistFactory,
     sample_dist_factory_kwargs: Dict[str, Any],
     n_seeds: int,
-    n_bootstrap: int,
-    alpha: float,
+    aggregate_fns: Mapping[str, cli_common.AggregateFn],
     computation_kind: str,
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
@@ -335,6 +335,7 @@ def plot_canon_heatmap(
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
         n_seeds: the number of independent seeds to take.
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
         n_bootstrap: the number of bootstrap samples to take when computing the mean of seeds.
         alpha: percentile confidence interval.
         computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
@@ -367,7 +368,8 @@ def plot_canon_heatmap(
         raise ValueError(f"Unrecognized computation kind '{computation_kind}'")
 
     dissimilarities = {}
-    for _ in range(n_seeds):
+    for i in range(n_seeds):
+        logger.info(f"Seed {i}")
         with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
             with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
                 dissimilarity = computation_fn(
@@ -376,9 +378,12 @@ def plot_canon_heatmap(
                 for k, v in dissimilarity.items():
                     dissimilarities.setdefault(k, []).append(v)
 
-    aggregate_fn = functools.partial(cli_common.bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha)
-    aggregated = {k: aggregate_fn(v) for k, v in dissimilarities.items()}
-    vals = cli_common.twod_mapping_to_multi_series(aggregated)
+    vals = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        aggregated = {k: aggregate_fn(v) for k, v in dissimilarities.items()}
+        aggregated = cli_common.twod_mapping_to_multi_series(aggregated)
+        vals.update({f"{name}_{k}": v for k, v in aggregated.items()})
 
     with stylesheets.setup_styles(styles):
         figs = cli_common.multi_heatmaps(vals, **heatmap_kwargs)

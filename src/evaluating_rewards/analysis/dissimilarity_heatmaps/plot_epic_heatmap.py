@@ -14,7 +14,7 @@
 
 """CLI script to plot heatmap of EPIC distance between pairs of reward models."""
 
-import functools
+import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional
 
@@ -27,8 +27,8 @@ from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
 
+logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_Heatmap")
 plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
-
 
 cli_common.make_config(plot_epic_heatmap_ex)
 
@@ -55,6 +55,18 @@ def logging_config(log_root, search):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root, "plot_epic_heatmap", str(search).replace("/", "_"), util.make_unique_timestamp(),
     )
+
+
+@plot_epic_heatmap_ex.named_config
+def high_precision():
+    """Compute tight confidence intervals for publication quality figures.
+
+    Note the most important thing here is the number of seeds, which is not controllable here --
+    need to run more instances of `evaluating_rewards.scripts.model_comparison`.
+    """
+    n_bootstrap = 10000
+    _ = locals()
+    del _
 
 
 @plot_epic_heatmap_ex.named_config
@@ -120,8 +132,7 @@ def plot_epic_heatmap(
     data_root: str,
     data_subdir: Optional[str],
     search: Mapping[str, Any],
-    n_bootstrap: int,
-    alpha: float,
+    aggregate_fns: Mapping[str, cli_common.AggregateFn],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     save_kwargs: Mapping[str, Any],
@@ -135,8 +146,7 @@ def plot_epic_heatmap(
         data_root: where to load data from.
         data_subdir: subdirectory to load data from.
         search: mapping which Sacred configs must match to be included in results.
-        n_bootstrap: the number of bootstrap samples to take when computing the mean of seeds.
-        alpha: percentile confidence interval.
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
@@ -170,12 +180,16 @@ def plot_epic_heatmap(
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
 
-    aggregate_fn = functools.partial(cli_common.bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha)
-    aggregated = loss.groupby(list(keys[:-1])).apply(aggregate_fn)
-    vals = {
-        k: aggregated.loc[(slice(None), slice(None), slice(None), k)]
-        for k in aggregated.index.levels[-1]
-    }
+    vals = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        aggregated = loss.groupby(list(keys[:-1])).apply(aggregate_fn)
+        vals.update(
+            {
+                f"{name}_{k}": aggregated.loc[(slice(None), slice(None), slice(None), k)]
+                for k in aggregated.index.levels[-1]
+            }
+        )
 
     with stylesheets.setup_styles(styles):
         figs = {}

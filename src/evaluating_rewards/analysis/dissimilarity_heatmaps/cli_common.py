@@ -19,20 +19,25 @@ Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatma
 
 import functools
 import itertools
+import logging
 import os
-from typing import Any, Iterable, Mapping, Tuple
+from typing import Any, Callable, Iterable, Mapping, Sequence, Tuple
 
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sacred
+import scipy.stats
 from stable_baselines.common import vec_env
 
 from evaluating_rewards import rewards, serialize, tabular
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
+AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
 RewardCfg = Tuple[str, str]  # (type, path)
+
+logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.cli_common")
 
 
 def canonicalize_reward_cfg(reward_cfg: Iterable[RewardCfg], data_root: str) -> Iterable[RewardCfg]:
@@ -119,6 +124,29 @@ def twod_mapping_to_multi_series(
     return {k: oned_mapping_to_series(v) for k, v in vals.items()}
 
 
+def apply_multi_aggregate_fns(
+    dissimilarities: Mapping[Any, Sequence[float]], aggregate_fns: Mapping[str, AggregateFn],
+) -> Mapping[str, pd.Series]:
+    """Aggregate dissimilarities: e.g. confidence intervals.
+
+    Args:
+        dissimilarities: Mapping over sequences of floats.
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
+
+    Returns:
+         A mapping from string keys of the form "{aggregator}_{inner}" to Series, where
+         `aggregator` is the name of the aggregation function and `inner` is a key returned
+         by the aggregator.
+    """
+    res = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        aggregated = {k: aggregate_fn(v) for k, v in dissimilarities.items()}
+        aggregated = twod_mapping_to_multi_series(aggregated)
+        res.update({f"{name}_{k}": v for k, v in aggregated.items()})
+    return res
+
+
 def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
     """Plot heatmap for each dissimilarity series in dissimilarities.
 
@@ -142,6 +170,22 @@ def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mappi
     bootstrapped = tabular.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
     lower, middle, upper = tabular.empirical_ci(bootstrapped, alpha)
     return {"lower": lower, "middle": middle, "upper": upper}
+
+
+def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
+    """Compute `alpha` %ile confidence interval of mean of `vals` using t-distribution."""
+    df = len(vals) - 1
+    assert df > 0
+    mu = np.mean(vals)
+    stderr = scipy.stats.sem(vals)
+    lower, upper = scipy.stats.t.interval(alpha / 100, df, loc=mu, scale=stderr)
+    return {"lower": lower, "middle": mu, "upper": upper}
+
+
+def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
+    """Returns sample mean and (unbiased) standard deviation."""
+    assert len(vals) > 1
+    return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
 
 
 MUJOCO_STANDARD_ORDER = [
@@ -196,6 +240,7 @@ def make_config(
         log_root = serialize.get_output_dir()  # where results are read from/written to
         n_bootstrap = 1000  # number of bootstrap samples
         alpha = 95  # percentile confidence interval
+        aggregate_kinds = ("bootstrap", "studentt", "sample")
 
         # Reward configurations: models to compare
         x_reward_cfgs = None
@@ -230,6 +275,20 @@ def make_config(
         }
         _ = locals()
         del _
+
+    @experiment.config
+    def aggregate_fns(aggregate_kinds, n_bootstrap, alpha):
+        """Make a mapping of aggregate functions of kinds `subset` with specified parameters.
+
+        Used in plot_{canon,epic}_heatmap; currently ignored by plot_return_heatmap since
+        it does not use multiple seeds and instead bootstraps over samples.
+        """
+        aggregate_fns = {
+            "bootstrap": functools.partial(bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha),
+            "studentt": functools.partial(studentt_ci, alpha=alpha),
+            "sample": sample_mean_sd,
+        }
+        aggregate_fns = {k: aggregate_fns[k] for k in aggregate_kinds}  # noqa: F401
 
     @experiment.named_config
     def large():

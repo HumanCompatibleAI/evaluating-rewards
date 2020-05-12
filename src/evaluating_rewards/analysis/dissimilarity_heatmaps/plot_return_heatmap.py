@@ -77,6 +77,18 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
 
 
 @plot_return_heatmap_ex.named_config
+def high_precision():
+    """Compute tight confidence intervals for publication quality figures.
+
+    Slow and not that much more informative so not worth it for exploratory data analysis.
+    """
+    n_episodes = 16384
+    n_bootstrap = 10000
+    _ = locals()
+    del _
+
+
+@plot_return_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     n_episodes = 64
