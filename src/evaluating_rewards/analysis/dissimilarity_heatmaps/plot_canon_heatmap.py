@@ -96,9 +96,9 @@ def high_precision():
 
     Slow and not that much more informative so not worth it for exploratory data analysis.
     """
-    n_seeds = 10
-    n_samples = 16384
-    n_mean_samples = 16384
+    n_seeds = 30
+    n_samples = 32768
+    n_mean_samples = 32768
     n_bootstrap = 10000
     _ = locals()
     del _

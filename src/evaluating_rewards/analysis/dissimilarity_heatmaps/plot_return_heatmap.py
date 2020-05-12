@@ -80,7 +80,7 @@ def high_precision():
 
     Slow and not that much more informative so not worth it for exploratory data analysis.
     """
-    n_episodes = 16384
+    n_episodes = 65536
     n_bootstrap = 10000
     _ = locals()
     del _
@@ -142,7 +142,7 @@ def correlation_distance(
     def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> Mapping[str, float]:
         distances = tabular.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
         lower, middle, upper = tabular.empirical_ci(distances, alpha)
-        return {"lower": lower, "middle": middle, "upper": upper}
+        return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
 
     logger.info("Computing distance")
     return canonical_sample.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)

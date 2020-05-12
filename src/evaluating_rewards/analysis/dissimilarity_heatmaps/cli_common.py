@@ -85,6 +85,29 @@ def load_models(
     }
 
 
+def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:
+    """Compute `alpha` %ile confidence interval of mean of `vals` from `n_bootstrap` samples."""
+    bootstrapped = tabular.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
+    lower, middle, upper = tabular.empirical_ci(bootstrapped, alpha)
+    return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
+
+
+def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
+    """Compute `alpha` %ile confidence interval of mean of `vals` using t-distribution."""
+    df = len(vals) - 1
+    assert df > 0
+    mu = np.mean(vals)
+    stderr = scipy.stats.sem(vals)
+    lower, upper = scipy.stats.t.interval(alpha / 100, df, loc=mu, scale=stderr)
+    return {"lower": lower, "middle": mu, "upper": upper, "width": upper - lower}
+
+
+def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
+    """Returns sample mean and (unbiased) standard deviation."""
+    assert len(vals) > 1
+    return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
+
+
 def oned_mapping_to_series(dissimilarity: Mapping[Tuple[RewardCfg, RewardCfg], float]) -> pd.Series:
     """Converts mapping to a series.
 
@@ -149,6 +172,26 @@ def apply_multi_aggregate_fns(
     return res
 
 
+def _usual_label_fstr(distance_name: str) -> str:
+    return "{transform_start}" + distance_name + "({args}){transform_end}"
+
+
+def pretty_label_fstr(name: str) -> str:
+    """Abbreviation to use in legend for colorbar."""
+    if name.endswith("lower"):
+        return _usual_label_fstr("D_L")
+    elif name.endswith("upper"):
+        return _usual_label_fstr("D_U")
+    elif name.endswith("middle") or name.endswith("mean"):
+        return _usual_label_fstr(r"\bar{{D}}")
+    elif name.endswith("width"):
+        return _usual_label_fstr("D_W")
+    elif name.endswith("sd"):
+        return r"\mathrm{{SD}}\left[" + _usual_label_fstr("D") + r"\right]"
+    else:
+        return _usual_label_fstr("D")
+
+
 def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
     """Plot heatmap for each dissimilarity series in dissimilarities.
 
@@ -162,32 +205,10 @@ def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mappin
     """
     figs = {}
     for name, val in dissimilarities.items():
-        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=val, **kwargs)
+        label_fstr = pretty_label_fstr(name)
+        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=val, label_fstr=label_fstr, **kwargs)
         figs.update({f"{name}_{k}": v for k, v in heatmap_figs.items()})
     return figs
-
-
-def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:
-    """Compute `alpha` %ile confidence interval of mean of `vals` from `n_bootstrap` samples."""
-    bootstrapped = tabular.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
-    lower, middle, upper = tabular.empirical_ci(bootstrapped, alpha)
-    return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
-
-
-def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
-    """Compute `alpha` %ile confidence interval of mean of `vals` using t-distribution."""
-    df = len(vals) - 1
-    assert df > 0
-    mu = np.mean(vals)
-    stderr = scipy.stats.sem(vals)
-    lower, upper = scipy.stats.t.interval(alpha / 100, df, loc=mu, scale=stderr)
-    return {"lower": lower, "middle": mu, "upper": upper, "width": upper - lower}
-
-
-def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
-    """Returns sample mean and (unbiased) standard deviation."""
-    assert len(vals) > 1
-    return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
 
 
 def save_artifacts(

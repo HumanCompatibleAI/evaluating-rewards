@@ -59,6 +59,7 @@ def comparison_heatmap(
     cmap: str = "GnBu",
     robust: bool = False,
     preserve_order: bool = False,
+    label_fstr: Optional[str] = None,
     normalize: bool = False,
     mask: Optional[pd.Series] = None,
     **kwargs,
@@ -80,6 +81,9 @@ def comparison_heatmap(
         preserve_order: If True, retains the same order as the input index
             after rewriting the index values for readability. If false,
             sorts the rewritten values alphabetically.
+        label_fstr: Format string to use for the label for the colorbar legend.` {args}` is
+            replaced with arguments to distance and `{transform_start}` and `{transform_end}`
+            is replaced with any transformations of the distance (e.g. log).
         normalize: If True, divides by distance from Zero reward to target, rescaling
             all values between 0 and 1. (Values may exceed 1 due to optimisation error.)
         mask: If provided, only display cells where mask is True.
@@ -99,10 +103,13 @@ def comparison_heatmap(
     annot = vals.applymap(fmt)
     cbar_kws = dict(cbar_kws or {})
 
-    label = r"D_{\mathrm{norm}}" if normalize else "D"
-    label += "(R_S, R_T)"
-    if log:
-        label = r"\log_{10}(" + label + ")"
+    if label_fstr is None:
+        label_fstr = "{transform_start}D({args}){transform_end}"
+    transform_start = r"\log_{10}(" if log else ""
+    transform_end = ")" if log else ""
+    label = label_fstr.format(
+        transform_start=transform_start, args="R_S,R_T", transform_end=transform_end
+    )
     cbar_kws.setdefault("label", f"${label}$")
 
     if robust:
