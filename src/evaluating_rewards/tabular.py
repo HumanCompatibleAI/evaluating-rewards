@@ -24,7 +24,6 @@ import sklearn.utils
 from evaluating_rewards import rewards
 
 DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
-DistanceFn = Callable[[np.ndarray, np.ndarray], float]
 
 
 def shape(reward: np.ndarray, potential: np.ndarray, discount: float) -> np.ndarray:
@@ -171,7 +170,7 @@ def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
 def bootstrap(
     *inputs, stat_fn, n_samples: int = 100, random_state: Optional[np.random.RandomState] = None
 ) -> np.ndarray:
-    """Evaluates stat_fn for n_samples of rewa and rewb with replacement.
+    """Evaluates stat_fn for n_samples from inputs with replacement.
 
     Args:
         inputs: The inputs to bootstrap over.
@@ -195,7 +194,7 @@ def bootstrap(
     return np.array(vals)
 
 
-def empirical_ci(arr: np.ndarray, alpha: float = 95) -> np.ndarray:
+def empirical_ci(arr: np.ndarray, alpha: float = 95.0) -> np.ndarray:
     """Computes percentile range in an array of values.
 
     Args:

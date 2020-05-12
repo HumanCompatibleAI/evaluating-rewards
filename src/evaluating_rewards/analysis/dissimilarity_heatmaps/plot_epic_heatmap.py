@@ -27,7 +27,7 @@ from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
 
-logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_Heatmap")
+logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap")
 plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
 
 cli_common.make_config(plot_epic_heatmap_ex)

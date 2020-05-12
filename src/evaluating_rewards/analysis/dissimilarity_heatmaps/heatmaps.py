@@ -105,8 +105,8 @@ def comparison_heatmap(
 
     if label_fstr is None:
         label_fstr = "{transform_start}D({args}){transform_end}"
-    transform_start = r"\log_{10}(" if log else ""
-    transform_end = ")" if log else ""
+    transform_start = r"\log_{10}\left(" if log else ""
+    transform_end = r"\right)" if log else ""
     label = label_fstr.format(
         transform_start=transform_start, args="R_S,R_T", transform_end=transform_end
     )

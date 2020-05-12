@@ -94,8 +94,8 @@ def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mappi
 
 def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
     """Compute `alpha` %ile confidence interval of mean of `vals` using t-distribution."""
+    assert len(vals) > 1
     df = len(vals) - 1
-    assert df > 0
     mu = np.mean(vals)
     stderr = scipy.stats.sem(vals)
     lower, upper = scipy.stats.t.interval(alpha / 100, df, loc=mu, scale=stderr)
@@ -193,7 +193,7 @@ def pretty_label_fstr(name: str) -> str:
 
 
 def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
-    """Plot heatmap for each dissimilarity series in dissimilarities.
+    """Plot heatmap for each dissimilarity series in `dissimilarities`.
 
     Args:
         dissimilarities: Mapping from strings to dissimilarity matrix.
@@ -266,6 +266,9 @@ def make_config(
         - y_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for y-axis.
         - log_root (str): the root directory to log; subdirectory path automatically constructed.
         - n_bootstrap (int): the number of bootstrap samples to take.
+        - alpha (float): percentile confidence interval
+        - aggregate_kinds (Iterable[str]): the type of aggregations to perform across seeds.
+            Not used in `plot_return_heatmap` which only supports its own kind of bootstrapping.
         - heatmap_kwargs (dict): passed through to `analysis.compact_heatmaps`.
         - styles (Iterable[str]): styles to apply from `evaluating_rewards.analysis.stylesheets`.
         - save_kwargs (dict): passed through to `analysis.save_figs`.
