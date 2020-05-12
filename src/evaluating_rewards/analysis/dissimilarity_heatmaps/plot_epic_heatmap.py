@@ -181,9 +181,7 @@ def plot_epic_heatmap(
         figs = {}
         figs["loss"] = loss_heatmap(loss, res["loss"]["unwrapped_loss"])
         figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
-        for name, val in vals.items():
-            heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=val, **heatmap_kwargs)
-            figs.update({f"{name}_{k}": v for k, v in heatmap_figs.items()})
+        figs.update(cli_common.multi_heatmaps(vals, **heatmap_kwargs))
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
         return figs

@@ -27,7 +27,7 @@ import tensorflow as tf
 
 from evaluating_rewards import canonical_sample, datasets, rewards, tabular
 from evaluating_rewards.analysis import stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
+from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
 plot_return_heatmap_ex = sacred.Experiment("plot_return_heatmap")
@@ -191,16 +191,11 @@ def plot_return_heatmap(
     aggregated = correlation_distance(  # pylint:disable=no-value-for-parameter
         sess, trajectories, models, x_reward_cfgs, y_reward_cfgs
     )
-    # TODO(adam): code duplication
-    keys = list(set((tuple(v.keys()) for v in aggregated.values())))
-    assert len(keys) == 1
-    vals = {outer_key: {k: v[outer_key] for k, v in aggregated.items()} for outer_key in keys[0]}
-    vals = {k: cli_common.dissimilarity_mapping_to_series(v) for k, v in vals.items()}
+    vals = cli_common.twod_mapping_to_multi_series(aggregated)
 
     with stylesheets.setup_styles(styles):
-        for name, val in vals.items():
-            figs = heatmaps.compact_heatmaps(dissimilarity=val, **heatmap_kwargs)
-            visualize.save_figs(os.path.join(log_dir, name), figs.items(), **save_kwargs)
+        figs = cli_common.multi_heatmaps(vals, **heatmap_kwargs)
+        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
     return figs
 

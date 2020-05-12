@@ -20,9 +20,10 @@ Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatma
 import functools
 import itertools
 import os
-from typing import Iterable, Mapping, Tuple
+from typing import Any, Iterable, Mapping, Tuple
 
 import gym
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sacred
@@ -77,10 +78,8 @@ def load_models(
     }
 
 
-def dissimilarity_mapping_to_series(
-    dissimilarity: Mapping[Tuple[RewardCfg, RewardCfg], float]
-) -> pd.Series:
-    """Converts dissimilarity mapping to a MultiIndex series.
+def oned_mapping_to_series(dissimilarity: Mapping[Tuple[RewardCfg, RewardCfg], float]) -> pd.Series:
+    """Converts mapping to a series.
 
     Args:
         dissimilarity: A mapping from pairs of configurations to a float.
@@ -102,7 +101,44 @@ def dissimilarity_mapping_to_series(
     return dissimilarity
 
 
+def twod_mapping_to_multi_series(
+    aggregated: Mapping[Any, Mapping[str, float]]
+) -> Mapping[str, pd.Series]:
+    """Converts a nested mapping to a mapping of dissimilarity series.
+
+    Args:
+        aggregated: A mapping over a mapping from strings to sequences of floats.
+
+    Returns:
+        A mapping from strings to MultiIndex series returned by `oned_mapping_to_series`,
+        after transposing the inner and outer keys of the mapping.
+    """
+    keys = list(set((tuple(v.keys()) for v in aggregated.values())))
+    assert len(keys) == 1
+    vals = {outer_key: {k: v[outer_key] for k, v in aggregated.items()} for outer_key in keys[0]}
+    return {k: oned_mapping_to_series(v) for k, v in vals.items()}
+
+
+def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
+    """Plot heatmap for each dissimilarity series in dissimilarities.
+
+    Args:
+        dissimilarities: Mapping from strings to dissimilarity matrix.
+        kwargs: Passed through to `heatmaps.compact_heatmaps`.
+
+    Returns:
+        A Mapping from strings to figures, with keys "{k}_{mask}" for mask config `mask` from
+        `dissimilarities[k]`.
+    """
+    figs = {}
+    for name, val in dissimilarities.items():
+        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=val, **kwargs)
+        figs.update({f"{name}_{k}": v for k, v in heatmap_figs.items()})
+    return figs
+
+
 def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:
+    """Compute `alpha` %ile confidence interval of mean of `vals` from `n_bootstrap` samples."""
     bootstrapped = tabular.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
     lower, middle, upper = tabular.empirical_ci(bootstrapped, alpha)
     return {"lower": lower, "middle": middle, "upper": upper}
