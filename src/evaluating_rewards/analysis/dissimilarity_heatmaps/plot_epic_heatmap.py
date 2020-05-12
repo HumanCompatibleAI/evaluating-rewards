@@ -81,6 +81,8 @@ def test():
         "evaluating_rewards/PointMassGroundTruth-v0",
         "evaluating_rewards/PointMassSparseWithCtrl-v0",
     ]
+    # Dummy test data only contains 1 seed so cannot use other methods.
+    aggregate_kinds = ("bootstrap",)
     # Do not include "tex" in styles here: this will break on CI.
     styles = ["paper", "heatmap-1col"]
     _ = locals()

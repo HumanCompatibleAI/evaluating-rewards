@@ -283,12 +283,15 @@ def make_config(
         Used in plot_{canon,epic}_heatmap; currently ignored by plot_return_heatmap since
         it does not use multiple seeds and instead bootstraps over samples.
         """
-        aggregate_fns = {
-            "bootstrap": functools.partial(bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha),
-            "studentt": functools.partial(studentt_ci, alpha=alpha),
-            "sample": sample_mean_sd,
-        }
-        aggregate_fns = {k: aggregate_fns[k] for k in aggregate_kinds}  # noqa: F401
+        aggregate_fns = {}
+        if "bootstrap" in aggregate_kinds:
+            aggregate_fns["bootstrap"] = functools.partial(
+                bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha
+            )
+        if "studentt" in aggregate_kinds:
+            aggregate_fns["studentt"] = functools.partial(studentt_ci, alpha=alpha)
+        if "sample" in aggregate_kinds:
+            aggregate_fns["sample"] = sample_mean_sd
 
     @experiment.named_config
     def large():
