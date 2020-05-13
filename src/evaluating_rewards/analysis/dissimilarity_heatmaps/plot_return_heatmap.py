@@ -80,7 +80,7 @@ def high_precision():
 
     Slow and not that much more informative so not worth it for exploratory data analysis.
     """
-    n_episodes = 65536
+    n_episodes = 131072
     n_bootstrap = 10000
     _ = locals()
     del _
