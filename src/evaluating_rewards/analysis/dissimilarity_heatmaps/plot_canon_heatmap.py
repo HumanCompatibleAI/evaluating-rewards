@@ -19,11 +19,12 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
-from imitation.util import util
+from imitation.util import util as imit_util
 import numpy as np
 import sacred
 import tensorflow as tf
 
+from evaluating_rewards import util
 from evaluating_rewards import canonical_sample, datasets, rewards, tabular
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
@@ -86,7 +87,7 @@ def logging_config(
         computation_kind,
         distance_kind,
         f"discount{discount}",
-        util.make_unique_timestamp(),
+        imit_util.make_unique_timestamp(),
     )
 
 
@@ -232,7 +233,7 @@ def mesh_canon(
         distance_fn, discount=discount, deshape_fn=tabular.fully_connected_random_canonical_reward
     )
     logger.info("Computing distance")
-    return canonical_sample.cross_distance(x_rews, y_rews, distance_fn=distance_fn)
+    return util.cross_distance(x_rews, y_rews, distance_fn=distance_fn)
 
 
 def _direct_distance(rewa: np.ndarray, rewb: np.ndarray, p: int) -> float:
@@ -300,9 +301,7 @@ def sample_canon(
         raise ValueError(f"Unrecognized distance '{distance_kind}'")
 
     logger.info("Computing distance")
-    return canonical_sample.cross_distance(
-        x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1,
-    )
+    return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1,)
 
 
 @plot_canon_heatmap_ex.main

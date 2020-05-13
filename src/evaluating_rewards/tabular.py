@@ -19,7 +19,6 @@ from typing import Callable, Optional, Tuple
 import numpy as np
 import pandas as pd
 import scipy.stats
-import sklearn.utils
 
 from evaluating_rewards import rewards
 
@@ -165,48 +164,6 @@ def epic_distance(
 def _center(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
     mean = np.average(x, weights=weights)
     return x - mean
-
-
-def bootstrap(
-    *inputs, stat_fn, n_samples: int = 100, random_state: Optional[np.random.RandomState] = None
-) -> np.ndarray:
-    """Evaluates stat_fn for n_samples from inputs with replacement.
-
-    Args:
-        inputs: The inputs to bootstrap over.
-        stat_fn: A function computing a statistic on inputs.
-        n_samples: The number of bootstrapped samples to take.
-        random_state: Random state passed to `sklearn.utils.resample`.
-
-    Returns:
-        n_samples of the distance computed by `distance_fn`, each on an independent sample with
-        replacement from `rewa` and `rewb` of the same shape as `rewa` and `rewb`.
-    """
-    vals = []
-    for _ in range(n_samples):
-        samples = sklearn.utils.resample(*inputs, random_state=random_state)
-        if len(inputs) > 1:
-            val = stat_fn(*samples)
-        else:
-            val = stat_fn(samples)
-        vals.append(val)
-
-    return np.array(vals)
-
-
-def empirical_ci(arr: np.ndarray, alpha: float = 95.0) -> np.ndarray:
-    """Computes percentile range in an array of values.
-
-    Args:
-        arr: An array.
-        alpha: Percentile confidence interval.
-
-    Returns:
-        A triple of the lower bound, median and upper bound of the confidence interval
-        with a width of alpha.
-    """
-    percentiles = 50 - alpha / 2, 50, 50 + alpha / 2
-    return np.percentile(arr, percentiles)
 
 
 def pearson_distance(

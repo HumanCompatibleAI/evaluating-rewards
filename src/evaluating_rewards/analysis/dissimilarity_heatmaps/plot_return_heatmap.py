@@ -19,12 +19,13 @@ import os
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
 from imitation.data import types
-from imitation.util import util
+from imitation.util import util as imit_util
 import numpy as np
 import sacred
 import tensorflow as tf
 
-from evaluating_rewards import canonical_sample, datasets, rewards, tabular
+from evaluating_rewards import util
+from evaluating_rewards import datasets, rewards, tabular
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
@@ -70,7 +71,7 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
         dataset_tag,
         corr_kind,
         f"discount{discount}",
-        util.make_unique_timestamp(),
+        imit_util.make_unique_timestamp(),
     )
 
 
@@ -109,7 +110,7 @@ def correlation_distance(
     alpha: float = 0.95,
 ) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], Mapping[str, float]]:
     """
-    Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
+    Computes correlation of episode returns.
 
     Args:
         sess: the TensorFlow session.
@@ -140,12 +141,12 @@ def correlation_distance(
         raise ValueError(f"Unrecognized correlation '{corr_kind}'")
 
     def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> Mapping[str, float]:
-        distances = tabular.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
-        lower, middle, upper = tabular.empirical_ci(distances, alpha)
+        distances = util.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
+        lower, middle, upper = util.empirical_ci(distances, alpha)
         return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
 
     logger.info("Computing distance")
-    return canonical_sample.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
+    return util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
 
 
 @plot_return_heatmap_ex.main

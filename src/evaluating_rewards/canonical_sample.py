@@ -14,9 +14,7 @@
 
 """Metrics based on sampling to approximate a canonical reward in an equivalence class."""
 
-import multiprocessing
-import multiprocessing.dummy
-from typing import Callable, Mapping, Optional, Tuple, TypeVar
+from typing import Mapping, Tuple, TypeVar
 
 from imitation.data import types
 import numpy as np
@@ -25,7 +23,6 @@ import tensorflow as tf
 from evaluating_rewards import datasets, rewards, tabular
 
 K = TypeVar("K")
-V = TypeVar("V")
 
 
 def _make_mesh_tensors(inputs: Mapping[K, np.ndarray]) -> Mapping[K, tf.Tensor]:
@@ -294,43 +291,3 @@ def sample_canon_shaping(
         deshaped_rew[k] = deshaped
 
     return deshaped_rew
-
-
-def cross_distance(
-    rewxs: Mapping[K, np.ndarray],
-    rewys: Mapping[K, np.ndarray],
-    distance_fn: Callable[[np.ndarray, np.ndarray], V],
-    parallelism: Optional[int] = None,
-    threading: bool = True,
-) -> Mapping[Tuple[K, K], V]:
-    """Helper function to compute distance between all pairs of rewards from `rewxs` and `rewys`.
-
-    Args:
-        rewxs: A mapping from keys to NumPy arrays of shape `(n,)`.
-        rewys: A mapping from keys to NumPy arrays of shape `(n,)`.
-        distance_fn: A function to compute the distance between two NumPy arrays.
-        parallelism: The number of threads/processes to execute in parallel; if not specified,
-            defaults to `multiprocessing.cpu_count()`.
-        threading: If true, use multi-threading; otherwise, use multiprocessing. For many NumPy
-            functions, multi-threading is higher performance since NumPy releases the GIL, and
-            threading avoids expensive copying of the arrays needed for multiprocessing.
-
-    Returns:
-        A mapping from (i,j) to `distance_fn(rews[i], rews[j])`.
-    """
-    shapes = set((v.shape for v in rewxs.values()))
-    shapes.update((v.shape for v in rewys.values()))
-    assert len(shapes) <= 1, "rewards differ in shape"
-
-    tasks = {(kx, ky): (rewx, rewy) for kx, rewx in rewxs.items() for ky, rewy in rewys.items()}
-
-    if parallelism == 1:
-        # Only one process? Skip multiprocessing, since creating Pool adds overhead.
-        results = [distance_fn(rewx, rewy) for rewx, rewy in tasks.values()]
-    else:
-        # We want parallelism, use multiprocessing to speed things up.
-        module = multiprocessing.dummy if threading else multiprocessing
-        with module.Pool(processes=parallelism) as pool:
-            results = pool.starmap(distance_fn, tasks.values())
-
-    return dict(zip(tasks.keys(), results))

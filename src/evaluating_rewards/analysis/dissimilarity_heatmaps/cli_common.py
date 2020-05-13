@@ -32,7 +32,8 @@ import sacred
 import scipy.stats
 from stable_baselines.common import vec_env
 
-from evaluating_rewards import rewards, serialize, tabular
+from evaluating_rewards import util
+from evaluating_rewards import rewards, serialize
 from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
@@ -87,8 +88,8 @@ def load_models(
 
 def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:
     """Compute `alpha` %ile confidence interval of mean of `vals` from `n_bootstrap` samples."""
-    bootstrapped = tabular.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
-    lower, middle, upper = tabular.empirical_ci(bootstrapped, alpha)
+    bootstrapped = util.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
+    lower, middle, upper = util.empirical_ci(bootstrapped, alpha)
     return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
 
 
