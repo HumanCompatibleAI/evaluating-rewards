@@ -19,15 +19,13 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
-from imitation.util import util
-import matplotlib.pyplot as plt
+from imitation.util import util as imit_util
 import numpy as np
 import sacred
 import tensorflow as tf
 
-from evaluating_rewards import canonical_sample, datasets, rewards, tabular
-from evaluating_rewards.analysis import stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
+from evaluating_rewards import canonical_sample, datasets, rewards, tabular, util
+from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
 plot_canon_heatmap_ex = sacred.Experiment("plot_canon_heatmap")
@@ -45,6 +43,7 @@ def default_config(env_name, log_root):
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance
     discount = 0.99  # discount rate for shaping
+    n_seeds = 3
 
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
@@ -87,8 +86,22 @@ def logging_config(
         computation_kind,
         distance_kind,
         f"discount{discount}",
-        util.make_unique_timestamp(),
+        imit_util.make_unique_timestamp(),
     )
+
+
+@plot_canon_heatmap_ex.named_config
+def high_precision():
+    """Compute tight confidence intervals for publication quality figures.
+
+    Slow and not that much more informative so not worth it for exploratory data analysis.
+    """
+    n_seeds = 30
+    n_samples = 32768
+    n_mean_samples = 32768
+    n_bootstrap = 10000
+    _ = locals()
+    del _
 
 
 SAMPLE_FROM_DATASET_FACTORY = dict(
@@ -219,7 +232,7 @@ def mesh_canon(
         distance_fn, discount=discount, deshape_fn=tabular.fully_connected_random_canonical_reward
     )
     logger.info("Computing distance")
-    return canonical_sample.cross_distance(x_rews, y_rews, distance_fn=distance_fn)
+    return util.cross_distance(x_rews, y_rews, distance_fn=distance_fn)
 
 
 def _direct_distance(rewa: np.ndarray, rewb: np.ndarray, p: int) -> float:
@@ -287,9 +300,7 @@ def sample_canon(
         raise ValueError(f"Unrecognized distance '{distance_kind}'")
 
     logger.info("Computing distance")
-    return canonical_sample.cross_distance(
-        x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1,
-    )
+    return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1,)
 
 
 @plot_canon_heatmap_ex.main
@@ -301,19 +312,28 @@ def plot_canon_heatmap(
     obs_sample_dist_factory: datasets.SampleDistFactory,
     act_sample_dist_factory: datasets.SampleDistFactory,
     sample_dist_factory_kwargs: Dict[str, Any],
+    n_seeds: int,
+    aggregate_fns: Mapping[str, cli_common.AggregateFn],
     computation_kind: str,
     styles: Iterable[str],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     data_root: str,
     save_kwargs: Mapping[str, Any],
-) -> Mapping[str, plt.Figure]:
+) -> None:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
         env_name: the name of the environment to plot rewards for.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        obs_sample_dist_factory: factory to generate sample distribution for observations.
+        act_sample_dist_factory: factory to generate sample distribution for actions.
+        sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
+        n_seeds: the number of independent seeds to take.
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
+        n_bootstrap: the number of bootstrap samples to take when computing the mean of seeds.
+        alpha: percentile confidence interval.
         computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
@@ -343,19 +363,25 @@ def plot_canon_heatmap(
     else:
         raise ValueError(f"Unrecognized computation kind '{computation_kind}'")
 
-    with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
-        with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
-            dissimilarity = computation_fn(
-                g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
-            )
+    dissimilarities = {}
+    for i in range(n_seeds):
+        logger.info(f"Seed {i}")
+        with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
+            with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
+                dissimilarity = computation_fn(
+                    g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
+                )
+                for k, v in dissimilarity.items():
+                    dissimilarities.setdefault(k, []).append(v)
 
-    dissimilarity = cli_common.dissimilarity_mapping_to_series(dissimilarity)
+    vals = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        aggregated = {k: aggregate_fn(v) for k, v in dissimilarities.items()}
+        aggregated = cli_common.twod_mapping_to_multi_series(aggregated)
+        vals.update({f"{name}_{k}": v for k, v in aggregated.items()})
 
-    with stylesheets.setup_styles(styles):
-        figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-
-    return figs
+    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
 
 
 if __name__ == "__main__":

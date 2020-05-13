@@ -144,28 +144,3 @@ def test_sample_canon_shaping(
         p=1,
     )
     assert sparse_vs_gt > 0.1
-
-
-CROSS_DISTANCE_TEST_CASES = [
-    {"rewxs": {}, "rewys": {"bar": np.zeros(4)}, "expected": {}},
-    {
-        "rewxs": {"foo": np.zeros(4), 42: np.ones(4)},
-        "rewys": {"bar": np.zeros(4), None: np.ones(4)},
-        "expected": {("foo", "bar"): 0, ("foo", None): 1, (42, "bar"): 1, (42, None): 0},
-    },
-]
-
-
-@pytest.mark.parametrize("test_case", CROSS_DISTANCE_TEST_CASES)
-@pytest.mark.parametrize("threading", [False, True])
-@pytest.mark.parametrize("parallelism", [None, 1, 2])
-def test_cross_distance(test_case, parallelism: int, threading: bool) -> None:
-    """Tests canonical_sample.cross_distance on CROSS_DISTANCE_TEST_CASES."""
-    actual = canonical_sample.cross_distance(
-        test_case["rewxs"],
-        test_case["rewys"],
-        distance_fn=tabular.direct_distance,
-        parallelism=parallelism,
-        threading=threading,
-    )
-    assert test_case["expected"] == actual

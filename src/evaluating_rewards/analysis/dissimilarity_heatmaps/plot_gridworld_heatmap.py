@@ -86,7 +86,6 @@ def paper():
         "sparse_penalty",
         "dirt_path",
         "cliff_walk",
-        "evaluating_rewards/Zero-v0",
     ]
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "order": reward_subset,

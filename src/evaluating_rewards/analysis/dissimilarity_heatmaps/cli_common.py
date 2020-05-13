@@ -19,18 +19,27 @@ Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatma
 
 import functools
 import itertools
+import logging
 import os
-from typing import Iterable, Mapping, Tuple
+import pickle
+from typing import Any, Callable, Iterable, Mapping, Sequence, Tuple
 
 import gym
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import sacred
+import scipy.stats
 from stable_baselines.common import vec_env
 
-from evaluating_rewards import rewards, serialize
+from evaluating_rewards import rewards, serialize, util
+from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 
+AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
 RewardCfg = Tuple[str, str]  # (type, path)
+
+logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.cli_common")
 
 
 def canonicalize_reward_cfg(reward_cfg: Iterable[RewardCfg], data_root: str) -> Iterable[RewardCfg]:
@@ -76,10 +85,31 @@ def load_models(
     }
 
 
-def dissimilarity_mapping_to_series(
-    dissimilarity: Mapping[Tuple[RewardCfg, RewardCfg], float]
-) -> pd.Series:
-    """Converts dissimilarity mapping to a MultiIndex series.
+def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:
+    """Compute `alpha` %ile confidence interval of mean of `vals` from `n_bootstrap` samples."""
+    bootstrapped = util.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
+    lower, middle, upper = util.empirical_ci(bootstrapped, alpha)
+    return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
+
+
+def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
+    """Compute `alpha` %ile confidence interval of mean of `vals` using t-distribution."""
+    assert len(vals) > 1
+    df = len(vals) - 1
+    mu = np.mean(vals)
+    stderr = scipy.stats.sem(vals)
+    lower, upper = scipy.stats.t.interval(alpha / 100, df, loc=mu, scale=stderr)
+    return {"lower": lower, "middle": mu, "upper": upper, "width": upper - lower}
+
+
+def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
+    """Returns sample mean and (unbiased) standard deviation."""
+    assert len(vals) > 1
+    return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
+
+
+def oned_mapping_to_series(dissimilarity: Mapping[Tuple[RewardCfg, RewardCfg], float]) -> pd.Series:
+    """Converts mapping to a series.
 
     Args:
         dissimilarity: A mapping from pairs of configurations to a float.
@@ -99,6 +129,102 @@ def dissimilarity_mapping_to_series(
         "source_reward_path",
     ]
     return dissimilarity
+
+
+def twod_mapping_to_multi_series(
+    aggregated: Mapping[Any, Mapping[str, float]]
+) -> Mapping[str, pd.Series]:
+    """Converts a nested mapping to a mapping of dissimilarity series.
+
+    Args:
+        aggregated: A mapping over a mapping from strings to sequences of floats.
+
+    Returns:
+        A mapping from strings to MultiIndex series returned by `oned_mapping_to_series`,
+        after transposing the inner and outer keys of the mapping.
+    """
+    keys = list(set((tuple(v.keys()) for v in aggregated.values())))
+    assert len(keys) == 1
+    vals = {outer_key: {k: v[outer_key] for k, v in aggregated.items()} for outer_key in keys[0]}
+    return {k: oned_mapping_to_series(v) for k, v in vals.items()}
+
+
+def apply_multi_aggregate_fns(
+    dissimilarities: Mapping[Any, Sequence[float]], aggregate_fns: Mapping[str, AggregateFn],
+) -> Mapping[str, pd.Series]:
+    """Aggregate dissimilarities: e.g. confidence intervals.
+
+    Args:
+        dissimilarities: Mapping over sequences of floats.
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
+
+    Returns:
+         A mapping from string keys of the form "{aggregator}_{inner}" to Series, where
+         `aggregator` is the name of the aggregation function and `inner` is a key returned
+         by the aggregator.
+    """
+    res = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        aggregated = {k: aggregate_fn(v) for k, v in dissimilarities.items()}
+        aggregated = twod_mapping_to_multi_series(aggregated)
+        res.update({f"{name}_{k}": v for k, v in aggregated.items()})
+    return res
+
+
+def _usual_label_fstr(distance_name: str) -> str:
+    return "{transform_start}" + distance_name + "({args}){transform_end}"
+
+
+def pretty_label_fstr(name: str) -> str:
+    """Abbreviation to use in legend for colorbar."""
+    if name.endswith("lower"):
+        return _usual_label_fstr("D_L")
+    elif name.endswith("upper"):
+        return _usual_label_fstr("D_U")
+    elif name.endswith("middle") or name.endswith("mean"):
+        return _usual_label_fstr(r"\bar{{D}}")
+    elif name.endswith("width"):
+        return _usual_label_fstr("D_W")
+    elif name.endswith("sd"):
+        return r"\mathrm{{SD}}\left[" + _usual_label_fstr("D") + r"\right]"
+    else:
+        return _usual_label_fstr("D")
+
+
+def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
+    """Plot heatmap for each dissimilarity series in `dissimilarities`.
+
+    Args:
+        dissimilarities: Mapping from strings to dissimilarity matrix.
+        kwargs: Passed through to `heatmaps.compact_heatmaps`.
+
+    Returns:
+        A Mapping from strings to figures, with keys "{k}_{mask}" for mask config `mask` from
+        `dissimilarities[k]`.
+    """
+    figs = {}
+    for name, val in dissimilarities.items():
+        label_fstr = pretty_label_fstr(name)
+        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=val, label_fstr=label_fstr, **kwargs)
+        figs.update({f"{name}_{k}": v for k, v in heatmap_figs.items()})
+    return figs
+
+
+def save_artifacts(
+    vals: Mapping[str, pd.Series], styles: Iterable[str], log_dir: str, heatmap_kwargs, save_kwargs
+) -> None:
+    """Plot a figure for each entry in `vals`, and save figures as well as pickled raw values."""
+    os.makedirs(log_dir, exist_ok=True)
+
+    logging.info("Saving raw values")
+    with open(os.path.join(log_dir, "vals.pkl"), "wb") as f:
+        pickle.dump(vals, f)
+
+    logging.info("Plotting figures")
+    with stylesheets.setup_styles(styles):
+        figs = multi_heatmaps(vals, **heatmap_kwargs)
+        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
 
 MUJOCO_STANDARD_ORDER = [
@@ -139,6 +265,10 @@ def make_config(
         - x_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for x-axis.
         - y_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for y-axis.
         - log_root (str): the root directory to log; subdirectory path automatically constructed.
+        - n_bootstrap (int): the number of bootstrap samples to take.
+        - alpha (float): percentile confidence interval
+        - aggregate_kinds (Iterable[str]): the type of aggregations to perform across seeds.
+            Not used in `plot_return_heatmap` which only supports its own kind of bootstrapping.
         - heatmap_kwargs (dict): passed through to `analysis.compact_heatmaps`.
         - styles (Iterable[str]): styles to apply from `evaluating_rewards.analysis.stylesheets`.
         - save_kwargs (dict): passed through to `analysis.save_figs`.
@@ -150,6 +280,9 @@ def make_config(
         env_name = "evaluating_rewards/PointMassLine-v0"
         kinds = POINT_MASS_KINDS
         log_root = serialize.get_output_dir()  # where results are read from/written to
+        n_bootstrap = 1000  # number of bootstrap samples
+        alpha = 95  # percentile confidence interval
+        aggregate_kinds = ("bootstrap", "studentt", "sample")
 
         # Reward configurations: models to compare
         x_reward_cfgs = None
@@ -184,6 +317,23 @@ def make_config(
         }
         _ = locals()
         del _
+
+    @experiment.config
+    def aggregate_fns(aggregate_kinds, n_bootstrap, alpha):
+        """Make a mapping of aggregate functions of kinds `subset` with specified parameters.
+
+        Used in plot_{canon,epic}_heatmap; currently ignored by plot_return_heatmap since
+        it does not use multiple seeds and instead bootstraps over samples.
+        """
+        aggregate_fns = {}
+        if "bootstrap" in aggregate_kinds:
+            aggregate_fns["bootstrap"] = functools.partial(
+                bootstrap_ci, n_bootstrap=n_bootstrap, alpha=alpha
+            )
+        if "studentt" in aggregate_kinds:
+            aggregate_fns["studentt"] = functools.partial(studentt_ci, alpha=alpha)
+        if "sample" in aggregate_kinds:
+            aggregate_fns["sample"] = sample_mean_sd
 
     @experiment.named_config
     def large():

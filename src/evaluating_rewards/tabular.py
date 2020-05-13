@@ -22,6 +22,8 @@ import scipy.stats
 
 from evaluating_rewards import rewards
 
+DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
+
 
 def shape(reward: np.ndarray, potential: np.ndarray, discount: float) -> np.ndarray:
     """Adds a potential-based shaping to a reward.
@@ -172,8 +174,8 @@ def pearson_distance(
     It is invariant to positive affine transformations like the Pearson correlation coefficient.
 
     Args:
-        rewa: One three-dimensional reward array.
-        rewb: One three-dimensional reward array.
+        rewa: A reward array.
+        rewb: A reward array.
         dist: Optionally, a probability distribution of the same shape as rewa and rewb.
 
     Returns:
@@ -199,12 +201,12 @@ def pearson_distance(
     return np.sqrt(0.5 * (1 - corr))
 
 
-def spearman_distance(rewa: np.ndarray, rewb: np.ndarray,) -> float:
+def spearman_distance(rewa: np.ndarray, rewb: np.ndarray) -> float:
     """Computes dissimilarity derived from Spearman correlation coefficient.
 
     Args:
-        rewa: One three-dimensional reward array.
-        rewb: One three-dimensional reward array.
+        rewa: A reward array.
+        rewb: A reward array.
 
     Returns:
         Computes the Spearman correlation coefficient rho. Returns the square root of 1 minus rho.
@@ -382,9 +384,6 @@ def canonical_scale_normalizer(
     """
     scale = lp_norm(rew, p, dist)
     return 0 if abs(scale) < eps else 1 / scale
-
-
-DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
 
 
 def canonical_reward(

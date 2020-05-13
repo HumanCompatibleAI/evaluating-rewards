@@ -8,6 +8,7 @@ pandas
 pymdptoolbox
 seaborn
 setuptools
+scikit-learn
 scipy
 tensorflow>=1.15,<1.16
 xarray

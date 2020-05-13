@@ -14,6 +14,7 @@
 
 """CLI script to plot heatmap of EPIC distance between pairs of reward models."""
 
+import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Optional
 
@@ -26,8 +27,8 @@ from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
 
+logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap")
 plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
-
 
 cli_common.make_config(plot_epic_heatmap_ex)
 
@@ -57,6 +58,18 @@ def logging_config(log_root, search):
 
 
 @plot_epic_heatmap_ex.named_config
+def high_precision():
+    """Compute tight confidence intervals for publication quality figures.
+
+    Note the most important thing here is the number of seeds, which is not controllable here --
+    need to run more instances of `evaluating_rewards.scripts.model_comparison`.
+    """
+    n_bootstrap = 10000
+    _ = locals()
+    del _
+
+
+@plot_epic_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     data_root = os.path.join("tests", "data")
@@ -68,6 +81,8 @@ def test():
         "evaluating_rewards/PointMassGroundTruth-v0",
         "evaluating_rewards/PointMassSparseWithCtrl-v0",
     ]
+    # Dummy test data only contains 1 seed so cannot use other methods.
+    aggregate_kinds = ("bootstrap",)
     # Do not include "tex" in styles here: this will break on CI.
     styles = ["paper", "heatmap-1col"]
     _ = locals()
@@ -119,10 +134,11 @@ def plot_epic_heatmap(
     data_root: str,
     data_subdir: Optional[str],
     search: Mapping[str, Any],
+    aggregate_fns: Mapping[str, cli_common.AggregateFn],
     heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     save_kwargs: Mapping[str, Any],
-) -> Mapping[str, plt.Figure]:
+) -> None:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -132,6 +148,7 @@ def plot_epic_heatmap(
         data_root: where to load data from.
         data_subdir: subdirectory to load data from.
         search: mapping which Sacred configs must match to be included in results.
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
         heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
@@ -160,20 +177,29 @@ def plot_epic_heatmap(
         matches_target = target_cfg in x_reward_cfgs
         return matches_search and matches_source and matches_target
 
-    keys = ("source_reward_type", "source_reward_path", "target_reward_type", "seed")
+    keys = "source_reward_type", "source_reward_path", "target_reward_type", "seed"
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
+
+    vals = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        aggregated = loss.groupby(list(keys[:-1])).apply(aggregate_fn)
+        vals.update(
+            {
+                f"{name}_{k}": aggregated.loc[(slice(None), slice(None), slice(None), k)]
+                for k in aggregated.index.levels[-1]
+            }
+        )
 
     with stylesheets.setup_styles(styles):
         figs = {}
         figs["loss"] = loss_heatmap(loss, res["loss"]["unwrapped_loss"])
         figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
-        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=loss, **heatmap_kwargs)
-        figs.update(heatmap_figs)
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
-        return figs
+    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
 
 
 if __name__ == "__main__":

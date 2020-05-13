@@ -19,14 +19,13 @@ import os
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
 from imitation.data import types
-from imitation.util import util
-import matplotlib.pyplot as plt
+from imitation.util import util as imit_util
+import numpy as np
 import sacred
 import tensorflow as tf
 
-from evaluating_rewards import canonical_sample, datasets, rewards, tabular
-from evaluating_rewards.analysis import stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
+from evaluating_rewards import datasets, rewards, tabular, util
+from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
 plot_return_heatmap_ex = sacred.Experiment("plot_return_heatmap")
@@ -71,8 +70,20 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
         dataset_tag,
         corr_kind,
         f"discount{discount}",
-        util.make_unique_timestamp(),
+        imit_util.make_unique_timestamp(),
     )
+
+
+@plot_return_heatmap_ex.named_config
+def high_precision():
+    """Compute tight confidence intervals for publication quality figures.
+
+    Slow and not that much more informative so not worth it for exploratory data analysis.
+    """
+    n_episodes = 131072
+    n_bootstrap = 10000
+    _ = locals()
+    del _
 
 
 @plot_return_heatmap_ex.named_config
@@ -94,9 +105,11 @@ def correlation_distance(
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
     corr_kind: str,
     discount: float,
-) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], float]:
+    n_bootstrap: int,
+    alpha: float = 0.95,
+) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], Mapping[str, float]]:
     """
-    Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
+    Computes correlation of episode returns.
 
     Args:
         sess: the TensorFlow session.
@@ -106,6 +119,8 @@ def correlation_distance(
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
         corr_kind: method to compute results, either "pearson" or "spearman".
         discount: the discount rate for shaping.
+        n_bootstrap: The number of bootstrap samples to take.
+        alpha: The proportion to give a confidence interval over.
 
     Returns:
         Dissimilarity matrix.
@@ -124,8 +139,13 @@ def correlation_distance(
     else:
         raise ValueError(f"Unrecognized correlation '{corr_kind}'")
 
+    def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> Mapping[str, float]:
+        distances = util.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
+        lower, middle, upper = util.empirical_ci(distances, alpha)
+        return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
+
     logger.info("Computing distance")
-    return canonical_sample.cross_distance(x_rets, y_rets, distance_fn, parallelism=1)
+    return util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
 
 
 @plot_return_heatmap_ex.main
@@ -142,7 +162,7 @@ def plot_return_heatmap(
     log_dir: str,
     data_root: str,
     save_kwargs: Mapping[str, Any],
-) -> Mapping[str, plt.Figure]:
+) -> None:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -178,16 +198,11 @@ def plot_return_heatmap(
     with trajectory_factory(**trajectory_factory_kwargs) as trajectory_callable:
         trajectories = trajectory_callable(n_episodes)
 
-    dissimilarity = correlation_distance(  # pylint:disable=no-value-for-parameter
+    aggregated = correlation_distance(  # pylint:disable=no-value-for-parameter
         sess, trajectories, models, x_reward_cfgs, y_reward_cfgs
     )
-    dissimilarity = cli_common.dissimilarity_mapping_to_series(dissimilarity)
-
-    with stylesheets.setup_styles(styles):
-        figs = heatmaps.compact_heatmaps(dissimilarity=dissimilarity, **heatmap_kwargs)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-
-    return figs
+    vals = cli_common.twod_mapping_to_multi_series(aggregated)
+    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
 
 
 if __name__ == "__main__":
