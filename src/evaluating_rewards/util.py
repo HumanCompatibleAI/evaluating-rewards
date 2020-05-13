@@ -15,7 +15,7 @@
 """Miscellaneous helper methods."""
 
 import multiprocessing
-from typing import Optional, Mapping, Callable, Tuple, TypeVar
+from typing import Callable, Mapping, Optional, Tuple, TypeVar
 
 import numpy as np
 import sklearn.utils

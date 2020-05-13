@@ -32,8 +32,7 @@ import sacred
 import scipy.stats
 from stable_baselines.common import vec_env
 
-from evaluating_rewards import util
-from evaluating_rewards import rewards, serialize
+from evaluating_rewards import rewards, serialize, util
 from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
 

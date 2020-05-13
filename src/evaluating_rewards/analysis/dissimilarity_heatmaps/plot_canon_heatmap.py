@@ -24,8 +24,7 @@ import numpy as np
 import sacred
 import tensorflow as tf
 
-from evaluating_rewards import util
-from evaluating_rewards import canonical_sample, datasets, rewards, tabular
+from evaluating_rewards import canonical_sample, datasets, rewards, tabular, util
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
