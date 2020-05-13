@@ -15,6 +15,7 @@
 """Miscellaneous helper methods."""
 
 import multiprocessing
+import multiprocessing.dummy
 from typing import Callable, Mapping, Optional, Tuple, TypeVar
 
 import numpy as np
