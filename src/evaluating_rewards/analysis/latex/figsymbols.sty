@@ -12,21 +12,19 @@
 \newcommand{\controlpenalty}{\reflectbox{\emoji{noto_snail}}}
 \newcommand{\nocontrolpenalty}{\reflectbox{\emoji{mozilla_cheetah}}}
 
-\newcommand{\sparse}{\texttt{S}}
-\newcommand{\dense}{\texttt{D}}
-\newcommand{\magnitude}{\texttt{M}}
-\newcommand{\zeroreward}{\texttt{Zero}}
+\newcommand{\robusttt}[1]{\textup{\texttt{#1}}}
+\newcommand{\sparse}{\robusttt{S}}
+\newcommand{\dense}{\robusttt{D}}
+\newcommand{\magnitude}{\robusttt{M}}
+\newcommand{\zeroreward}{\textup{\robusttt{Zero}}}
 
-\newcommand{\sparsegoal}{\texttt{Sparse}}
-\newcommand{\densegoal}{\texttt{Dense}}
-\newcommand{\sparsepenalty}{\texttt{Penalty}}
-\newcommand{\centergoal}{\texttt{Center}}
-\newcommand{\dirtpath}{\texttt{Path}}
-\newcommand{\cliffwalk}{\texttt{Cliff}}
+\newcommand{\sparsegoal}{\robusttt{Sparse}}
+\newcommand{\densegoal}{\robusttt{Dense}}
+\newcommand{\sparsepenalty}{\robusttt{Penalty}}
+\newcommand{\centergoal}{\robusttt{Center}}
+\newcommand{\dirtpath}{\robusttt{Path}}
+\newcommand{\cliffwalk}{\robusttt{Cliff}}
 
 \newcommand{\firstreward}{R_A}
 \newcommand{\secondreward}{R_B}
 \newcommand{\thirdreward}{R_C}
-
-\newcommand{\srcreward}{R_S}
-\newcommand{\targetreward}{R_T}
