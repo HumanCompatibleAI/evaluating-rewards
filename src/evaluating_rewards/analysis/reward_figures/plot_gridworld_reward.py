@@ -77,6 +77,7 @@ def test():
 
 @plot_gridworld_reward_ex.named_config
 def main_paper():
+    """Config for compact figure in main body of paper."""
     styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-4in1"]
     rewards = [
         (r"$\mathtt{Sparse}$", "sparse_goal"),

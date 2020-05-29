@@ -7,10 +7,11 @@ from typing import Iterable, Iterator
 LATEX_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "latex")
 
 STYLES = {
-    # Matching ICML 2020 style
+    # Matching NeurIPS 2020 style
     "paper": {
         "font.family": "serif",
         "font.serif": "Times New Roman",
+        "mathtext.fontset": "cm",
         "font.size": 10,
         "legend.fontsize": 10,
         "axes.titlesize": 10,
@@ -20,7 +21,7 @@ STYLES = {
     },
     "huge": {"figure.figsize": (20, 10)},
     "pointmass-2col": {
-        "figure.figsize": (6.75, 2.5),
+        "figure.figsize": (5.5, 2.04),
         "figure.subplot.left": 0.2,
         "figure.subplot.right": 1.0,
         "figure.subplot.top": 0.92,
@@ -29,15 +30,28 @@ STYLES = {
         "figure.subplot.wspace": 0.25,
     },
     "heatmap": {"font.size": 8, "xtick.labelsize": 8, "ytick.labelsize": 8},
-    "heatmap-2col": {
-        "figure.figsize": (6.75, 5.0625),
+    "heatmap-1col": {
+        "figure.figsize": (5.5, 4.125),
         "figure.subplot.top": 0.99,
         "figure.subplot.right": 0.92,
         "figure.subplot.left": 0.08,
         "figure.subplot.bottom": 0.09,
     },
-    "heatmap-1col": {
-        "figure.figsize": (3.25, 2.4375),
+    "heatmap-2col": {
+        "figure.figsize": (2.7, 2.025),
+        "figure.subplot.top": 0.99,
+        "figure.subplot.bottom": 0.16,
+        "figure.subplot.left": 0.17,
+        "figure.subplot.right": 0.91,
+    },
+    "heatmap-2col-fatlabels": {
+        "figure.subplot.top": 0.98,
+        "figure.subplot.bottom": 0.33,
+        "figure.subplot.left": 0.25,
+        "figure.subplot.right": 0.84,
+    },
+    "heatmap-3col": {
+        "figure.figsize": (1.8, 1.35),
         "figure.subplot.top": 0.99,
         "figure.subplot.bottom": 0.16,
         "figure.subplot.left": 0.17,
@@ -48,40 +62,31 @@ STYLES = {
         "image.cmap": "RdBu",
         "hatch.linewidth": 0.1,
     },
-    "gridworld-heatmap-1col": {
-        "figure.figsize": (3.25, 2.89),
+    "gridworld-heatmap-2in1": {
+        "figure.figsize": (5.5, 2.77),
         "font.size": 10,
         "axes.labelsize": 10,
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
-        "figure.subplot.left": 0.06,
-        "figure.subplot.right": 0.91,
-        "figure.subplot.top": 0.95,
-        "figure.subplot.bottom": 0.09,
-    },
-    "gridworld-heatmap-1col-narrow": {
-        "image.cmap": "RdBu",
-        "figure.figsize": (2.44, 2.07),
-        "font.size": 10,
-        "axes.labelsize": 10,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "figure.subplot.left": 0.07,
-        "figure.subplot.right": 0.89,
+        "figure.subplot.left": 0.03,
+        "figure.subplot.right": 0.96,
         "figure.subplot.top": 0.97,
-        "figure.subplot.bottom": 0.1,
+        "figure.subplot.bottom": 0.03,
+        "figure.subplot.wspace": 0.1,
+        "figure.subplot.hspace": 0.14,
     },
-    "gridworld-heatmap-1colin3": {
+    "gridworld-heatmap-4in1": {
         "image.cmap": "RdBu",
-        "figure.figsize": (2.15, 1.78),
+        "figure.figsize": (5.5, 1.66),
         "font.size": 8,
         "axes.labelsize": 8,
         "xtick.labelsize": 8,
         "ytick.labelsize": 8,
-        "figure.subplot.left": 0.08,
-        "figure.subplot.right": 0.88,
-        "figure.subplot.top": 0.97,
-        "figure.subplot.bottom": 0.1,
+        "figure.subplot.left": 0.03,
+        "figure.subplot.right": 0.96,
+        "figure.subplot.top": 0.85,
+        "figure.subplot.bottom": 0.14,
+        "figure.subplot.wspace": 0.1,
     },
     "tex": {
         "text.usetex": True,
