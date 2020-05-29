@@ -87,7 +87,7 @@ def add_canon_experiments():
 def add_gridworld_experiments():
     """Adds experiments for `plot_gridworld_heatmap`."""
     kinds = [
-        "direct_divergence",
+        "npec",
         "asymmetric",
         "symmetric",
         "symmetric_min",
