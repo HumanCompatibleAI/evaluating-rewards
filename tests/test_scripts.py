@@ -101,7 +101,7 @@ def add_gridworld_experiments():
     for kind in kinds:
         EXPERIMENTS[f"plot_gridworld_heatmap_{kind}"] = (
             plot_gridworld_heatmap.plot_gridworld_heatmap_ex,
-            dict,
+            type(None),
             [],
             {"kind": kind},
         )
