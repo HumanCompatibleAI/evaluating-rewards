@@ -193,12 +193,12 @@ def _axis_formatting(ax: plt.Axes, xlen: int, ylen: int) -> None:
 
 
 def _reward_make_color_map(
-    state_action_reward: Iterable[np.ndarray], vmin: Optional[float], vmax: Optional[float]
+    reward_arrays: Iterable[np.ndarray], vmin: Optional[float], vmax: Optional[float]
 ) -> matplotlib.cm.ScalarMappable:
     if vmin is None:
-        vmin = min(np.nanmin(arr) for arr in state_action_reward)
+        vmin = min(np.nanmin(arr) for arr in reward_arrays)
     if vmax is None:
-        vmax = max(np.nanmax(arr) for arr in state_action_reward)
+        vmax = max(np.nanmax(arr) for arr in reward_arrays)
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     return matplotlib.cm.ScalarMappable(norm=norm)
 
@@ -258,6 +258,8 @@ def _reward_draw(
     edgecolor: str = "gray",
 ) -> None:
     """
+    Draws a heatmap visualizing `state_action_reward` on `ax`.
+
     Args:
         state_action_reward: a three-dimensional array specifying the gridworld rewards.
         discount: MDP discount rate.
@@ -327,12 +329,18 @@ def plot_gridworld_rewards(
 
     Args:
       - reward_arrays: a mapping to three-dimensional arrays specifying the gridworld rewards.
+      - ncols: number of columns per row.
+      - vmin: the start of the color range; if unspecified, `min(reward_arrays)`.
+      - vmax: the end of the color range; if unspecified, `max(reward_arrays)`.
+      - cbar_format: format string for colorbar axis labels.
+      - cbar_fraction: the size of the colorbar relative to a single heatmap.
       - **kwargs: passed through to `_reward_draw`.
 
     Returns:
-        A heatmap consisting of a "supercell" for each state `(i,j)` in the original gridworld.
-        This supercell contains a central circle, representing the no-op action reward and four
-        triangular wedges, representing the left, up, right and down action rewards.
+        A Figure containing heatmaps for each array in `reward_arrays`. Each heatmap consists of
+        a "supercell" for each state `(i,j)` in the original gridworld. This supercell contains a
+        central circle, representing the no-op action reward and four triangular wedges,
+        representing the left, up, right and down action rewards.
     """
     shapes = set((v.shape for v in reward_arrays.values()))
     assert len(shapes) == 1, "different shaped gridworlds cannot be in same plot"
