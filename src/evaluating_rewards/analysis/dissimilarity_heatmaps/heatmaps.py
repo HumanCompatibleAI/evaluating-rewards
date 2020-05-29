@@ -90,7 +90,7 @@ def comparison_heatmap(
         **kwargs: passed through to sns.heatmap.
     """
     if normalize:
-        vals = vals / vals.loc[serialize.ZERO_REWARD]
+        vals = vals.groupby(level=0).apply(lambda x: x / vals.loc[serialize.ZERO_REWARD])
         vals = _drop_zero_reward(vals)
         if mask is not None:
             mask = _drop_zero_reward(mask)

@@ -159,6 +159,7 @@ def plot_epic_heatmap(
     # Sacred turns our tuples into lists :(, undo
     x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
     y_reward_cfgs = [tuple(v) for v in y_reward_cfgs]
+    y_reward_cfgs.append(("evaluating_rewards/Zero-v0", "dummy"))
 
     data_dir = data_root
     if data_subdir is not None:
