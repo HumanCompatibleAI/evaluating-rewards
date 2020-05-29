@@ -30,6 +30,13 @@ STYLES = {
         "figure.subplot.wspace": 0.25,
     },
     "heatmap": {"font.size": 8, "xtick.labelsize": 8, "ytick.labelsize": 8},
+    "heatmap-1col": {
+        "figure.figsize": (5.5, 4.125),
+        "figure.subplot.top": 0.99,
+        "figure.subplot.right": 0.92,
+        "figure.subplot.left": 0.08,
+        "figure.subplot.bottom": 0.09,
+    },
     "heatmap-2col": {
         "figure.figsize": (2.7, 2.025),
         "figure.subplot.top": 0.99,
