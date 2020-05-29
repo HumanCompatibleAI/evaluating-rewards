@@ -111,7 +111,7 @@ def plot_gridworld_reward(
     fmt: str,
     vmin: Optional[float],
     vmax: Optional[float],
-) -> plt.Figure:
+) -> None:
     """Plots a heatmap of a reward for the gridworld.
 
     Args:
@@ -133,12 +133,13 @@ def plot_gridworld_reward(
         reward_arrays[pretty_name] = rew
 
     with stylesheets.setup_styles(styles):
-        fig = gridworld_reward_heatmap.plot_gridworld_rewards(
-            reward_arrays, ncols=ncols, discount=discount, vmin=vmin, vmax=vmax
-        )
-        visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)
-
-    return fig
+        try:
+            fig = gridworld_reward_heatmap.plot_gridworld_rewards(
+                reward_arrays, ncols=ncols, discount=discount, vmin=vmin, vmax=vmax
+            )
+            visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)
+        finally:
+            plt.close(fig)
 
 
 if __name__ == "__main__":

@@ -226,7 +226,7 @@ def plot_gridworld_heatmap(
     discount: float,
     log_dir: str,
     save_kwargs: Mapping[str, Any],
-) -> Mapping[str, plt.Figure]:
+) -> None:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -242,13 +242,15 @@ def plot_gridworld_heatmap(
             rewards = {k: rewards[k] for k in reward_subset}
         divergence = compute_divergence(rewards, discount, kind)
 
-        figs = heatmaps.compact_heatmaps(dissimilarity=divergence, **heatmap_kwargs)
-        # Since tick labels are names not emojis for gridworlds, rotate to save space
-        plt.xticks(rotation=45)
-        plt.yticks(rotation=45)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-
-        return figs
+        try:
+            figs = heatmaps.compact_heatmaps(dissimilarity=divergence, **heatmap_kwargs)
+            # Since tick labels are names not emojis for gridworlds, rotate to save space
+            plt.xticks(rotation=45)
+            plt.yticks(rotation=45)
+            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        finally:
+            for fig in figs:
+                plt.close(fig)
 
 
 if __name__ == "__main__":

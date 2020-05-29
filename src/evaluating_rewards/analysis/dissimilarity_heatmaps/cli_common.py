@@ -223,8 +223,12 @@ def save_artifacts(
 
     logging.info("Plotting figures")
     with stylesheets.setup_styles(styles):
-        figs = multi_heatmaps(vals, **heatmap_kwargs)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        try:
+            figs = multi_heatmaps(vals, **heatmap_kwargs)
+            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        finally:
+            for fig in figs:
+                plt.close(fig)
 
 
 MUJOCO_STANDARD_ORDER = [

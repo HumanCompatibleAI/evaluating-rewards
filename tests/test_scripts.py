@@ -16,7 +16,6 @@
 
 import tempfile
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
@@ -41,8 +40,13 @@ EXPERIMENTS = {
         [],
         {"corr_kind": "spearman"},
     ),
-    "plot_gridworld_heatmap": (plot_gridworld_heatmap.plot_gridworld_heatmap_ex, dict, [], {},),
-    "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, plt.Figure, [], {}),
+    "plot_gridworld_heatmap": (
+        plot_gridworld_heatmap.plot_gridworld_heatmap_ex,
+        type(None),
+        [],
+        {},
+    ),
+    "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, type(None), [], {}),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
     "comparison": (model_comparison.model_comparison_ex, dict, [], {}),
     "comparison_alternating": (
