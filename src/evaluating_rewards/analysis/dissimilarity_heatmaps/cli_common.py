@@ -311,7 +311,7 @@ def make_config(
         }
         if kinds and "order" not in heatmap_kwargs:
             heatmap_kwargs["order"] = kinds
-        styles = ["paper", "heatmap", "heatmap-1col", "tex"]
+        styles = ["paper", "heatmap", "heatmap-2col", "tex"]
         save_kwargs = {
             "fmt": "pdf",
         }
@@ -338,7 +338,7 @@ def make_config(
     @experiment.named_config
     def large():
         """Large output size, high precision."""
-        styles = ["paper", "heatmap", "heatmap-2col", "tex"]
+        styles = ["paper", "heatmap", "heatmap-1col", "tex"]
         heatmap_kwargs = {
             "fmt": heatmaps.short_e,
             "cbar_kws": dict(fraction=0.05),
