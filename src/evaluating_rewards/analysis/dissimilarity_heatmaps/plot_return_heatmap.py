@@ -55,7 +55,7 @@ def default_config(env_name, log_root):
     dataset_tag = "random"
 
     # Figure parameters
-    heatmap_kwargs = {"log": False}
+    heatmap_kwargs = {}
     _ = locals()
     del _
 
@@ -72,6 +72,18 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
         f"discount{discount}",
         imit_util.make_unique_timestamp(),
     )
+
+
+@plot_return_heatmap_ex.named_config
+def paper():
+    """Figures suitable for inclusion in paper.
+
+    By convention we're presenting them in the right, so turn off y-axis labels.
+    """
+    styles = ["paper", "heatmap", "heatmap-3col", "heatmap-3col-right", "tex"]
+    heatmap_kwargs = {"yaxis": False, "vmin": 0.0, "vmax": 1.0}
+    _ = locals()
+    del _
 
 
 @plot_return_heatmap_ex.named_config

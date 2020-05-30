@@ -53,7 +53,7 @@ def _drop_zero_reward(s: pd.Series) -> pd.Series:
 def comparison_heatmap(
     vals: pd.Series,
     ax: plt.Axes,
-    log: bool = True,
+    log: bool = False,
     fmt: Callable[[float], str] = lambda x: f"{x:.2f}",
     cbar_kws: Optional[Dict[str, Any]] = None,
     cmap: str = "GnBu",
@@ -62,6 +62,7 @@ def comparison_heatmap(
     label_fstr: Optional[str] = None,
     normalize: bool = False,
     mask: Optional[pd.Series] = None,
+    yaxis: bool = True,
     **kwargs,
 ) -> None:
     """Plot a heatmap, with target_reward_type as x-axis and remainder as y-axis.
@@ -87,6 +88,7 @@ def comparison_heatmap(
         normalize: If True, divides by distance from Zero reward to target, rescaling
             all values between 0 and 1. (Values may exceed 1 due to optimisation error.)
         mask: If provided, only display cells where mask is True.
+        yaxis: Whether to plot labels for y-axis.
         **kwargs: passed through to sns.heatmap.
     """
     if normalize:
@@ -115,11 +117,20 @@ def comparison_heatmap(
     if robust:
         flat = data.values.flatten()
         kwargs["vmin"], kwargs["vmax"] = np.quantile(flat, [0.25, 0.75])
+    yticklabels = "auto" if yaxis else False
     sns.heatmap(
-        data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws, mask=mask, ax=ax, **kwargs
+        data,
+        annot=annot,
+        fmt="s",
+        cmap=cmap,
+        cbar_kws=cbar_kws,
+        mask=mask,
+        ax=ax,
+        yticklabels=yticklabels,
+        **kwargs,
     )
     ax.set_xlabel(r"$R_B$")
-    ax.set_ylabel(r"$R_A$")
+    ax.set_ylabel(r"$R_A$" if yaxis else "")
 
 
 def median_seeds(series: pd.Series) -> pd.Series:
