@@ -6,9 +6,9 @@ SPARSE_GOAL = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 1]])
 
 CENTER_GOAL = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
 
-OBSTACLE_COURSE = np.array([[0, -1, -1], [0, 0, 0], [-1, -1, 5]])
+OBSTACLE_COURSE = np.array([[0, -1, -1], [0, 0, 0], [-1, -1, 4]])
 
-CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-5, -5, 5]])
+CLIFF_WALK = np.array([[0, -1, -1], [0, 0, 0], [-4, -4, 4]])
 
 MANHATTAN_FROM_GOAL = np.array([[4, 3, 2], [3, 2, 1], [2, 1, 0]])
 
@@ -25,7 +25,7 @@ REWARDS = {
     "transformed_goal": {
         # Shifted, rescaled and reshaped sparse goal.
         "state_reward": SPARSE_GOAL * 4 - 1,
-        "potential": -MANHATTAN_FROM_GOAL * 4,
+        "potential": -MANHATTAN_FROM_GOAL * 3,
     },
     "center_goal": {
         # Goal is in center

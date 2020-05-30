@@ -19,8 +19,7 @@ none of the actual experiments are gridworlds."""
 
 import enum
 import functools
-import math
-from typing import Optional, Tuple
+from typing import Iterable, Mapping, Optional, Tuple
 from unittest import mock
 
 import matplotlib
@@ -180,9 +179,8 @@ def _set_ticks(n: int, subaxis: matplotlib.axis.Axis) -> None:
     subaxis.set_ticklabels(np.arange(n))
 
 
-def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
+def _axis_formatting(ax: plt.Axes, xlen: int, ylen: int) -> None:
     """Construct figure and set sensible defaults."""
-    fig, ax = plt.subplots(1, 1)
     # Axes limits
     ax.set_xlim(0, xlen)
     ax.set_ylim(0, ylen)
@@ -193,16 +191,14 @@ def _reward_make_fig(xlen: int, ylen: int) -> Tuple[plt.Figure, plt.Axes]:
     ax.grid(which="minor", color="k")
     ax.tick_params(which="minor", length=0, width=0)
 
-    return fig, ax
-
 
 def _reward_make_color_map(
-    state_action_reward: np.ndarray, vmin: Optional[float], vmax: Optional[float]
+    reward_arrays: Iterable[np.ndarray], vmin: Optional[float], vmax: Optional[float]
 ) -> matplotlib.cm.ScalarMappable:
     if vmin is None:
-        vmin = np.nanmin(state_action_reward)
+        vmin = min(np.nanmin(arr) for arr in reward_arrays)
     if vmax is None:
-        vmax = np.nanmin(state_action_reward)
+        vmax = max(np.nanmax(arr) for arr in reward_arrays)
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     return matplotlib.cm.ScalarMappable(norm=norm)
 
@@ -238,7 +234,7 @@ def _reward_draw_spline(
         xy = xy + annot_padding * direction
     fontweight = "bold" if optimal else None
     ax.annotate(
-        text, xy=xy, ha="center", va="center", color=text_color, fontweight=fontweight,
+        text, xy=xy, ha="center", va="center_baseline", color=text_color, fontweight=fontweight,
     )
 
     return vert, color, hatch_color
@@ -258,13 +254,26 @@ def _reward_draw(
     fig: plt.Figure,
     ax: plt.Axes,
     mappable: matplotlib.cm.ScalarMappable,
-    from_dest: bool,
+    from_dest: bool = False,
     edgecolor: str = "gray",
 ) -> None:
+    """
+    Draws a heatmap visualizing `state_action_reward` on `ax`.
+
+    Args:
+        state_action_reward: a three-dimensional array specifying the gridworld rewards.
+        discount: MDP discount rate.
+        fig: figure to plot on.
+        ax: the axis on the figure to plot on.
+        mappable: color map for heatmap.
+        from_dest: if True, the triangular wedges represent reward when arriving into this
+        cell from the adjacent cell; if False, represent reward when leaving this cell into
+        the adjacent cell.
+        edgecolor: color of edges.
+    """
     optimal_actions = optimal_mask(state_action_reward, discount)
 
-    circle_area_pt = 200
-    circle_radius_pt = math.sqrt(circle_area_pt / math.pi)
+    circle_radius_pt = matplotlib.rcParams.get("font.size") * 0.7
     circle_radius_in = circle_radius_pt / 72
     corner_display = ax.transData.transform([0.0, 0.0])
     circle_radius_display = fig.dpi_scale_trans.transform([circle_radius_in, 0])
@@ -306,35 +315,66 @@ def _reward_draw(
         ax.add_patch(p)
 
 
-def plot_gridworld_reward(
-    state_action_reward: np.ndarray,
-    discount: float = 0.99,
-    from_dest: bool = False,
-    cbar_format: str = "%.0f",
-    cbar_fraction: float = 0.05,
+def plot_gridworld_rewards(
+    reward_arrays: Mapping[str, np.ndarray],
+    ncols: int,
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
+    cbar_format: str = "%.0f",
+    cbar_fraction: float = 0.05,
+    **kwargs,
 ) -> plt.Figure:
     """
-    Plots a heatmap of reward for the gridworld.
+    Plots heatmaps of reward for the gridworld.
 
     Args:
-      - state_action_reward: a three-dimensional array specifying the gridworld reward.
-      - from_dest: if True, the triangular wedges represent reward when arriving into this
-        cell from the adjacent cell; if False, represent reward when leaving this cell into
-        the adjacent cell.
-      - annot_padding: a fraction of a supercell to offset the annotation from the centre.
-      - cbar_fraction: the fraction of the axes the colorbar takes up.
+      - reward_arrays: a mapping to three-dimensional arrays specifying the gridworld rewards.
+      - ncols: number of columns per row.
+      - vmin: the start of the color range; if unspecified, `min(reward_arrays)`.
+      - vmax: the end of the color range; if unspecified, `max(reward_arrays)`.
+      - cbar_format: format string for colorbar axis labels.
+      - cbar_fraction: the size of the colorbar relative to a single heatmap.
+      - **kwargs: passed through to `_reward_draw`.
 
     Returns:
-        A heatmap consisting of a "supercell" for each state `(i,j)` in the original gridworld.
-        This supercell contains a central circle, representing the no-op action reward and four
-        triangular wedges, representing the left, up, right and down action rewards.
+        A Figure containing heatmaps for each array in `reward_arrays`. Each heatmap consists of
+        a "supercell" for each state `(i,j)` in the original gridworld. This supercell contains a
+        central circle, representing the no-op action reward and four triangular wedges,
+        representing the left, up, right and down action rewards.
     """
-    xlen, ylen, num_actions = state_action_reward.shape
+    shapes = set((v.shape for v in reward_arrays.values()))
+    assert len(shapes) == 1, "different shaped gridworlds cannot be in same plot"
+    xlen, ylen, num_actions = next(iter(shapes))
     assert num_actions == len(ACTION_DELTA)
-    fig, ax = _reward_make_fig(xlen, ylen)
-    mappable = _reward_make_color_map(state_action_reward, vmin, vmax)
-    _reward_draw(state_action_reward, discount, fig, ax, mappable, from_dest)
-    fig.colorbar(mappable, format=cbar_format, fraction=cbar_fraction)
+
+    nplots = len(reward_arrays)
+    nrows = (nplots - 1) // ncols + 1
+    width, height = matplotlib.rcParams.get("figure.figsize")
+    fig = plt.figure(figsize=(width, height * nrows))
+    width_ratios = [1] * ncols + [cbar_fraction]
+    gs = fig.add_gridspec(nrows=nrows, ncols=ncols + 1, width_ratios=width_ratios)
+
+    mappable = _reward_make_color_map(reward_arrays.values(), vmin, vmax)
+    base_ax = fig.add_subplot(gs[0, 0])
+    for idx, (pretty_name, reward) in enumerate(reward_arrays.items()):
+        i = idx // ncols
+        j = idx % ncols
+        if i == 0 and j == 0:
+            ax = base_ax
+        else:
+            ax = fig.add_subplot(gs[i, j], sharex=base_ax, sharey=base_ax)
+
+        _axis_formatting(ax, xlen, ylen)
+        if not ax.is_last_row():
+            ax.tick_params(axis="x", labelbottom=False)
+        if not ax.is_first_col():
+            ax.tick_params(axis="y", labelleft=False)
+        ax.set_title(pretty_name)
+
+        _reward_draw(reward, fig=fig, ax=ax, mappable=mappable, **kwargs)
+
+    for i in range(nrows):
+        cax = fig.add_subplot(gs[i, -1])
+        fig.colorbar(mappable=mappable, cax=cax, format=cbar_format)
+
     return fig

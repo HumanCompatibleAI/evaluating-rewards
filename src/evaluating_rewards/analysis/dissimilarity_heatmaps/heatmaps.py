@@ -54,7 +54,7 @@ def comparison_heatmap(
     vals: pd.Series,
     ax: plt.Axes,
     log: bool = True,
-    fmt: Callable[[float], str] = short_e,
+    fmt: Callable[[float], str] = lambda x: f"{x:.2f}",
     cbar_kws: Optional[Dict[str, Any]] = None,
     cmap: str = "GnBu",
     robust: bool = False,
@@ -108,7 +108,7 @@ def comparison_heatmap(
     transform_start = r"\log_{10}\left(" if log else ""
     transform_end = r"\right)" if log else ""
     label = label_fstr.format(
-        transform_start=transform_start, args="R_S,R_T", transform_end=transform_end
+        transform_start=transform_start, args="R_A,R_B", transform_end=transform_end
     )
     cbar_kws.setdefault("label", f"${label}$")
 
@@ -118,9 +118,8 @@ def comparison_heatmap(
     sns.heatmap(
         data, annot=annot, fmt="s", cmap=cmap, cbar_kws=cbar_kws, mask=mask, ax=ax, **kwargs
     )
-
-    ax.set_xlabel(r"Target $R_T$")
-    ax.set_ylabel(r"Source $R_S$")
+    ax.set_xlabel(r"$R_B$")
+    ax.set_ylabel(r"$R_A$")
 
 
 def median_seeds(series: pd.Series) -> pd.Series:
@@ -148,7 +147,6 @@ def compact_heatmaps(
     dissimilarity: pd.Series,
     masks: Mapping[str, Iterable[results.FilterFn]],
     order: Optional[Iterable[str]] = None,
-    fmt: Callable[[float], str] = short_fmt,
     after_plot: Callable[[], None] = lambda: None,
     **kwargs: Dict[str, Any],
 ) -> Mapping[str, plt.Figure]:
@@ -194,9 +192,7 @@ def compact_heatmaps(
     for name, matchings in masks.items():
         fig, ax = plt.subplots(1, 1, squeeze=True)
         match_mask = reward_masks.compute_mask(dissimilarity, matchings)
-        comparison_heatmap(
-            dissimilarity, ax=ax, fmt=fmt, preserve_order=True, mask=match_mask, **kwargs
-        )
+        comparison_heatmap(dissimilarity, ax=ax, preserve_order=True, mask=match_mask, **kwargs)
         after_plot()
         figs[name] = fig
 

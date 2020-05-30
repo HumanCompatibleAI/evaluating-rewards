@@ -223,8 +223,12 @@ def save_artifacts(
 
     logging.info("Plotting figures")
     with stylesheets.setup_styles(styles):
-        figs = multi_heatmaps(vals, **heatmap_kwargs)
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        try:
+            figs = multi_heatmaps(vals, **heatmap_kwargs)
+            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        finally:
+            for fig in figs:
+                plt.close(fig)
 
 
 MUJOCO_STANDARD_ORDER = [
@@ -311,7 +315,7 @@ def make_config(
         }
         if kinds and "order" not in heatmap_kwargs:
             heatmap_kwargs["order"] = kinds
-        styles = ["paper", "heatmap", "heatmap-1col", "tex"]
+        styles = ["paper", "heatmap", "heatmap-2col", "tex"]
         save_kwargs = {
             "fmt": "pdf",
         }
@@ -338,7 +342,7 @@ def make_config(
     @experiment.named_config
     def large():
         """Large output size, high precision."""
-        styles = ["paper", "heatmap", "heatmap-2col", "tex"]
+        styles = ["paper", "heatmap", "heatmap-1col", "tex"]
         heatmap_kwargs = {
             "fmt": heatmaps.short_e,
             "cbar_kws": dict(fraction=0.05),

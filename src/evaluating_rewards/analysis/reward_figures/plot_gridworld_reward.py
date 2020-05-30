@@ -15,7 +15,7 @@
 """CLI script to visualize reward models for deterministic gridworlds."""
 
 import os
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Tuple
 
 from imitation.util import util
 import matplotlib.pyplot as plt
@@ -35,16 +35,28 @@ def default_config():
     """Default configuration values."""
     # Reward parameters
     exp_name = "default"
-    state_reward = np.zeros((3, 3))
-    potential = np.zeros((3, 3))
     discount = 0.99
 
     # Figure parameters
-    vmin = -5.0
-    vmax = 5.0
+    vmin = None
+    vmax = None
     log_root = os.path.join(serialize.get_output_dir(), "plot_gridworld_reward")
-    styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-1col-narrow"]
     fmt = "pdf"  # file type
+
+    styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-2in1"]
+    ncols = 2
+    # We can't use actual LaTeX since it draws too thick hatched lines :(
+    # This means we can't use our macros `figsymbols.sty`, so manually transcribe them
+    # to be as close as possible using matplotlib native features.
+    rewards = [
+        (r"$\mathtt{Sparse}$", "sparse_goal"),
+        (r"$\mathtt{Dense}$", "transformed_goal"),
+        (r"$\mathtt{Penalty}$", "sparse_penalty"),
+        (r"$\mathtt{Center}$", "center_goal"),
+        (r"$\mathtt{Path}$", "dirt_path"),
+        (r"$\mathtt{Cliff}$", "cliff_walk"),
+    ]
+
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -63,6 +75,21 @@ def test():
     pass  # pylint:disable=unnecessary-pass
 
 
+@plot_gridworld_reward_ex.named_config
+def main_paper():
+    """Config for compact figure in main body of paper."""
+    styles = ["paper", "gridworld-heatmap", "gridworld-heatmap-4in1"]
+    rewards = [
+        (r"$\mathtt{Sparse}$", "sparse_goal"),
+        (r"$\mathtt{Dense}$", "transformed_goal"),
+        (r"$\mathtt{Path}$", "dirt_path"),
+        (r"$\mathtt{Cliff}$", "cliff_walk"),
+    ]
+    ncols = 4
+    _ = locals()  # quieten flake8 unused variable warning
+    del _
+
+
 def _normalize(state_array: np.ndarray) -> np.ndarray:
     """Tranposes and flips array.
 
@@ -74,27 +101,17 @@ def _normalize(state_array: np.ndarray) -> np.ndarray:
     return state_array.T[:, ::-1]
 
 
-def _add_rewards() -> None:
-    for exp_name, cfg in gridworld_rewards.REWARDS.items():
-        cfg = cfg.copy()
-        cfg["exp_name"] = exp_name
-        plot_gridworld_reward_ex.add_named_config(exp_name, cfg)
-
-
-_add_rewards()
-
-
 @plot_gridworld_reward_ex.main
 def plot_gridworld_reward(
-    state_reward: np.ndarray,
-    potential: np.ndarray,
     discount: float,
     styles: Iterable[str],
+    rewards: Iterable[Tuple[str, str]],
+    ncols: int,
     log_dir: str,
     fmt: str,
     vmin: Optional[float],
     vmax: Optional[float],
-) -> plt.Figure:
+) -> None:
     """Plots a heatmap of a reward for the gridworld.
 
     Args:
@@ -107,16 +124,22 @@ def plot_gridworld_reward(
     Returns:
         The generated figure.
     """
-    state_action_reward = gridworld_reward_heatmap.shape(
-        _normalize(state_reward), _normalize(potential), discount
-    )
-    with stylesheets.setup_styles(styles):
-        fig = gridworld_reward_heatmap.plot_gridworld_reward(
-            state_action_reward, discount=discount, vmin=vmin, vmax=vmax
+    reward_arrays = {}
+    for pretty_name, reward_key in rewards:
+        cfg = gridworld_rewards.REWARDS[reward_key]
+        rew = gridworld_reward_heatmap.shape(
+            _normalize(cfg["state_reward"]), _normalize(cfg["potential"]), discount
         )
-        visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)
+        reward_arrays[pretty_name] = rew
 
-    return fig
+    with stylesheets.setup_styles(styles):
+        try:
+            fig = gridworld_reward_heatmap.plot_gridworld_rewards(
+                reward_arrays, ncols=ncols, discount=discount, vmin=vmin, vmax=vmax
+            )
+            visualize.save_fig(os.path.join(log_dir, "fig"), fig, fmt, transparent=False)
+        finally:
+            plt.close(fig)
 
 
 if __name__ == "__main__":

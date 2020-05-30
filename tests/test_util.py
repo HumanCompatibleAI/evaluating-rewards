@@ -31,7 +31,7 @@ CROSS_DISTANCE_TEST_CASES = [
 
 @pytest.mark.parametrize("test_case", CROSS_DISTANCE_TEST_CASES)
 @pytest.mark.parametrize("threading", [False, True])
-@pytest.mark.parametrize("parallelism", [None, 1, 2])
+@pytest.mark.parametrize("parallelism", [1, 2])
 def test_cross_distance(test_case, parallelism: int, threading: bool) -> None:
     """Tests canonical_sample.cross_distance on CROSS_DISTANCE_TEST_CASES."""
     actual = util.cross_distance(

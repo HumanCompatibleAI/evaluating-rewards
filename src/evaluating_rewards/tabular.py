@@ -149,14 +149,14 @@ def direct_distance(
     return lp_norm(delta, p, dist)
 
 
-def epic_distance(
+def npec_distance(
     src_reward: np.ndarray,
     target_reward: np.ndarray,
     p: int = 2,
     dist: Optional[np.ndarray] = None,
     **kwargs,
 ) -> float:
-    """Computes premetric EPIC distance."""
+    """Computes premetric NPEC distance."""
     closest = closest_reward_am(src_reward, target_reward, **kwargs)
     return direct_distance(closest, target_reward, p, dist)
 
