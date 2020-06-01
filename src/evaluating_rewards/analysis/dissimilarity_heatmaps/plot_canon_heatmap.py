@@ -94,7 +94,7 @@ def logging_config(
 def paper():
     """Figures suitable for inclusion in paper.
 
-    By convention we're presenting them in the left, so turn off colorbar.
+    By convention we present them to the left, so turn off colorbar.
     """
     styles = ["paper", "heatmap", "heatmap-3col", "heatmap-3col-left", "tex"]
     heatmap_kwargs = {"cbar": False, "vmin": 0.0, "vmax": 1.0}

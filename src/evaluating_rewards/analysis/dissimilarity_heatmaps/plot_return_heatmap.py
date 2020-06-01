@@ -78,7 +78,7 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
 def paper():
     """Figures suitable for inclusion in paper.
 
-    By convention we're presenting them in the right, so turn off y-axis labels.
+    By convention we present them to the right, so turn off y-axis labels.
     """
     styles = ["paper", "heatmap", "heatmap-3col", "heatmap-3col-right", "tex"]
     heatmap_kwargs = {"yaxis": False, "vmin": 0.0, "vmax": 1.0}
