@@ -315,7 +315,7 @@ def make_config(
         }
         if kinds and "order" not in heatmap_kwargs:
             heatmap_kwargs["order"] = kinds
-        styles = ["paper", "heatmap", "heatmap-2col", "tex"]
+        styles = ["paper", "heatmap", "heatmap-3col", "tex"]
         save_kwargs = {
             "fmt": "pdf",
         }

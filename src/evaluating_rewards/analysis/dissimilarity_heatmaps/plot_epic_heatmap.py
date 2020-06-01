@@ -58,6 +58,18 @@ def logging_config(log_root, search):
 
 
 @plot_epic_heatmap_ex.named_config
+def paper():
+    """Figures suitable for inclusion in paper.
+
+    By convention we present them in the middle, so turn off colorbar and y-axis labels.
+    """
+    styles = ["paper", "heatmap", "heatmap-3col", "heatmap-3col-middle", "tex"]
+    heatmap_kwargs = {"cbar": False, "yaxis": False, "vmin": 0.0, "vmax": 1.0}
+    _ = locals()
+    del _
+
+
+@plot_epic_heatmap_ex.named_config
 def high_precision():
     """Compute tight confidence intervals for publication quality figures.
 
