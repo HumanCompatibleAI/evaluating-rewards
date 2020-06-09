@@ -67,9 +67,8 @@ def comparison_heatmap(
 ) -> None:
     """Plot a heatmap, with target_reward_type as x-axis and remainder as y-axis.
 
-    This is intended for plotting the output of `model_comparison.py` runs,
-    comparing models on the y-axis to those on the x-axis. Values visualized may
-    include loss, other distance measures and scale transformations.
+    This is intended for plotting reward function distances, comparing reward functions
+    on the y-axis to those on the x-axis.
 
     Args:
         vals: The values to visualize.

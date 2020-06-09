@@ -20,22 +20,22 @@ import pandas as pd
 import xarray as xr
 
 from evaluating_rewards.analysis.dissimilarity_heatmaps import (
-    plot_canon_heatmap,
     plot_epic_heatmap,
+    plot_erc_heatmap,
     plot_gridworld_heatmap,
-    plot_return_heatmap,
+    plot_npec_heatmap,
 )
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
-from evaluating_rewards.scripts import model_comparison, train_preferences, train_regress
+from evaluating_rewards.scripts import npec_comparison, train_preferences, train_regress
 from tests import common
 
 EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates
-    "plot_canon_heatmap": (plot_canon_heatmap.plot_canon_heatmap_ex, type(None), [], {}),
-    "plot_epic_heatmap": (plot_epic_heatmap.plot_epic_heatmap_ex, type(None), [], {}),
-    "plot_return_heatmap": (plot_return_heatmap.plot_return_heatmap_ex, type(None), [], {}),
-    "plot_return_heatmap_spearman": (
-        plot_return_heatmap.plot_return_heatmap_ex,
+    "plot_epic_heatmap": (plot_epic_heatmap.plot_canon_heatmap_ex, type(None), [], {}),
+    "plot_npec_heatmap": (plot_npec_heatmap.plot_epic_heatmap_ex, type(None), [], {}),
+    "plot_erc_heatmap": (plot_erc_heatmap.plot_return_heatmap_ex, type(None), [], {}),
+    "plot_erc_heatmap_spearman": (
+        plot_erc_heatmap.plot_return_heatmap_ex,
         type(None),
         [],
         {"corr_kind": "spearman"},
@@ -48,9 +48,9 @@ EXPERIMENTS = {
     ),
     "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, type(None), [], {}),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
-    "comparison": (model_comparison.model_comparison_ex, dict, [], {}),
+    "comparison": (npec_comparison.model_comparison_ex, dict, [], {}),
     "comparison_alternating": (
-        model_comparison.model_comparison_ex,
+        npec_comparison.model_comparison_ex,
         dict,
         ["alternating_maximization"],
         {"fit_kwargs": {"epoch_timesteps": 4096}},
@@ -65,7 +65,7 @@ def add_canon_experiments():
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
             EXPERIMENTS[f"plot_canon_heatmap_{computation_kind}_{distance_kind}"] = (
-                plot_canon_heatmap.plot_canon_heatmap_ex,
+                plot_epic_heatmap.plot_canon_heatmap_ex,
                 type(None),
                 [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
@@ -81,7 +81,7 @@ def add_canon_experiments():
     }
     for name, named_configs in NAMED_CONFIGS.items():
         EXPERIMENTS[f"plot_canon_heatmap_{name}"] = (
-            plot_canon_heatmap.plot_canon_heatmap_ex,
+            plot_epic_heatmap.plot_canon_heatmap_ex,
             type(None),
             named_configs,
             {},
