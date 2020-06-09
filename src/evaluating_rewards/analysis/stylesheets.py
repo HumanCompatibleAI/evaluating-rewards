@@ -31,11 +31,16 @@ STYLES = {
     },
     "heatmap": {},
     "heatmap-1col": {
-        "figure.figsize": (5.5, 4.125),
+        "figure.figsize": (5.5, 3.9),
         "figure.subplot.top": 0.99,
         "figure.subplot.right": 0.92,
         "figure.subplot.left": 0.08,
         "figure.subplot.bottom": 0.09,
+    },
+    "heatmap-1col-fatlabels": {
+        "figure.subplot.right": 0.91,
+        "figure.subplot.left": 0.145,
+        "figure.subplot.bottom": 0.2,
     },
     "heatmap-2col": {
         "figure.figsize": (2.7, 2.025),
@@ -43,12 +48,6 @@ STYLES = {
         "figure.subplot.bottom": 0.16,
         "figure.subplot.left": 0.17,
         "figure.subplot.right": 0.91,
-    },
-    "heatmap-2col-fatlabels": {
-        "figure.subplot.top": 0.98,
-        "figure.subplot.bottom": 0.33,
-        "figure.subplot.left": 0.25,
-        "figure.subplot.right": 0.84,
     },
     "heatmap-3col": {
         "figure.subplot.top": 0.96,

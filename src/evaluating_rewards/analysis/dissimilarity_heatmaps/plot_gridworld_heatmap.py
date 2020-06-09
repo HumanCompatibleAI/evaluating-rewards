@@ -43,7 +43,7 @@ def default_config():
 
     # Figure parameters
     kind = "npec"
-    styles = ["paper", "heatmap", "heatmap-2col", "heatmap-2col-fatlabels", "tex"]
+    styles = ["paper", "heatmap", "heatmap-1col", "heatmap-1col-fatlabels", "tex"]
     save_kwargs = {
         "fmt": "pdf",
     }
@@ -56,6 +56,7 @@ def default_config():
 def heatmap_kwargs_default(kind):
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "masks": {kind: [reward_masks.always_true]},
+        "fmt": lambda x: f"{x:.4f}",
         "log": kind == "direct_divergence",
     }
 
@@ -240,10 +241,10 @@ def plot_gridworld_heatmap(
         rewards = gridworld_rewards.REWARDS
         if reward_subset is not None:
             rewards = {k: rewards[k] for k in reward_subset}
-        divergence = compute_divergence(rewards, discount, kind)
+            divergence = compute_divergence(rewards, discount, kind)
 
+        figs = heatmaps.compact_heatmaps(dissimilarity=divergence, **heatmap_kwargs)
         try:
-            figs = heatmaps.compact_heatmaps(dissimilarity=divergence, **heatmap_kwargs)
             # Since tick labels are names not emojis for gridworlds, rotate to save space
             plt.xticks(rotation=45)
             plt.yticks(rotation=45)
