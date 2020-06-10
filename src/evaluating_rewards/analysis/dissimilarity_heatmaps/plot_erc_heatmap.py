@@ -21,6 +21,7 @@ from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 from imitation.data import types
 from imitation.util import util as imit_util
 import numpy as np
+import pandas as pd
 import sacred
 import tensorflow as tf
 
@@ -28,14 +29,14 @@ from evaluating_rewards import datasets, rewards, tabular, util
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
-plot_return_heatmap_ex = sacred.Experiment("plot_return_heatmap")
-logger = logging.getLogger("evaluating_rewards.analysis.plot_return_heatmap")
+plot_erc_heatmap_ex = sacred.Experiment("plot_erc_heatmap")
+logger = logging.getLogger("evaluating_rewards.analysis.plot_erc_heatmap")
 
 
-cli_common.make_config(plot_return_heatmap_ex)
+cli_common.make_config(plot_erc_heatmap_ex)
 
 
-@plot_return_heatmap_ex.config
+@plot_erc_heatmap_ex.config
 def default_config(env_name, log_root):
     """Default configuration values."""
     data_root = log_root  # root of data directory for learned reward models
@@ -60,7 +61,7 @@ def default_config(env_name, log_root):
     del _
 
 
-@plot_return_heatmap_ex.config
+@plot_erc_heatmap_ex.config
 def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
@@ -74,7 +75,7 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
     )
 
 
-@plot_return_heatmap_ex.named_config
+@plot_erc_heatmap_ex.named_config
 def paper():
     """Figures suitable for inclusion in paper.
 
@@ -86,7 +87,7 @@ def paper():
     del _
 
 
-@plot_return_heatmap_ex.named_config
+@plot_erc_heatmap_ex.named_config
 def high_precision():
     """Compute tight confidence intervals for publication quality figures.
 
@@ -98,7 +99,7 @@ def high_precision():
     del _
 
 
-@plot_return_heatmap_ex.named_config
+@plot_erc_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     n_episodes = 64
@@ -108,7 +109,7 @@ def test():
     del _
 
 
-@plot_return_heatmap_ex.capture
+@plot_erc_heatmap_ex.capture
 def correlation_distance(
     sess: tf.Session,
     trajectories: Sequence[types.Trajectory],
@@ -160,8 +161,8 @@ def correlation_distance(
     return util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
 
 
-@plot_return_heatmap_ex.main
-def plot_return_heatmap(
+@plot_erc_heatmap_ex.capture
+def compute_vals(
     env_name: str,
     discount: float,
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
@@ -169,12 +170,8 @@ def plot_return_heatmap(
     trajectory_factory: datasets.TrajectoryFactory,
     trajectory_factory_kwargs: Dict[str, Any],
     n_episodes: int,
-    styles: Iterable[str],
-    heatmap_kwargs: Mapping[str, Any],
-    log_dir: str,
     data_root: str,
-    save_kwargs: Mapping[str, Any],
-) -> None:
+) -> Mapping[str, pd.Series]:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -185,14 +182,10 @@ def plot_return_heatmap(
         trajectory_factory: factory to generate trajectories.
         trajectory_factory_kwargs: arguments to pass to the factory.
         n_episodes: the number of episodes to compute correlation over.
-        styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
-        heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
-        log_dir: directory to write figures and other logging to.
         data_root: directory to load learned reward models from.
-        save_kwargs: passed through to `analysis.save_figs`.
 
     Returns:
-        A mapping of keywords to figures.
+        A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
     x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
@@ -213,9 +206,11 @@ def plot_return_heatmap(
     aggregated = correlation_distance(  # pylint:disable=no-value-for-parameter
         sess, trajectories, models, x_reward_cfgs, y_reward_cfgs
     )
-    vals = cli_common.twod_mapping_to_multi_series(aggregated)
-    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
+    return cli_common.twod_mapping_to_multi_series(aggregated)
+
+
+cli_common.make_main(plot_erc_heatmap_ex, compute_vals)
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_return_heatmap_ex, "plot_return_heatmap")
+    script_utils.experiment_main(plot_erc_heatmap_ex, "plot_erc_heatmap")

@@ -27,13 +27,13 @@ from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.scripts import script_utils
 
-logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap")
-plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
+logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.plot_npec_heatmap")
+plot_npec_heatmap_ex = sacred.Experiment("plot_npec_heatmap")
 
-cli_common.make_config(plot_epic_heatmap_ex)
+cli_common.make_config(plot_npec_heatmap_ex)
 
 
-@plot_epic_heatmap_ex.config
+@plot_npec_heatmap_ex.config
 def default_config(log_root):
     """Default configuration values."""
     # Dataset parameters
@@ -45,19 +45,19 @@ def default_config(log_root):
     del _
 
 
-@plot_epic_heatmap_ex.config
+@plot_npec_heatmap_ex.config
 def search_config(search, env_name):
     search["env_name"] = env_name
 
 
-@plot_epic_heatmap_ex.config
+@plot_npec_heatmap_ex.config
 def logging_config(log_root, search):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root, "plot_epic_heatmap", str(search).replace("/", "_"), util.make_unique_timestamp(),
     )
 
 
-@plot_epic_heatmap_ex.named_config
+@plot_npec_heatmap_ex.named_config
 def paper():
     """Figures suitable for inclusion in paper.
 
@@ -69,7 +69,7 @@ def paper():
     del _
 
 
-@plot_epic_heatmap_ex.named_config
+@plot_npec_heatmap_ex.named_config
 def high_precision():
     """Compute tight confidence intervals for publication quality figures.
 
@@ -81,7 +81,7 @@ def high_precision():
     del _
 
 
-@plot_epic_heatmap_ex.named_config
+@plot_npec_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     data_root = os.path.join("tests", "data")
@@ -101,7 +101,7 @@ def test():
     del _
 
 
-@plot_epic_heatmap_ex.named_config
+@plot_npec_heatmap_ex.named_config
 def normalize():
     heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "normalize": True,
@@ -138,8 +138,8 @@ def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
     )
 
 
-@plot_epic_heatmap_ex.main
-def plot_epic_heatmap(
+@plot_npec_heatmap_ex.capture
+def compute_vals(
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
     styles: Iterable[str],
@@ -147,11 +147,10 @@ def plot_epic_heatmap(
     data_subdir: Optional[str],
     search: Mapping[str, Any],
     aggregate_fns: Mapping[str, cli_common.AggregateFn],
-    heatmap_kwargs: Mapping[str, Any],
     log_dir: str,
     save_kwargs: Mapping[str, Any],
-) -> None:
-    """Entry-point into script to produce divergence heatmaps.
+) -> Mapping[str, pd.Series]:
+    """Computes values for dissimilarity heatmaps.
 
     Args:
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis (target).
@@ -161,12 +160,11 @@ def plot_epic_heatmap(
         data_subdir: subdirectory to load data from.
         search: mapping which Sacred configs must match to be included in results.
         aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
-        heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
 
     Returns:
-        A mapping of keywords to figures.
+        A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
     x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
@@ -212,8 +210,11 @@ def plot_epic_heatmap(
         figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
         visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
-    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
+    return vals
+
+
+cli_common.make_main(plot_npec_heatmap_ex, compute_vals)
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_epic_heatmap_ex, "plot_epic_heatmap")
+    script_utils.experiment_main(plot_npec_heatmap_ex, "plot_npec_heatmap")

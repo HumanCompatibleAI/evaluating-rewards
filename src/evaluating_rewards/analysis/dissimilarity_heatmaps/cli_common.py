@@ -22,7 +22,7 @@ import itertools
 import logging
 import os
 import pickle
-from typing import Any, Callable, Iterable, Mapping, Sequence, Tuple
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
 import gym
 import matplotlib.pyplot as plt
@@ -270,6 +270,7 @@ def make_config(
     """Adds configs and named configs to `experiment`.
 
     The standard config parameters it defines are:
+        - vals_path (Optional[str]): path to precomputed values to plot.
         - env_name (str): The environment name in the Gym registry of the rewards to compare.
         - x_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for x-axis.
         - y_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for y-axis.
@@ -292,6 +293,7 @@ def make_config(
         n_bootstrap = 1000  # number of bootstrap samples
         alpha = 95  # percentile confidence interval
         aggregate_kinds = ("bootstrap", "studentt", "sample")
+        vals_path = None
 
         # Reward configurations: models to compare
         x_reward_cfgs = None
@@ -451,3 +453,43 @@ def make_config(
         heatmap_kwargs["fmt"] = functools.partial(heatmaps.short_e, precision=0)
         _ = locals()
         del _
+
+
+def make_main(
+    experiment, compute_vals: Callable[[], Mapping[str, pd.Series]]
+):  # pylint: disable=unused-variable
+    """Insert entry-point into script to produce dissimilarity heatmaps.
+
+    Args:
+        experiment: The Sacred experiment to modify.
+        compute_vals: An thunk (no-argument callable) which, when called, computes a mapping from
+            keywords to Series containing dissimilarity values to plot. It is usually a Sacred
+            capture function which obtains its other arguments from the Sacred config implicitly.
+    """
+
+    @experiment.main
+    def main(
+        vals_path: Optional[str],
+        styles: Iterable[str],
+        log_dir: str,
+        heatmap_kwargs: Mapping[str, Any],
+        save_kwargs: Mapping[str, Any],
+    ) -> None:
+        """
+        Entry-point into script to produce dissimilarity heatmaps.
+        Args:
+            vals_path: path to precomputed values to plot. Skips everything but plotting logic
+                if specified. This is useful for regenerating figures in a new style from old data.
+            styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
+            log_dir: directory to write figures and other logging to.
+            heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
+            save_kwargs: passed through to `analysis.save_figs`.
+        """
+
+        if vals_path is not None:
+            with open(vals_path, "rb") as f:
+                vals = pickle.load(f)
+        else:
+            vals = compute_vals()
+
+        save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)

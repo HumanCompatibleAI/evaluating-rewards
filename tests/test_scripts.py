@@ -31,11 +31,11 @@ from tests import common
 
 EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates
-    "plot_epic_heatmap": (plot_epic_heatmap.plot_canon_heatmap_ex, type(None), [], {}),
-    "plot_npec_heatmap": (plot_npec_heatmap.plot_epic_heatmap_ex, type(None), [], {}),
-    "plot_erc_heatmap": (plot_erc_heatmap.plot_return_heatmap_ex, type(None), [], {}),
+    "plot_epic_heatmap": (plot_epic_heatmap.plot_epic_heatmap_ex, type(None), [], {}),
+    "plot_npec_heatmap": (plot_npec_heatmap.plot_npec_heatmap_ex, type(None), [], {}),
+    "plot_erc_heatmap": (plot_erc_heatmap.plot_erc_heatmap_ex, type(None), [], {}),
     "plot_erc_heatmap_spearman": (
-        plot_erc_heatmap.plot_return_heatmap_ex,
+        plot_erc_heatmap.plot_erc_heatmap_ex,
         type(None),
         [],
         {"corr_kind": "spearman"},
@@ -65,7 +65,7 @@ def add_canon_experiments():
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
             EXPERIMENTS[f"plot_canon_heatmap_{computation_kind}_{distance_kind}"] = (
-                plot_epic_heatmap.plot_canon_heatmap_ex,
+                plot_epic_heatmap.plot_epic_heatmap_ex,
                 type(None),
                 [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
@@ -81,7 +81,7 @@ def add_canon_experiments():
     }
     for name, named_configs in NAMED_CONFIGS.items():
         EXPERIMENTS[f"plot_canon_heatmap_{name}"] = (
-            plot_epic_heatmap.plot_canon_heatmap_ex,
+            plot_epic_heatmap.plot_epic_heatmap_ex,
             type(None),
             named_configs,
             {},

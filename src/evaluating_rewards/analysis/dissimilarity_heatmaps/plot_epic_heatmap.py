@@ -21,6 +21,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from imitation.util import util as imit_util
 import numpy as np
+import pandas as pd
 import sacred
 import tensorflow as tf
 
@@ -28,14 +29,14 @@ from evaluating_rewards import datasets, epic_sample, rewards, tabular, util
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.scripts import script_utils
 
-plot_canon_heatmap_ex = sacred.Experiment("plot_canon_heatmap")
-logger = logging.getLogger("evaluating_rewards.analysis.plot_canon_heatmap")
+plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
+logger = logging.getLogger("evaluating_rewards.analysis.plot_epic_heatmap")
 
 
-cli_common.make_config(plot_canon_heatmap_ex)
+cli_common.make_config(plot_epic_heatmap_ex)
 
 
-@plot_canon_heatmap_ex.config
+@plot_epic_heatmap_ex.config
 def default_config(env_name, log_root):
     """Default configuration values."""
     data_root = log_root  # root of data directory for learned reward models
@@ -61,7 +62,7 @@ def default_config(env_name, log_root):
     del _
 
 
-@plot_canon_heatmap_ex.config
+@plot_epic_heatmap_ex.config
 def sample_dist_config(env_name):
     """Default sample distribution config: randomly sample from Gym spaces."""
     obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
@@ -72,7 +73,7 @@ def sample_dist_config(env_name):
     del _
 
 
-@plot_canon_heatmap_ex.config
+@plot_epic_heatmap_ex.config
 def logging_config(
     env_name, sample_dist_tag, dataset_tag, computation_kind, distance_kind, discount, log_root
 ):
@@ -90,7 +91,7 @@ def logging_config(
     )
 
 
-@plot_canon_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def paper():
     """Figures suitable for inclusion in paper.
 
@@ -102,7 +103,7 @@ def paper():
     del _
 
 
-@plot_canon_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def high_precision():
     """Compute tight confidence intervals for publication quality figures.
 
@@ -126,7 +127,7 @@ SAMPLE_FROM_DATASET_FACTORY = dict(
 )
 
 
-@plot_canon_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def sample_from_serialized_policy():
     """Configure script to sample observations and actions from rollouts of a serialized policy."""
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
@@ -140,7 +141,7 @@ def sample_from_serialized_policy():
     del _
 
 
-@plot_canon_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def dataset_from_serialized_policy():
     """Configure script to sample batches from rollouts of a serialized policy.
 
@@ -156,7 +157,7 @@ def dataset_from_serialized_policy():
     del _
 
 
-@plot_canon_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def sample_from_random_transitions():
     locals().update(**SAMPLE_FROM_DATASET_FACTORY)
     sample_dist_factory_kwargs = {
@@ -167,7 +168,7 @@ def sample_from_random_transitions():
     del _
 
 
-@plot_canon_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def dataset_from_random_transitions():
     visitations_factory = datasets.transitions_factory_from_random_model
     dataset_tag = "random_transitions"
@@ -175,7 +176,7 @@ def dataset_from_random_transitions():
     del _
 
 
-@plot_canon_heatmap_ex.named_config
+@plot_epic_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     n_samples = 64
@@ -188,7 +189,7 @@ def test():
     del _
 
 
-@plot_canon_heatmap_ex.capture
+@plot_epic_heatmap_ex.capture
 def mesh_canon(
     g: tf.Graph,
     sess: tf.Session,
@@ -251,7 +252,7 @@ def _direct_distance(rewa: np.ndarray, rewb: np.ndarray, p: int) -> float:
     return 0.5 * tabular.direct_distance(rewa, rewb, p=p)
 
 
-@plot_canon_heatmap_ex.capture
+@plot_epic_heatmap_ex.capture
 def sample_canon(
     g: tf.Graph,
     sess: tf.Session,
@@ -312,11 +313,11 @@ def sample_canon(
         raise ValueError(f"Unrecognized distance '{distance_kind}'")
 
     logger.info("Computing distance")
-    return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1,)
+    return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1)
 
 
-@plot_canon_heatmap_ex.main
-def plot_canon_heatmap(
+@plot_epic_heatmap_ex.capture
+def compute_vals(
     env_name: str,
     discount: float,
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
@@ -327,13 +328,9 @@ def plot_canon_heatmap(
     n_seeds: int,
     aggregate_fns: Mapping[str, cli_common.AggregateFn],
     computation_kind: str,
-    styles: Iterable[str],
-    heatmap_kwargs: Mapping[str, Any],
-    log_dir: str,
     data_root: str,
-    save_kwargs: Mapping[str, Any],
-) -> None:
-    """Entry-point into script to produce divergence heatmaps.
+) -> Mapping[str, pd.Series]:
+    """Computes values for dissimilarity heatmaps.
 
     Args:
         env_name: the name of the environment to plot rewards for.
@@ -347,14 +344,10 @@ def plot_canon_heatmap(
         n_bootstrap: the number of bootstrap samples to take when computing the mean of seeds.
         alpha: percentile confidence interval.
         computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
-        styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
-        heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
-        log_dir: directory to write figures and other logging to.
         data_root: directory to load learned reward models from.
-        save_kwargs: passed through to `analysis.save_figs`.
 
     Returns:
-        A mapping of keywords to figures.
+        A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
     x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
@@ -393,8 +386,11 @@ def plot_canon_heatmap(
         aggregated = cli_common.twod_mapping_to_multi_series(aggregated)
         vals.update({f"{name}_{k}": v for k, v in aggregated.items()})
 
-    cli_common.save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
+    return vals
+
+
+cli_common.make_main(plot_epic_heatmap_ex, compute_vals)
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_canon_heatmap_ex, "plot_canon_heatmap")
+    script_utils.experiment_main(plot_epic_heatmap_ex, "plot_epic_heatmap")
