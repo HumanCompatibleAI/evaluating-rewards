@@ -13,29 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Compares hardcoded rewards to each other using CANON: `plot_canon_heatmap.py`
+# Plots heatmap of reward distances for all hard-coded rewards
 
 ENVS="point_mass hopper half_cheetah"
-DISCOUNTS="0.9 0.99 1.0"
+DISCOUNT="0.99"
 
-for env in ${ENVS}; do
-  for discount in ${DISCOUNTS}; do
-    for distance_kind in direct pearson; do
-      for computation_kind in sample mesh; do
+EPIC_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap \
+                    with discount=${DISCOUNT}"
+NPEC_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_npec_heatmap with normalize"
+ERC_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_erc_heatmap \
+                    with discount=${DISCOUNT}"
+COMMON_FLAGS="high_precision paper"
 
-         BASE_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_canon_heatmap \
-                   with ${env} discount=${discount} distance_kind=${distance_kind} \
-                   computation_kind=${computation_kind}"
+if [[ "${EVAL_OUTPUT_ROOT}" == "" ]]; then
+  EVAL_OUTPUT_ROOT=$HOME/output
+fi
+LOG_ROOT=${EVAL_OUTPUT_ROOT}/hardcoded_figs
 
-         ${BASE_CMD}
-         ${BASE_CMD} sample_from_serialized_policy
-         ${BASE_CMD} sample_from_serialized_policy dataset_from_serialized_policy
-
-         if [[ ${env} == "point_mass" ]]; then
-           ${BASE_CMD} sample_from_random_transitions
-           ${BASE_CMD} sample_from_random_transitions dataset_from_random_transitions
-         fi
-      done;
-    done;
-  done;
+for env_name in ${ENVS}; do
+  ${EPIC_CMD} ${COMMON_FLAGS} ${env_name} log_dir=${LOG_ROOT}/epic/${env_name}/&
+  ${NPEC_CMD} ${COMMON_FLAGS} ${env_name} log_dir=${LOG_ROOT}/npec/${env_name}/&
+  ${ERC_CMD} ${COMMON_FLAGS} ${env_name} log_dir=${LOG_ROOT}/erc/${env_name}/&
 done
+
+wait
+echo "Figures generated to ${LOG_ROOT}."
+echo "There are lots of different types of figures, you may want to extract a subset, e.g:"
+echo 'rsync -rv --include="bootstrap_middle_all.pdf" --include="bootstrap_width_all.pdf" ${LOG_ROOT} <dest directory>'
