@@ -206,7 +206,12 @@ def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mappin
     figs = {}
     for name, val in dissimilarities.items():
         label_fstr = pretty_label_fstr(name)
-        heatmap_figs = heatmaps.compact_heatmaps(dissimilarity=val, label_fstr=label_fstr, **kwargs)
+        extra_kwargs = {}
+        if name.endswith("width"):
+            extra_kwargs["fmt"] = functools.partial(heatmaps.short_e, precision=0)
+        heatmap_figs = heatmaps.compact_heatmaps(
+            dissimilarity=val, label_fstr=label_fstr, **kwargs, **extra_kwargs
+        )
         figs.update({f"{name}_{k}": v for k, v in heatmap_figs.items()})
     return figs
 
