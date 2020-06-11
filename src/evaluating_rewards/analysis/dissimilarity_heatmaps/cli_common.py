@@ -429,6 +429,7 @@ def make_config(
                 "all": [reward_masks.always_true],
             },
         }
+        styles_for_env = ["small-labels"]  # downscale emoji labels slightly
         _ = locals()
         del _
 
