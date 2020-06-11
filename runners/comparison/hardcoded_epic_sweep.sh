@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Compares hardcoded rewards to each other using CANON: `plot_epic_heatmap.py`
+# Compares hardcoded rewards to each other using EPIC: `plot_epic_heatmap.py`
 
 ENVS="point_mass hopper half_cheetah"
 DISCOUNTS="0.9 0.99 1.0"

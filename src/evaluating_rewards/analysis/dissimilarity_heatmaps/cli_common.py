@@ -480,6 +480,7 @@ def make_main(
     ) -> None:
         """
         Entry-point into script to produce dissimilarity heatmaps.
+
         Args:
             vals_path: path to precomputed values to plot. Skips everything but plotting logic
                 if specified. This is useful for regenerating figures in a new style from old data.
@@ -489,7 +490,6 @@ def make_main(
             heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
             save_kwargs: passed through to `analysis.save_figs`.
         """
-
         if vals_path is not None:
             with open(vals_path, "rb") as f:
                 vals = pickle.load(f)

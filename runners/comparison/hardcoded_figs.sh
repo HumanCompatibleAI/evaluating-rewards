@@ -21,8 +21,8 @@ DISCOUNT="0.99"
 EPIC_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap \
                     with discount=${DISCOUNT}"
 NPEC_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_npec_heatmap \
-          with normalize_distance"
-# Override env_name since we change environment name since running experiment
+                    with normalize_distance"
+# Override env_name since we changed environment name since running experiment
 # TODO(adam): rerun experiments and remove this backward compatibility code
 NPEC_EXTRA_FLAGS=(
   ""
@@ -30,7 +30,7 @@ NPEC_EXTRA_FLAGS=(
   "env_name=evaluating_rewards/Hopper-v3"
 )
 ERC_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_erc_heatmap \
-                    with discount=${DISCOUNT}"
+                   with discount=${DISCOUNT}"
 COMMON_FLAGS="high_precision paper"
 
 if [[ "${EVAL_OUTPUT_ROOT}" == "" ]]; then
