@@ -36,6 +36,8 @@ cli_common.make_config(plot_npec_heatmap_ex)
 @plot_npec_heatmap_ex.config
 def default_config(log_root):
     """Default configuration values."""
+    normalize = False
+
     # Dataset parameters
     data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
     data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
@@ -102,10 +104,8 @@ def test():
 
 
 @plot_npec_heatmap_ex.named_config
-def normalize():
-    heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
-        "normalize": True,
-    }
+def normalize_distance():
+    normalize = True  # noqa: F841  pylint:disable=unused-variable
 
 
 def _multi_heatmap(
@@ -142,6 +142,7 @@ def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
 def compute_vals(
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
+    normalize: bool,
     styles: Iterable[str],
     data_root: str,
     data_subdir: Optional[str],
@@ -155,6 +156,8 @@ def compute_vals(
     Args:
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis (target).
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis (source).
+        normalize: whether to divide by distance from Zero. Distances should then all be
+            between 0 and 1 (although may exceed it due to optimisation error).
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         data_root: where to load data from.
         data_subdir: subdirectory to load data from.
@@ -193,9 +196,19 @@ def compute_vals(
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
 
+    with stylesheets.setup_styles(styles):
+        figs = {}
+        figs["loss"] = loss_heatmap(loss, res["loss"]["unwrapped_loss"])
+        figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
+        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+
+    if normalize:
+        loss = heatmaps.normalize_dissimilarity(loss)
+
     vals = {}
     for name, aggregate_fn in aggregate_fns.items():
         logger.info(f"Aggregating {name}")
+
         aggregated = loss.groupby(list(keys[:-1])).apply(aggregate_fn)
         vals.update(
             {
@@ -203,12 +216,6 @@ def compute_vals(
                 for k in aggregated.index.levels[-1]
             }
         )
-
-    with stylesheets.setup_styles(styles):
-        figs = {}
-        figs["loss"] = loss_heatmap(loss, res["loss"]["unwrapped_loss"])
-        figs["affine"] = affine_heatmap(res["affine"]["scales"], res["affine"]["constants"])
-        visualize.save_figs(log_dir, figs.items(), **save_kwargs)
 
     return vals
 

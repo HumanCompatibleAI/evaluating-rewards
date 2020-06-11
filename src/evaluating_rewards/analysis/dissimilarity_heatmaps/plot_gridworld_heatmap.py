@@ -36,6 +36,8 @@ plot_gridworld_heatmap_ex = sacred.Experiment("plot_gridworld_heatmap")
 @plot_gridworld_heatmap_ex.config
 def default_config():
     """Default configuration values."""
+    normalize = False
+
     # Dataset parameters
     log_root = serialize.get_output_dir()  # where results are read from/written to
     discount = 0.99
@@ -71,10 +73,8 @@ def test():
 
 
 @plot_gridworld_heatmap_ex.named_config
-def normalize(reward_subset):
-    heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
-        "normalize": True,
-    }
+def normalize_distance(reward_subset):
+    normalize = True  # noqa: F841  pylint:disable=unused-variable
     reward_subset += ["evaluating_rewards/Zero-v0"]
 
 
@@ -220,6 +220,7 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
 
 @plot_gridworld_heatmap_ex.main
 def plot_gridworld_heatmap(
+    normalize: bool,
     styles: Iterable[str],
     reward_subset: Optional[Iterable[str]],
     heatmap_kwargs: Dict[str, Any],
@@ -231,6 +232,7 @@ def plot_gridworld_heatmap(
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
+        normalize: whether to divide by distance from Zero.
         styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
         reward_subset: if specified, subset of keys to plot.
         discount: discount rate of MDP.
@@ -242,6 +244,9 @@ def plot_gridworld_heatmap(
         if reward_subset is not None:
             rewards = {k: rewards[k] for k in reward_subset}
             divergence = compute_divergence(rewards, discount, kind)
+
+        if normalize:
+            divergence = heatmaps.normalize_dissimilarity(divergence)
 
         figs = heatmaps.compact_heatmaps(dissimilarity=divergence, **heatmap_kwargs)
         try:

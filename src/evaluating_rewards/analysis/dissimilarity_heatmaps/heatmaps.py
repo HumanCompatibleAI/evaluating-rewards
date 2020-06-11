@@ -50,6 +50,13 @@ def _drop_zero_reward(s: pd.Series) -> pd.Series:
     return s[~zero_source]
 
 
+def normalize_dissimilarity(s: pd.Series) -> pd.Series:
+    """Divides by distance from Zero reward, an upper bound on the distance."""
+    s = s.sort_index()
+    s = s.groupby(level=0).apply(lambda x: x / s.loc[serialize.ZERO_REWARD])
+    return _drop_zero_reward(s)
+
+
 def comparison_heatmap(
     vals: pd.Series,
     ax: plt.Axes,
@@ -60,7 +67,6 @@ def comparison_heatmap(
     robust: bool = False,
     preserve_order: bool = False,
     label_fstr: Optional[str] = None,
-    normalize: bool = False,
     mask: Optional[pd.Series] = None,
     yaxis: bool = True,
     **kwargs,
@@ -84,18 +90,10 @@ def comparison_heatmap(
         label_fstr: Format string to use for the label for the colorbar legend.` {args}` is
             replaced with arguments to distance and `{transform_start}` and `{transform_end}`
             is replaced with any transformations of the distance (e.g. log).
-        normalize: If True, divides by distance from Zero reward to target, rescaling
-            all values between 0 and 1. (Values may exceed 1 due to optimisation error.)
         mask: If provided, only display cells where mask is True.
         yaxis: Whether to plot labels for y-axis.
         **kwargs: passed through to sns.heatmap.
     """
-    if normalize:
-        vals = vals.groupby(level=0).apply(lambda x: x / vals.loc[serialize.ZERO_REWARD])
-        vals = _drop_zero_reward(vals)
-        if mask is not None:
-            mask = _drop_zero_reward(mask)
-
     vals = transformations.index_reformat(vals, preserve_order)
     if mask is not None:
         mask = transformations.index_reformat(mask, preserve_order)
