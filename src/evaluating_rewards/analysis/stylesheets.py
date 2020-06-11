@@ -66,6 +66,7 @@ STYLES = {
         "figure.figsize": (2.10, 1.43),
         "figure.subplot.right": 0.84,
     },
+    "tiny-font": {"font.size": 6, "xtick.labelsize": 6, "ytick.labelsize": 6},
     "gridworld-heatmap": {
         "axes.facecolor": "lightgray",
         "image.cmap": "RdBu",

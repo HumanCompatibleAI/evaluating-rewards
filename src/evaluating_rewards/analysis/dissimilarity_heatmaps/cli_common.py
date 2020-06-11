@@ -323,6 +323,7 @@ def make_config(
         if kinds and "order" not in heatmap_kwargs:
             heatmap_kwargs["order"] = kinds
         styles = ["paper", "heatmap", "heatmap-3col", "tex"]
+        styles_for_env = []
         save_kwargs = {
             "fmt": "pdf",
         }
@@ -450,7 +451,7 @@ def make_config(
             "different_activity": [reward_masks.zero, _hopper_activity],
             "all": [reward_masks.always_true],
         }
-        heatmap_kwargs["fmt"] = functools.partial(heatmaps.short_e, precision=0)
+        styles_for_env = ["tiny-font"]
         _ = locals()
         del _
 
@@ -471,6 +472,7 @@ def make_main(
     def main(
         vals_path: Optional[str],
         styles: Iterable[str],
+        styles_for_env: Iterable[str],
         log_dir: str,
         heatmap_kwargs: Mapping[str, Any],
         save_kwargs: Mapping[str, Any],
@@ -481,6 +483,7 @@ def make_main(
             vals_path: path to precomputed values to plot. Skips everything but plotting logic
                 if specified. This is useful for regenerating figures in a new style from old data.
             styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
+            styles_for_env: additional styles to apply, set by environment-specific configs.
             log_dir: directory to write figures and other logging to.
             heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
             save_kwargs: passed through to `analysis.save_figs`.
@@ -492,4 +495,5 @@ def make_main(
         else:
             vals = compute_vals()
 
+        styles = list(styles) + list(styles_for_env)
         save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
