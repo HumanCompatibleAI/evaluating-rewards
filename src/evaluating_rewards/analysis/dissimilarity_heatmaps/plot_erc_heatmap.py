@@ -153,8 +153,6 @@ def correlation_distance(
     return util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
 
 
-# TODO(adam): this should perhaps be factored out somewhere that's not a CLI script...
-# TODO(adam): also add a unit test for it?
 def batch_compute_returns(
     trajectory_callable: datasets.TrajectoryCallable,
     models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
