@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Compares hardcoded rewards to each other using CANON: `plot_canon_heatmap.py`
+# Compares hardcoded rewards to each other using EPIC: `plot_epic_heatmap.py`
 
 ENVS="point_mass hopper half_cheetah"
 DISCOUNTS="0.9 0.99 1.0"
@@ -23,7 +23,7 @@ for env in ${ENVS}; do
     for distance_kind in direct pearson; do
       for computation_kind in sample mesh; do
 
-         BASE_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_canon_heatmap \
+         BASE_CMD="python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap \
                    with ${env} discount=${discount} distance_kind=${distance_kind} \
                    computation_kind=${computation_kind}"
 

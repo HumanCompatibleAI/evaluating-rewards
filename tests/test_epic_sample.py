@@ -24,16 +24,16 @@ import pytest
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import canonical_sample, datasets, rewards, serialize, tabular
+from evaluating_rewards import datasets, epic_sample, rewards, serialize, tabular
 from evaluating_rewards import envs  # noqa: F401  # pylint:disable=unused-import
 
 
 def mesh_evaluate_models_slow(
-    models: Mapping[canonical_sample.K, rewards.RewardModel],
+    models: Mapping[epic_sample.K, rewards.RewardModel],
     obs: np.ndarray,
     actions: np.ndarray,
     next_obs: np.ndarray,
-) -> Mapping[canonical_sample.K, np.ndarray]:
+) -> Mapping[epic_sample.K, np.ndarray]:
     """
     Evaluate models on the Cartesian product of `obs`, `actions`, `next_obs`.
 
@@ -80,7 +80,7 @@ def test_mesh_evaluate_models(
         session.run(tf.global_variables_initializer())
         with session.as_default():
             expected = mesh_evaluate_models_slow(models, obs, actions, next_obs)
-            actual = canonical_sample.mesh_evaluate_models(models, obs, actions, next_obs)
+            actual = epic_sample.mesh_evaluate_models(models, obs, actions, next_obs)
 
     assert expected.keys() == actual.keys()
     for k in expected:
@@ -124,7 +124,7 @@ def test_sample_canon_shaping(
                 obs_dist, act_dist
             ) as iid_generator:
                 batch = iid_generator(256)
-    canon_rew = canonical_sample.sample_canon_shaping(
+    canon_rew = epic_sample.sample_canon_shaping(
         models, batch, act_dist, obs_dist, n_mean_samples=256, discount=discount,
     )
 

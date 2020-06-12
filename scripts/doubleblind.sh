@@ -21,7 +21,7 @@ ${SYNC_CMD} ${ROOT_DIR} ${TMPDIR}
 pushd ${TMPDIR}
 
 find . -type f | xargs -n 1 sed -i 's/# Copyright .*/# Copyright Anonymous Authors/'
-find . -name '*.py' | xargs -n 1 sed -i 's/.*# TODO(.*).*//'
+find . -name '*.py' -o -name '*.sh' | xargs -n 1 sed -i -e 's/.*# TODO(.*).*//' -e 's/.*# SOMEDAY(.*).*//'
 
 GREP_TERMS=""
 for pattern in ${BLACKLISTED}; do

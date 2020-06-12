@@ -174,7 +174,8 @@ class PotentialShaping(RewardModel):
     but it isn't needed computationally. However, removing an unnecessary degree of
     freedom does make the learning problem better conditioned.
 
-    Andrew Y. Ng, Daishi Harada & Stuart Russell (1999). ICML.
+    Andrew Y. Ng et al, "Policy invariance under reward transformations: Theory and
+    application to reward shaping" (1999). ICML.
     """
 
     def __init__(
