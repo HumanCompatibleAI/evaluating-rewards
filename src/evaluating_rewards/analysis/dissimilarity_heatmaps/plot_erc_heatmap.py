@@ -147,7 +147,12 @@ def correlation_distance(
     def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> Mapping[str, float]:
         distances = util.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
         lower, middle, upper = util.empirical_ci(distances, alpha)
-        return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
+        return {
+            "bootstrap_lower": lower,
+            "bootstrap_middle": middle,
+            "bootstrap_upper": upper,
+            "bootstrap_width": upper - lower,
+        }
 
     logger.info("Computing distance")
     return util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
