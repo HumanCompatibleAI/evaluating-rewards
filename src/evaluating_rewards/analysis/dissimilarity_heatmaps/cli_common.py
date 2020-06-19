@@ -394,7 +394,6 @@ def make_config(
         env_name = "imitation/PointMazeLeftVel-v0"
         x_reward_cfgs = [
             ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
-            ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", "dummy"),
         ]
         y_reward_cfgs = [
             ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),

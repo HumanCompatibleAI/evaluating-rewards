@@ -198,7 +198,7 @@ def batch_compute_returns(
     return returns
 
 
-@plot_erc_heatmap_ex.capture
+@plot_erc_heatmap_ex.command
 def compute_vals(
     env_name: str,
     discount: float,

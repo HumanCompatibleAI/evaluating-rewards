@@ -36,7 +36,7 @@ cli_common.make_config(plot_npec_heatmap_ex)
 @plot_npec_heatmap_ex.config
 def default_config(log_root):
     """Default configuration values."""
-    normalize = False
+    normalize = True
 
     # Dataset parameters
     data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
@@ -103,11 +103,6 @@ def test():
     del _
 
 
-@plot_npec_heatmap_ex.named_config
-def normalize_distance():
-    normalize = True  # noqa: F841  pylint:disable=unused-variable
-
-
 def _multi_heatmap(
     data: Iterable[pd.Series], labels: Iterable[pd.Series], kwargs: Iterable[Dict[str, Any]]
 ) -> plt.Figure:
@@ -138,7 +133,7 @@ def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
     )
 
 
-@plot_npec_heatmap_ex.capture
+@plot_npec_heatmap_ex.command
 def compute_vals(
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
     y_reward_cfgs: Iterable[cli_common.RewardCfg],

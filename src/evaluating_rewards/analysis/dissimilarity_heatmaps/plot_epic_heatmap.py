@@ -316,7 +316,7 @@ def sample_canon(
     return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1)
 
 
-@plot_epic_heatmap_ex.capture
+@plot_epic_heatmap_ex.command
 def compute_vals(
     env_name: str,
     discount: float,
