@@ -42,27 +42,25 @@ RewardCfg = Tuple[str, str]  # (type, path)
 logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.cli_common")
 
 
-def canonicalize_reward_cfg(reward_cfg: Iterable[RewardCfg], data_root: str) -> Iterable[RewardCfg]:
-    """Canonicalize paths and cast configs to tuples.
+def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:
+    """Canonicalize path in reward configuration.
 
-    Sacred has a bad habit of converting tuples in the config into lists, which makes
-    the rewards no longer `RewardCfg` -- we put this right by casting to tuples.
-
-    We also join paths with the `data_root`, unless they are the special "dummy" path.
+    Specifically, join paths with the `data_root`, unless they are the special "dummy" path.
+    Also ensure the return value is actually of type RewardCfg: it is forgiving and will accept
+    any iterable pair as input `reward_cfg`. This is important since Sacred has the bad habit of
+    converting tuples to lists in configurations.
 
     Args:
         reward_cfg: Iterable of configurations to canonicailze.
         data_root: The root to join paths to.
 
     Returns:
-        Iterable of canonicalized configurations.
+        Canonicalized RewardCfg.
     """
-    res = []
-    for kind, path in reward_cfg:
-        if path != "dummy":
-            path = os.path.join(data_root, path)
-        res.append((kind, path))
-    return res
+    kind, path = reward_cfg
+    if path != "dummy":
+        path = os.path.join(data_root, path)
+    return (kind, path)
 
 
 def load_models(

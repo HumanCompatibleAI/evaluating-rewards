@@ -225,8 +225,8 @@ def compute_vals(
         A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
-    y_reward_cfgs = cli_common.canonicalize_reward_cfg(y_reward_cfgs, data_root)
+    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
     logger.info("Loading models")
     g = tf.Graph()

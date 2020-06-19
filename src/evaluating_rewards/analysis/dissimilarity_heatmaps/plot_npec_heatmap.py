@@ -165,8 +165,8 @@ def compute_vals(
         A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
-    y_reward_cfgs = [tuple(v) for v in y_reward_cfgs]
+    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
     y_reward_cfgs.append(("evaluating_rewards/Zero-v0", "dummy"))
 
     data_dir = data_root
@@ -181,12 +181,18 @@ def compute_vals(
     def cfg_filter(cfg):
         matches_search = all((cfg.get(k) == v for k, v in search.items()))
         source_cfg = cfg.get("source_reward_type"), cfg.get("source_reward_path")
-        matches_source = source_cfg in y_reward_cfgs
+        matches_source = cli_common.canonicalize_reward_cfg(source_cfg, data_root) in y_reward_cfgs
         target_cfg = cfg.get("target_reward_type"), cfg.get("target_reward_path")
-        matches_target = target_cfg in x_reward_cfgs
+        matches_target = cli_common.canonicalize_search(target_cfg, data_root) in x_reward_cfgs
         return matches_search and matches_source and matches_target
 
-    keys = "source_reward_type", "source_reward_path", "target_reward_type", "seed"
+    keys = (
+        "source_reward_type",
+        "source_reward_path",
+        "target_reward_type",
+        "target_reward_path",
+        "seed",
+    )
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
@@ -207,7 +213,9 @@ def compute_vals(
         aggregated = loss.groupby(list(keys[:-1])).apply(aggregate_fn)
         vals.update(
             {
-                f"{name}_{k}": aggregated.loc[(slice(None), slice(None), slice(None), k)]
+                f"{name}_{k}": aggregated.loc[
+                    (slice(None), slice(None), slice(None), slice(None), k)
+                ]
                 for k in aggregated.index.levels[-1]
             }
         )
