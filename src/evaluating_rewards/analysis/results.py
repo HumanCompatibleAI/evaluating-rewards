@@ -140,6 +140,7 @@ def load_multiple_stats(
 ) -> ConfigStatsMapping:
     """Load all training statistics in root_dir."""
     configs = find_sacred_results(root_dir)
+    configs = {path: _canonicalize_cfg_path(cfg) for path, cfg in configs.items()}
     subset = {path: cfg for path, cfg in configs.items() if cfg_filter(cfg)}
     subset = subset_keys(subset, keys)
 
@@ -226,12 +227,32 @@ def pipeline(stats: ConfigStatsMapping, **kwargs):
     return {"loss": loss_pipeline(stats, **kwargs), "affine": affine_pipeline(stats, **kwargs)}
 
 
+# TODO(adam): backwards compatibility -- remove once rerun experiments
 DATA_ROOT_PREFIXES = [
     # Older versions of the code stored absolute paths in config.
     # Try and turn these into relative paths for portability.
     "/root/output",
     "/mnt/eval_reward/data",
+    "/mnt/eval_reward_efs/data",
 ]
+
+
+def _canonicalize_data_root(path: str) -> str:
+    if path.endswith("dummy"):
+        path = "dummy"
+    for root_prefix in DATA_ROOT_PREFIXES:
+        if path.startswith(root_prefix):
+            path = path.replace(root_prefix, serialize.get_output_dir())
+            break
+    return path
+
+
+def _canonicalize_cfg_path(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    cfg = dict(cfg)
+    for fld in ("source_reward_path", "target_reward_path"):
+        if fld in cfg:
+            cfg[fld] = _canonicalize_data_root(cfg[fld])
+    return cfg
 
 
 def _find_sacred_parent(
@@ -251,11 +272,6 @@ def _find_sacred_parent(
         ValueError: if the parent path was already in seen for a different child.
         ValueError: no parent path containing a Sacred directory exists.
     """
-    for root_prefix in DATA_ROOT_PREFIXES:
-        if path.startswith(root_prefix):
-            path = path.replace(root_prefix, serialize.get_output_dir())
-            break
-
     parent = path
     while parent and not os.path.exists(os.path.join(parent, "sacred", "config.json")):
         parent = os.path.dirname(parent)
@@ -300,6 +316,7 @@ def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
         if kind in HARDCODED_TYPES or path == "dummy":
             res.append((kind, "hardcoded", 0, 0))
         else:
+            path = _canonicalize_data_root(path)
             config, run, path = _find_sacred_parent(path, seen)
             if "target_reward_type" in config:
                 # Learning directly from a reward: e.g. train_{regress,preferences}
@@ -308,6 +325,7 @@ def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
                 res.append((config["target_reward_type"], model_type, config["seed"], 0))
             elif "rollout_path" in config:
                 # Learning from demos: e.g. train_adversarial
+                config["rollout_path"] = _canonicalize_data_root(config["rollout_path"])
                 rollout_config, _, _ = _find_sacred_parent(config["rollout_path"], seen)
                 reward_type = rollout_config["reward_type"] or "EnvReward"
                 reward_args = config["init_trainer_kwargs"]["reward_kwargs"]
