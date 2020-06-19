@@ -44,17 +44,13 @@ def horizontal_ticks() -> None:
     plt.yticks(rotation="horizontal")
 
 
-def _drop_zero_reward(s: pd.Series) -> pd.Series:
-    """Exclude rows for Zero source reward type."""
-    zero_source = s.index.get_level_values("source_reward_type") == serialize.ZERO_REWARD
-    return s[~zero_source]
-
-
 def normalize_dissimilarity(s: pd.Series) -> pd.Series:
     """Divides by distance from Zero reward, an upper bound on the distance."""
-    s = s.sort_index()
-    s = s.groupby(level=0).apply(lambda x: x / s.loc[serialize.ZERO_REWARD])
-    return _drop_zero_reward(s)
+    df = s.unstack(level=["source_reward_type", "source_reward_path"])
+    zero_col_name = (serialize.ZERO_REWARD, "dummy")
+    zero_dissimilarity = df.pop(zero_col_name)
+    df = df.apply(lambda x: x / zero_dissimilarity)
+    return df.unstack(level=df.index.names)
 
 
 def comparison_heatmap(
