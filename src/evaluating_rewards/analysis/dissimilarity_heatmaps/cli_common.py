@@ -397,16 +397,16 @@ def make_config(
             ("evaluating_rewards/PointMazeGroundTruthNoCtrl-v0", "dummy"),
         ]
         y_reward_cfgs = [
+            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
+            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
             (
                 "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net/",
+                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
             ),
             (
                 "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net/",
+                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
             ),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model/"),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model/"),
         ]
         kinds = None
         _ = locals()
