@@ -39,8 +39,7 @@ def default_config(log_root):
     normalize = True
 
     # Dataset parameters
-    data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
-    data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
+    data_subdir = "comparison/hardcoded"  # optional, if omitted searches all data (slow)
     search = {}  # parameters to filter by in datasets
 
     _ = locals()
@@ -183,7 +182,7 @@ def compute_vals(
         source_cfg = cfg.get("source_reward_type"), cfg.get("source_reward_path")
         matches_source = cli_common.canonicalize_reward_cfg(source_cfg, data_root) in y_reward_cfgs
         target_cfg = cfg.get("target_reward_type"), cfg.get("target_reward_path")
-        matches_target = cli_common.canonicalize_search(target_cfg, data_root) in x_reward_cfgs
+        matches_target = cli_common.canonicalize_reward_cfg(target_cfg, data_root) in x_reward_cfgs
         return matches_search and matches_source and matches_target
 
     keys = (

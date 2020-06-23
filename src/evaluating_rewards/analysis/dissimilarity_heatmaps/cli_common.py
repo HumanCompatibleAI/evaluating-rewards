@@ -287,7 +287,8 @@ def make_config(
         """Default configuration values."""
         env_name = "evaluating_rewards/PointMassLine-v0"
         kinds = POINT_MASS_KINDS
-        log_root = serialize.get_output_dir()  # where results are read from/written to
+        data_root = serialize.get_output_dir()  # where models are read from
+        log_root = serialize.get_output_dir()  # where results are written to
         n_bootstrap = 1000  # number of bootstrap samples
         alpha = 95  # percentile confidence interval
         aggregate_kinds = ("bootstrap", "studentt", "sample")

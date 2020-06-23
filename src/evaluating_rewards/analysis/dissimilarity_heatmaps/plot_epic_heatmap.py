@@ -37,9 +37,8 @@ cli_common.make_config(plot_epic_heatmap_ex)
 
 
 @plot_epic_heatmap_ex.config
-def default_config(env_name, log_root):
+def default_config(env_name):
     """Default configuration values."""
-    data_root = log_root  # root of data directory for learned reward models
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance

@@ -37,9 +37,8 @@ cli_common.make_config(plot_erc_heatmap_ex)
 
 
 @plot_erc_heatmap_ex.config
-def default_config(env_name, log_root):
+def default_config(env_name):
     """Default configuration values."""
-    data_root = log_root  # root of data directory for learned reward models
     computation_kind = "sample"  # either "sample" or "mesh"
     corr_kind = "pearson"  # either "pearson" or "spearman"
     discount = 0.99  # discount rate for shaping
