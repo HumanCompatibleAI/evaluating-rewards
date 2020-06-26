@@ -34,7 +34,7 @@ cli_common.make_config(plot_npec_heatmap_ex)
 
 
 @plot_npec_heatmap_ex.config
-def default_config(log_root):
+def default_config():
     """Default configuration values."""
     normalize = True
 
