@@ -153,7 +153,9 @@ def test():
 
 @table_combined_ex.capture
 def make_table(
-    vals: Mapping[Tuple[str, str], pd.Series], pretty_models: Mapping[str, cli_common.RewardCfg]
+    key: str,
+    vals: Mapping[Tuple[str, str], pd.Series],
+    pretty_models: Mapping[str, cli_common.RewardCfg],
 ) -> str:
     distance_order = ("epic", "npec", "erc")
     visitation_order = ("random", "expert", "mixture")
@@ -172,7 +174,8 @@ def make_table(
         row = f"{label} & "
         for distance, visitation in itertools.product(distance_order, visitation_order):
             col = vals[(distance, visitation)].loc[model]
-            col = f"{col * 1000:.4g}"
+            multiplier = 100 if key.endswith("relative") else 1000
+            col = f"{col * multiplier:.4g}"
             cols.append(col)
         row += r"\resultrow{" + "}{".join(cols) + "}"
         rows.append(row)
@@ -267,7 +270,7 @@ def table_combined(
         path = os.path.join(log_dir, f"{k}.csv")
         logger.info(f"Writing table to '{path}'")
         with open(path, "wb") as f:
-            table = make_table(v)
+            table = make_table(k, v)
             f.write(table.encode())
 
 

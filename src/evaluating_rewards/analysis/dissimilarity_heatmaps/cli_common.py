@@ -83,21 +83,47 @@ def load_models(
     }
 
 
-def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:
+def relative_error(
+    lower: Mapping[str, float], mean: Mapping[str, float], upper: Mapping[str, float]
+) -> Mapping[str, float]:
+    """Compute relative upper bound rel, which mean is within +/- rel % of.
+
+    Since this may be asymmetric between lower and upper, returns the maximum of
+    upper / mean - 1 (relative upper bound) and 1 - lower / mean (relative lower bound).
+    """
+    assert lower.keys() == mean.keys() == upper.keys()
+    return {k: max(upper[k] / mean[k] - 1, 1 - lower[k] / mean[k]) for k in lower.keys()}
+
+
+def bootstrap_ci(
+    vals: Iterable[float], n_bootstrap: int, alpha: float
+) -> Mapping[str, Mapping[str, float]]:
     """Compute `alpha` %ile confidence interval of mean of `vals` from `n_bootstrap` samples."""
     bootstrapped = util.bootstrap(np.array(vals), stat_fn=np.mean, n_samples=n_bootstrap)
     lower, middle, upper = util.empirical_ci(bootstrapped, alpha)
-    return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
+    return {
+        "lower": lower,
+        "middle": middle,
+        "upper": upper,
+        "width": upper - lower,
+        "relative": relative_error(lower, middle, upper),
+    }
 
 
-def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, float]:
+def studentt_ci(vals: Sequence[float], alpha: float) -> Mapping[str, Mapping[str, float]]:
     """Compute `alpha` %ile confidence interval of mean of `vals` using t-distribution."""
     assert len(vals) > 1
     df = len(vals) - 1
     mu = np.mean(vals)
     stderr = scipy.stats.sem(vals)
     lower, upper = scipy.stats.t.interval(alpha / 100, df, loc=mu, scale=stderr)
-    return {"lower": lower, "middle": mu, "upper": upper, "width": upper - lower}
+    return {
+        "lower": lower,
+        "middle": mu,
+        "upper": upper,
+        "width": upper - lower,
+        "relative": relative_error(lower, mu, upper),
+    }
 
 
 def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
