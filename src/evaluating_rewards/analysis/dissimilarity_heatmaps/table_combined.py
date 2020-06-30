@@ -20,7 +20,7 @@ import itertools
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping, Optional, Tuple
+from typing import Any, Iterable, Mapping, Optional, Set, Tuple, TypeVar
 
 from imitation.util import util as imit_util
 import pandas as pd
@@ -90,7 +90,7 @@ def point_maze_learned():
             f"{serialize.get_output_dir()}/transfer_point_maze/expert/train/policies/final/"
         ),
     }
-    experiment_kinds = ("mixture", "random", "expert")
+    experiment_kinds = ("random", "expert", "mixture")
     config_updates = {
         "epic": {
             "mixture": {
@@ -147,15 +147,36 @@ def high_precision():
 
 @table_combined_ex.named_config
 def test():
-    named_configs = {  # noqa: F841 pylint:disable=unused-variable
-        "precision": {"epic": {"global": ("test",)}, "erc": {"global": ("test",)}}
+    """Simple, quick config for unit testing."""
+    experiment_kinds = ("test",)
+    target_reward_type = "evaluating_rewards/PointMassGroundTruth-v0"
+    target_reward_path = "dummy"
+    named_configs = {
+        "test": {"global": ("test",)},
     }
+    pretty_models = {
+        "GT": ("evaluating_rewards/PointMassGroundTruth-v0", "dummy",),
+        "Sparse": ("evaluating_rewards/PointMassSparseWithCtrl-v0", "dummy",),
+    }
+    _ = locals()
+    del _
+
+
+K = TypeVar("K")
+
+
+def common_keys(vals: Iterable[Mapping[K, Any]]) -> Set[K]:
+    res = set(next(iter(vals)).keys())
+    for v in vals:
+        res = res.intersection(v.keys())
+    return res
 
 
 def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
     pretty_models: Mapping[str, cli_common.RewardCfg],
+    experiment_kinds: Tuple[str],
 ) -> str:
     """Generate LaTeX table.
 
@@ -166,9 +187,8 @@ def make_table(
             A model matching that reward configuration is given the associated short label.
     """
     distance_order = ("epic", "npec", "erc")
-    visitation_order = ("random", "expert", "mixture")
 
-    y_reward_cfgs = tuple(vals[(distance_order[0], visitation_order[0])].keys())
+    y_reward_cfgs = common_keys(vals.values())
 
     rows = []
     for model in y_reward_cfgs:
@@ -182,7 +202,7 @@ def make_table(
                 label = search_label
         assert label is not None
         row = f"{label} & "
-        for distance, visitation in itertools.product(distance_order, visitation_order):
+        for distance, visitation in itertools.product(distance_order, experiment_kinds):
             col = vals[(distance, visitation)].loc[model]
             multiplier = 100 if key.endswith("relative") else 1000
             col = f"{col * multiplier:.4g}"
@@ -282,10 +302,6 @@ def table_combined(
 
     # TODO(adam): how to get generator reward? that might be easiest as side-channel.
     # or separate script, which you could potentially combine here.
-    common_keys = set(next(iter(vals.values())).keys())
-    for v in vals.values():
-        common_keys = common_keys.intersection(v.keys())
-
     vals_filtered = {}
     for model_key, outer_val in vals.items():
         for table_key, inner_val in outer_val.items():
@@ -294,12 +310,12 @@ def table_combined(
                 level=("target_reward_type", "target_reward_path"),
             )
 
-    for k in common_keys:
+    for k in common_keys(vals.values()):
         v = vals_filtered[k]
         path = os.path.join(log_dir, f"{k}.csv")
         logger.info(f"Writing table to '{path}'")
         with open(path, "wb") as f:
-            table = make_table(k, v, pretty_models)
+            table = make_table(k, v, pretty_models, experiment_kinds)
             f.write(table.encode())
 
 
