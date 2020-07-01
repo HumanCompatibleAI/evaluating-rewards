@@ -37,9 +37,8 @@ cli_common.make_config(plot_epic_heatmap_ex)
 
 
 @plot_epic_heatmap_ex.config
-def default_config(env_name, log_root):
+def default_config(env_name):
     """Default configuration values."""
-    data_root = log_root  # root of data directory for learned reward models
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance
@@ -316,7 +315,7 @@ def sample_canon(
     return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1)
 
 
-@plot_epic_heatmap_ex.capture
+@plot_epic_heatmap_ex.command
 def compute_vals(
     env_name: str,
     discount: float,
@@ -350,15 +349,15 @@ def compute_vals(
         A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
-    y_reward_cfgs = cli_common.canonicalize_reward_cfg(y_reward_cfgs, data_root)
+    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
     logger.info("Loading models")
     g = tf.Graph()
     with g.as_default():
         sess = tf.Session()
         with sess.as_default():
-            reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
+            reward_cfgs = x_reward_cfgs + y_reward_cfgs
             models = cli_common.load_models(env_name, reward_cfgs, discount)
 
     if computation_kind == "sample":

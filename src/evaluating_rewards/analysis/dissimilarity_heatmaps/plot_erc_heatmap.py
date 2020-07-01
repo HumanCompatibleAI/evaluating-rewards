@@ -37,9 +37,8 @@ cli_common.make_config(plot_erc_heatmap_ex)
 
 
 @plot_erc_heatmap_ex.config
-def default_config(env_name, log_root):
+def default_config(env_name):
     """Default configuration values."""
-    data_root = log_root  # root of data directory for learned reward models
     computation_kind = "sample"  # either "sample" or "mesh"
     corr_kind = "pearson"  # either "pearson" or "spearman"
     discount = 0.99  # discount rate for shaping
@@ -147,7 +146,12 @@ def correlation_distance(
     def ci_fn(rewa: np.ndarray, rewb: np.ndarray) -> Mapping[str, float]:
         distances = util.bootstrap(rewa, rewb, stat_fn=distance_fn, n_samples=n_bootstrap)
         lower, middle, upper = util.empirical_ci(distances, alpha)
-        return {"lower": lower, "middle": middle, "upper": upper, "width": upper - lower}
+        return {
+            "bootstrap_lower": lower,
+            "bootstrap_middle": middle,
+            "bootstrap_upper": upper,
+            "bootstrap_width": upper - lower,
+        }
 
     logger.info("Computing distance")
     return util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
@@ -193,7 +197,7 @@ def batch_compute_returns(
     return returns
 
 
-@plot_erc_heatmap_ex.capture
+@plot_erc_heatmap_ex.command
 def compute_vals(
     env_name: str,
     discount: float,
@@ -220,8 +224,8 @@ def compute_vals(
         A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = cli_common.canonicalize_reward_cfg(x_reward_cfgs, data_root)
-    y_reward_cfgs = cli_common.canonicalize_reward_cfg(y_reward_cfgs, data_root)
+    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
     logger.info("Loading models")
     g = tf.Graph()

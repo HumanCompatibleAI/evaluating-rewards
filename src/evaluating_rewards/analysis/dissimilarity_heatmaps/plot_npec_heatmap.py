@@ -34,13 +34,12 @@ cli_common.make_config(plot_npec_heatmap_ex)
 
 
 @plot_npec_heatmap_ex.config
-def default_config(log_root):
+def default_config():
     """Default configuration values."""
-    normalize = False
+    normalize = True
 
     # Dataset parameters
-    data_root = os.path.join(log_root, "comparison")  # root of comparison data directory
-    data_subdir = "hardcoded"  # optional, if omitted searches all data (slow)
+    data_subdir = "comparison/hardcoded"  # optional, if omitted searches all data (slow)
     search = {}  # parameters to filter by in datasets
 
     _ = locals()
@@ -95,17 +94,13 @@ def test():
         "evaluating_rewards/PointMassGroundTruth-v0",
         "evaluating_rewards/PointMassSparseWithCtrl-v0",
     ]
+    normalize = False
     # Dummy test data only contains 1 seed so cannot use other methods.
     aggregate_kinds = ("bootstrap",)
     # Do not include "tex" in styles here: this will break on CI.
     styles = ["paper", "heatmap-1col"]
     _ = locals()
     del _
-
-
-@plot_npec_heatmap_ex.named_config
-def normalize_distance():
-    normalize = True  # noqa: F841  pylint:disable=unused-variable
 
 
 def _multi_heatmap(
@@ -138,7 +133,7 @@ def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
     )
 
 
-@plot_npec_heatmap_ex.capture
+@plot_npec_heatmap_ex.command
 def compute_vals(
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
@@ -170,8 +165,8 @@ def compute_vals(
         A mapping of keywords to Series.
     """
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [tuple(v) for v in x_reward_cfgs]
-    y_reward_cfgs = [tuple(v) for v in y_reward_cfgs]
+    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
     y_reward_cfgs.append(("evaluating_rewards/Zero-v0", "dummy"))
 
     data_dir = data_root
@@ -186,12 +181,18 @@ def compute_vals(
     def cfg_filter(cfg):
         matches_search = all((cfg.get(k) == v for k, v in search.items()))
         source_cfg = cfg.get("source_reward_type"), cfg.get("source_reward_path")
-        matches_source = source_cfg in y_reward_cfgs
+        matches_source = cli_common.canonicalize_reward_cfg(source_cfg, data_root) in y_reward_cfgs
         target_cfg = cfg.get("target_reward_type"), cfg.get("target_reward_path")
-        matches_target = target_cfg in x_reward_cfgs
+        matches_target = cli_common.canonicalize_reward_cfg(target_cfg, data_root) in x_reward_cfgs
         return matches_search and matches_source and matches_target
 
-    keys = "source_reward_type", "source_reward_path", "target_reward_type", "seed"
+    keys = (
+        "source_reward_type",
+        "source_reward_path",
+        "target_reward_type",
+        "target_reward_path",
+        "seed",
+    )
     stats = results.load_multiple_stats(data_dir, keys, cfg_filter=cfg_filter)
     res = results.pipeline(stats)
     loss = res["loss"]["loss"]
@@ -212,7 +213,9 @@ def compute_vals(
         aggregated = loss.groupby(list(keys[:-1])).apply(aggregate_fn)
         vals.update(
             {
-                f"{name}_{k}": aggregated.loc[(slice(None), slice(None), slice(None), k)]
+                f"{name}_{k}": aggregated.loc[
+                    (slice(None), slice(None), slice(None), slice(None), k)
+                ]
                 for k in aggregated.index.levels[-1]
             }
         )
