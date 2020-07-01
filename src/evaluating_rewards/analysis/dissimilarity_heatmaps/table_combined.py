@@ -153,10 +153,12 @@ def test():
     target_reward_path = "dummy"
     named_configs = {
         "test": {"global": ("test",)},
+        # duplicate to get some coverage of recursive_dict_merge
+        "test2": {"global": ("test",)},
     }
     pretty_models = {
-        "GT": ("evaluating_rewards/PointMassGroundTruth-v0", "dummy",),
-        "Sparse": ("evaluating_rewards/PointMassSparseWithCtrl-v0", "dummy",),
+        "GT": ("evaluating_rewards/PointMassGroundTruth-v0", "dummy"),
+        "Sparse": ("evaluating_rewards/PointMassSparseWithCtrl-v0", "dummy"),
     }
     _ = locals()
     del _
