@@ -101,7 +101,7 @@ jobs:
             pytest --cov=/venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
                    --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
-                   --nbval -n ${NUM_CPUS} -vv tests/ examples/
+                   --nbval --dist=loadscope -n ${NUM_CPUS} -vv tests/ examples/
             mv .coverage .coverage.eval
             coverage combine  # rewrite paths from virtualenv to src/
       - codecov/upload
