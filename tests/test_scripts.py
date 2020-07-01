@@ -24,6 +24,7 @@ from evaluating_rewards.analysis.dissimilarity_heatmaps import (
     plot_erc_heatmap,
     plot_gridworld_heatmap,
     plot_npec_heatmap,
+    table_combined,
 )
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
 from evaluating_rewards.scripts import npec_comparison, train_preferences, train_regress
@@ -48,6 +49,7 @@ EXPERIMENTS = {
     ),
     "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, type(None), [], {}),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
+    "table_combined": (table_combined.table_combined_ex, type(None), [], {}),
     "comparison": (npec_comparison.model_comparison_ex, dict, [], {}),
     "comparison_alternating": (
         npec_comparison.model_comparison_ex,
