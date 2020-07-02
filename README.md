@@ -39,9 +39,9 @@ python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap w
 ```
 
 `plot_epic_heatmap` uses the `evaluating_rewards.epic_sample` module to compute the EPIC distance.
-If you wish to integrate EPIC into an existing evaluation suite, you may wish to use this module
-directly. For a stand-alone example, check out this [notebook](examples/epic_demo.ipynb) or run it
-online in [Colab](https://colab.research.google.com/github/HumanCompatibleAI/evaluating-rewards/blob/master/examples/epic_demo.ipynb).
+You may wish to use this module directly, for example when integrating EPIC into an existing
+evaluation suite. Check out this [notebook](examples/epic_demo.ipynb) for an example of how to use
+`epic_sample`, or run it online in [Colab](https://colab.research.google.com/github/HumanCompatibleAI/evaluating-rewards/blob/master/examples/epic_demo.ipynb).
 
 ## Technical Structure
 
@@ -52,8 +52,7 @@ online in [Colab](https://colab.research.google.com/github/HumanCompatibleAI/eva
     + `rewards.py` and `comparisons.py` define deep reward models and
         associated comparison methods, and `tabular.py` the equivalent in a
         tabular (finite-state) setting.
-    + `serialize.py`, to load reward models, both from this and other
-        projects.
+    + `serialize.py` loads reward models, both from this package and other projects.
 -   `envs`, a sub-package defining some simple environments and associated
     hard-coded reward models and (in some cases) policies.
 -   `experiments`, a sub-package defining helper methods supporting experiments
