@@ -14,7 +14,26 @@
 
 """Install script for setuptools."""
 
+import os
+import sys
+
 import setuptools
+
+
+def get_version() -> str:
+    """Load version from version.py.
+
+    Changes system path internally to avoid missing dependencies breaking imports.
+    """
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "src", "evaluating_rewards"),
+    )
+    from version import (  # type:ignore  # pylint:disable=no-name-in-module,import-outside-toplevel
+        VERSION,
+    )
+
+    del sys.path[0]
+    return VERSION
 
 
 def load_requirements(fname):
@@ -24,7 +43,7 @@ def load_requirements(fname):
 
 setuptools.setup(
     name="evaluating_rewards",
-    version="0.1a",
+    version=get_version(),
     description="Evaluating and comparing reward models.",
     author="DeepMind Technologies Limited and Adam Gleave",
     author_email="adam@gleave.me",

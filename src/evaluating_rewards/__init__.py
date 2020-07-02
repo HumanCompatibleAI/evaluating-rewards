@@ -14,9 +14,8 @@
 
 """Library for comparing and evaluating reward models."""
 
-__version__ = "0.1a"
-
 from evaluating_rewards import envs  # noqa: F401
+from evaluating_rewards.version import VERSION as __version__  # noqa: F401
 
 
 def _register_policies():
