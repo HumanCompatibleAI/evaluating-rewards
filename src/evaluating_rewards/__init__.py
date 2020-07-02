@@ -16,6 +16,8 @@
 
 __version__ = "0.1a"
 
+from evaluating_rewards import envs  # noqa: F401
+
 
 def _register_policies():
     # import inside function so as not to pollute global namespace

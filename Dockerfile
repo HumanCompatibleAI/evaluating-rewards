@@ -84,4 +84,4 @@ RUN python setup.py sdist bdist_wheel
 RUN pip install dist/evaluating_rewards-*.whl
 
 # Default entrypoints
-CMD ["pytest", "-n", "auto", "-vv", "tests/"]
+CMD ["pytest", "-n", "auto", "-vv", "tests/", "examples/"]
