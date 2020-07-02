@@ -9,10 +9,10 @@ flake8-isort
 flaky
 hypothesis[numpy]
 isort
-nbval
 pylint>=2.4,<2.5
 pytype
 pytest
 pytest-cov
+pytest-notebook
 pytest-shard
 pytest-xdist
