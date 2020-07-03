@@ -41,7 +41,7 @@ python -m evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap w
 `plot_epic_heatmap` uses the `evaluating_rewards.epic_sample` module to compute the EPIC distance.
 You may wish to use this module directly, for example when integrating EPIC into an existing
 evaluation suite. Check out this [notebook](examples/epic_demo.ipynb) for an example of how to use
-`epic_sample`, or run it online in [Colab](https://colab.research.google.com/github/HumanCompatibleAI/evaluating-rewards/blob/master/examples/epic_demo.ipynb).
+`epic_sample`.
 
 ## Technical Structure
 
