@@ -334,7 +334,9 @@ def fully_connected_random_canonical_reward(
 
 
 def fully_connected_greedy_canonical_reward(
-    rew: np.ndarray, discount: float, state_dist: Optional[np.ndarray] = None,
+    rew: np.ndarray,
+    discount: float,
+    state_dist: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Compute version of rew with canonicalized shaping.

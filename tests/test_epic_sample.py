@@ -63,7 +63,11 @@ MESH_SPACES = [
 @pytest.mark.parametrize("space", MESH_SPACES)
 @pytest.mark.parametrize("n_models", range(3))
 def test_mesh_evaluate_models(
-    graph: tf.Graph, session: tf.Session, space: gym.Space, n_models: int, n_mesh: int = 64,
+    graph: tf.Graph,
+    session: tf.Session,
+    space: gym.Space,
+    n_models: int,
+    n_mesh: int = 64,
 ):
     """Checks `canonical_sample.mesh_evaluate_models` agrees with `mesh_evaluate_models_slow`."""
     with datasets.sample_dist_from_space(space) as dist:
@@ -89,7 +93,10 @@ def test_mesh_evaluate_models(
 
 @pytest.mark.parametrize("discount", [0.9, 0.99, 1.0])
 def test_sample_canon_shaping(
-    graph: tf.Graph, session: tf.Session, discount: float, eps: float = 1e-4,
+    graph: tf.Graph,
+    session: tf.Session,
+    discount: float,
+    eps: float = 1e-4,
 ):
     """Tests canonical_sample.sample_canon_shaping.
 
@@ -125,11 +132,18 @@ def test_sample_canon_shaping(
             ) as iid_generator:
                 batch = iid_generator(256)
     canon_rew = epic_sample.sample_canon_shaping(
-        models, batch, act_dist, obs_dist, n_mean_samples=256, discount=discount,
+        models,
+        batch,
+        act_dist,
+        obs_dist,
+        n_mean_samples=256,
+        discount=discount,
     )
 
     sparse_vs_affine = tabular.direct_distance(
-        canon_rew["evaluating_rewards/PointMassSparseWithCtrl-v0"], canon_rew["big_sparse"], p=1,
+        canon_rew["evaluating_rewards/PointMassSparseWithCtrl-v0"],
+        canon_rew["big_sparse"],
+        p=1,
     )
     assert sparse_vs_affine < eps
     sparse_vs_dense = tabular.direct_distance(

@@ -135,7 +135,10 @@ reward_registry.register(
 
 
 def load_reward(
-    reward_type: str, reward_path: str, venv: vec_env.VecEnv, discount: Optional[float] = None,
+    reward_type: str,
+    reward_path: str,
+    venv: vec_env.VecEnv,
+    discount: Optional[float] = None,
 ) -> rewards.RewardModel:
     """Load serialized reward model.
 

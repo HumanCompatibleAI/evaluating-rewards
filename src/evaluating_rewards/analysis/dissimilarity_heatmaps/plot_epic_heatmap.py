@@ -299,7 +299,13 @@ def sample_canon(
     with sess.as_default():
         logger.info("Removing shaping")
         deshaped_rew = epic_sample.sample_canon_shaping(
-            models, batch, act_dist, obs_dist, n_mean_samples, discount, direct_p,
+            models,
+            batch,
+            act_dist,
+            obs_dist,
+            n_mean_samples,
+            discount,
+            direct_p,
         )
         x_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in x_reward_cfgs}
         y_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in y_reward_cfgs}

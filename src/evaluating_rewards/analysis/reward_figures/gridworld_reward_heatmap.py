@@ -234,7 +234,12 @@ def _reward_draw_spline(
         xy = xy + annot_padding * direction
     fontweight = "bold" if optimal else None
     ax.annotate(
-        text, xy=xy, ha="center", va="center_baseline", color=text_color, fontweight=fontweight,
+        text,
+        xy=xy,
+        ha="center",
+        va="center_baseline",
+        color=text_color,
+        fontweight=fontweight,
     )
 
     return vert, color, hatch_color

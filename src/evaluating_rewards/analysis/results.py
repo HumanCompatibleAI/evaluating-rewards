@@ -176,7 +176,8 @@ def average_unwrapped_loss(stats: Stats) -> float:
 
 
 def loss_pipeline(
-    stats: ConfigStatsMapping, preprocess: Tuple[PreprocessFn] = (),
+    stats: ConfigStatsMapping,
+    preprocess: Tuple[PreprocessFn] = (),
 ):
     """Extract losses from stats and visualize in a heatmap."""
     loss = {cfg: average_loss(d) for cfg, d in stats.items()}
@@ -200,14 +201,17 @@ def get_affine_from_models(env_name: str, paths: Iterable[str]):
     with networks.make_session():
         for path in paths:
             model = serialize.load_reward(
-                "evaluating_rewards/RewardModel-v0", os.path.join(path, "model"), venv,
+                "evaluating_rewards/RewardModel-v0",
+                os.path.join(path, "model"),
+                venv,
             )
             return model.models["wrapped"][0].get_weights()
     return res
 
 
 def affine_pipeline(
-    stats: ConfigStatsMapping, preprocess: Tuple[PreprocessFn] = (),
+    stats: ConfigStatsMapping,
+    preprocess: Tuple[PreprocessFn] = (),
 ):
     """Extract final affine parameters from stats and visualize in a heatmap."""
     constants = get_metric(stats, "constant")

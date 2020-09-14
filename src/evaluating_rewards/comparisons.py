@@ -155,7 +155,10 @@ class RegressWrappedModel(RegressModel):
         return affine_model.fit_lstsq(batch, target=self.target, shaping=None)
 
     def fit(
-        self, dataset: datasets.TransitionsCallable, affine_size: Optional[int] = 4096, **kwargs,
+        self,
+        dataset: datasets.TransitionsCallable,
+        affine_size: Optional[int] = 4096,
+        **kwargs,
     ) -> FitStats:
         """Fits shaping to target.
 

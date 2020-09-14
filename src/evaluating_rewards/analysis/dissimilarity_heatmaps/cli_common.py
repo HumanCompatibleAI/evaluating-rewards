@@ -64,7 +64,9 @@ def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:
 
 
 def load_models(
-    env_name: str, reward_cfgs: Iterable[RewardCfg], discount: float,
+    env_name: str,
+    reward_cfgs: Iterable[RewardCfg],
+    discount: float,
 ) -> Mapping[RewardCfg, rewards.RewardModel]:
     """Load models specified by the `reward_cfgs`.
 
@@ -83,7 +85,11 @@ def load_models(
     }
 
 
-def relative_error(lower: float, mean: float, upper: float,) -> float:
+def relative_error(
+    lower: float,
+    mean: float,
+    upper: float,
+) -> float:
     """Compute relative upper bound rel, which the mean is within +/- rel % of.
 
     Since this may be asymmetric between lower and upper, returns the maximum of
@@ -169,7 +175,8 @@ def twod_mapping_to_multi_series(
 
 
 def apply_multi_aggregate_fns(
-    dissimilarities: Mapping[Any, Sequence[float]], aggregate_fns: Mapping[str, AggregateFn],
+    dissimilarities: Mapping[Any, Sequence[float]],
+    aggregate_fns: Mapping[str, AggregateFn],
 ) -> Mapping[str, pd.Series]:
     """Aggregate dissimilarities: e.g. confidence intervals.
 

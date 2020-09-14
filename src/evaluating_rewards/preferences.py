@@ -75,7 +75,9 @@ def _slice_trajectory(trajectory: types.Trajectory, start: int, end: int) -> typ
     """Slice trajectory from timestep start to timestep end."""
     infos = trajectory.infos[start:end] if trajectory.infos is not None else None
     return types.Trajectory(
-        obs=trajectory.obs[start : end + 1], acts=trajectory.acts[start:end], infos=infos,
+        obs=trajectory.obs[start : end + 1],
+        acts=trajectory.acts[start:end],
+        infos=infos,
     )
 
 

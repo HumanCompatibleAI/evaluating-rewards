@@ -54,7 +54,10 @@ def search_config(search, env_name):
 @plot_npec_heatmap_ex.config
 def logging_config(log_root, search):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root, "plot_epic_heatmap", str(search).replace("/", "_"), util.make_unique_timestamp(),
+        log_root,
+        "plot_epic_heatmap",
+        str(search).replace("/", "_"),
+        util.make_unique_timestamp(),
     )
 
 

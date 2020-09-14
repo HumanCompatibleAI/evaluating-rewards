@@ -248,7 +248,10 @@ class PointMassShaping(
     """Potential shaping term, based on distance to goal."""
 
     def __init__(
-        self, observation_space: gym.Space, action_space: gym.Space, discount: float = 1.0,
+        self,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        discount: float = 1.0,
     ):
         """Builds PointMassShaping.
 
