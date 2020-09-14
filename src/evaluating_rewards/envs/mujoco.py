@@ -51,8 +51,8 @@ class MujocoHardcodedReward(rewards.BasicRewardModel, serialize.LayersSerializab
     def __getattr__(self, name):
         try:
             return self._kwargs[name]
-        except KeyError:
-            raise AttributeError(f"Attribute '{name}' not present in self._kwargs")
+        except KeyError as e:
+            raise AttributeError(f"Attribute '{name}' not present in self._kwargs") from e
 
     @abc.abstractmethod
     def build_reward(self) -> tf.Tensor:
