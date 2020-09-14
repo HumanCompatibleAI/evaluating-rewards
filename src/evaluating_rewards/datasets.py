@@ -62,7 +62,11 @@ def transitions_factory_iid_from_sample_dist(
         next_obses = obs_dist(total_timesteps)
         dones = np.zeros(total_timesteps, dtype=np.bool)
         return types.Transitions(
-            obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
+            obs=np.array(obses),
+            acts=np.array(acts),
+            next_obs=np.array(next_obses),
+            dones=dones,
+            infos=None,
         )
 
     yield f
@@ -199,7 +203,10 @@ def transitions_factory_from_random_model(
             next_obses.append(next_obs)
         dones = np.zeros(total_timesteps, dtype=np.bool)
         return types.Transitions(
-            obs=np.array(obses), acts=np.array(acts), next_obs=np.array(next_obses), dones=dones,
+            obs=np.array(obses),
+            acts=np.array(acts),
+            next_obs=np.array(next_obses),
+            dones=dones,
         )
 
     yield f
