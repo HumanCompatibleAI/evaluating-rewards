@@ -378,7 +378,7 @@ def compute_vals(
         logger.info(f"Seed {i}")
         with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
             with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
-                dissimilarity = computation_fn(
+                dissimilarity = computation_fn(  # pylint:disable=no-value-for-parameter
                     g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
                 )
                 for k, v in dissimilarity.items():

@@ -15,6 +15,7 @@ disable=
 	duplicate-code,
 	# Python formatting cleaner, we don't care about minor performance overhead
 	logging-format-interpolation,
+	logging-fstring-interpolation,
 	# snake_case naming style: spurious errors for short variable names
 	C0103,
 	# hanging indent, see black GH issue #48 

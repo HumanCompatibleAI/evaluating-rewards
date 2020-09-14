@@ -200,8 +200,8 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
                 canonical_kind = "_".join(kind.split("_")[:-1])
                 try:
                     deshape_fn = CANONICAL_DESHAPE_FN[canonical_kind]
-                except KeyError:
-                    raise ValueError(f"Invalid canonicalizer '{canonical_kind}'")
+                except KeyError, e:
+                    raise ValueError(f"Invalid canonicalizer '{canonical_kind}'") from e
 
                 div = distance_fn(
                     src_reward,
