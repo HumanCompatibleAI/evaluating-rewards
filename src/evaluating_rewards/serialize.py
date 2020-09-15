@@ -67,7 +67,11 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
                     # TODO(adam): RewardFn should probably include dones?
                     dones = np.zeros(len(obs), dtype=np.bool)
                     transitions = types.Transitions(
-                        obs=obs, acts=actions, next_obs=next_obs, dones=dones
+                        obs=obs,
+                        acts=actions,
+                        next_obs=next_obs,
+                        dones=dones,
+                        infos=None,
                     )
                     fd = rewards.make_feed_dict([reward_model], transitions)
                     return sess.run(reward_model.reward, feed_dict=fd)

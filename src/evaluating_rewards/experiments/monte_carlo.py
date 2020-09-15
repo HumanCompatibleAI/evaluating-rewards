@@ -102,7 +102,9 @@ class MonteCarloGreedyPolicy(policies.BasePolicy):
             next_obs = dup_obs
 
         dones = np.zeros(batch_size * self.n_samples, dtype=np.bool)
-        batch = types.Transitions(obs=dup_obs, acts=dup_actions, next_obs=next_obs, dones=dones)
+        batch = types.Transitions(
+            obs=dup_obs, acts=dup_actions, next_obs=next_obs, dones=dones, infos=None
+        )
         feed_dict = rewards.make_feed_dict([self.reward_model], batch)
         # TODO(): add a function to RewardModel to compute this?
         reward = self.sess.run(self.reward_model.reward, feed_dict=feed_dict)

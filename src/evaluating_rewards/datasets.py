@@ -207,6 +207,7 @@ def transitions_factory_from_random_model(
             acts=np.array(acts),
             next_obs=np.array(next_obses),
             dones=dones,
+            infos=None,
         )
 
     yield f
