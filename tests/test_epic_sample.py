@@ -47,7 +47,7 @@ def mesh_evaluate_models_slow(
     )
     dones = np.zeros(len(tiled_obs), dtype=np.bool)
     transitions = types.Transitions(
-        obs=tiled_obs, acts=tiled_acts, next_obs=tiled_next_obs, dones=dones
+        obs=tiled_obs, acts=tiled_acts, next_obs=tiled_next_obs, dones=dones, infos=None,
     )
     rews = rewards.evaluate_models(models, transitions)
     rews = {k: v.reshape(len(obs), len(actions), len(next_obs)) for k, v in rews.items()}
