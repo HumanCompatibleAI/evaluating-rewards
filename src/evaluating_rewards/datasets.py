@@ -213,6 +213,63 @@ def transitions_factory_from_random_model(
     yield f
 
 
+@contextlib.contextmanager
+def transitions_factory_permute_wrapper(
+    factory: TransitionsFactory,
+    multiplier: int = 32,
+    rng: np.random.RandomState = np.random,
+    **kwargs,
+) -> Iterator[TransitionsCallable]:
+    """Permutes states and actions uniformly at random in transitions from `callable` uniformly.
+
+    Samples transitions from `factory`, to obtain a buffer of `multiplier` times the number of
+    requested transitions `n`. Returns a random slice of the transitions, sampled without
+    replacement independently from all states (i.e. starting and next states) and actions.
+    The returned transitions are then deleted from the buffer; in subsequent calls, `n`
+    transitions are sampled. In this way, the buffer only imposes a one-time overhead.
+
+    The effect of this is to return transitions that `callable` might never generate. This is
+    useful when you wish to have counterfactual transitions, but stay close to a realistic
+    state and action distribution implicitly given by `callable`.
+
+    Args:
+        factory: The factory to sample transitions from.
+        multiplier: Scale factor of the buffer compared to `n`, the number of requested transitions.
+        rng: Random state.
+        kwargs: passed through to factory.
+
+    Yields:
+        A function that will perform the sampling process described above for a
+        number of timesteps `n` specified in the argument.
+    """
+    buf = {k: np.empty((0)) for k in ["obs", "acts", "next_obs", "dones"]}
+
+    with factory(**kwargs) as transitions_callable:
+
+        def f(n: int) -> np.ndarray:
+            target_size = n * multiplier
+            delta = target_size - len(buf["obs"])
+            if delta > 0:
+                transitions = transitions_callable(delta)
+                for k, v in buf.items():
+                    new_v = getattr(transitions, k)
+                    if len(v) > 0:
+                        new_v = np.concatenate(v, new_v)
+                    buf[k] = new_v
+
+            assert len(buf["obs"]) == target_size
+            idxs = {k: rng.choice(target_size, size=n, replace=False) for k in buf.keys()}
+            res = {k: buf[k][idx] for k, idx in idxs.items()}
+            res = types.Transitions(**res, infos=None)
+
+            for k, idx in idxs.items():
+                buf[k] = np.delete(buf[k], idx)
+
+            return res
+
+        yield f
+
+
 # *** Sample distribution factories ***
 
 

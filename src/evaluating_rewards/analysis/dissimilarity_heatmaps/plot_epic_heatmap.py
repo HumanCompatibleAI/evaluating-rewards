@@ -175,6 +175,16 @@ def dataset_from_random_transitions():
     del _
 
 
+# TODO(adam): analogous implementation for sample_permute
+@plot_epic_heatmap_ex.named_config
+def dataset_permute(visitations_factory, visitations_factory_kwargs):
+    """Permute transitions of factory specified in *previous* named configs on the CLI."""
+    visitations_factory_kwargs["factory"] = visitations_factory
+    visitations_factory = datasets.transitions_factory_permute_wrapper
+    _ = locals()
+    del _
+
+
 @plot_epic_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
