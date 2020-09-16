@@ -9,10 +9,11 @@ flake8-isort
 flaky
 hypothesis[numpy]
 isort
-pylint>=2.4,<2.5
+pylint>=2.6.0
 pytype
 pytest
 pytest-cov
-pytest-notebook
+# Switch back to PyPi once release containing https://github.com/chrisjsewell/pytest-notebook/pull/11 comes out
+pytest-notebook @ git+https://github.com/AdamGleave/pytest-notebook.git@pytest6-api-fix
 pytest-shard
 pytest-xdist

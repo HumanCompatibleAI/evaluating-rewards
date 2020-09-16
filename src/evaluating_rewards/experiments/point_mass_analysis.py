@@ -142,7 +142,7 @@ def mesh_input(
     next_obs = env.obs_from_state(next_states)
 
     dones = np.zeros(len(obs), dtype=np.bool)
-    dataset = types.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
+    dataset = types.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones, infos=None)
     return idxs, dataset
 
 

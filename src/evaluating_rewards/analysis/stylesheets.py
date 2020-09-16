@@ -103,7 +103,7 @@ STYLES = {
         "text.usetex": True,
         "pgf.texsystem": "pdflatex",
         "pgf.rcfonts": False,
-        "pgf.preamble": [r"\usepackage{figsymbols}", r"\usepackage{times}"],
+        "pgf.preamble": "\n".join([r"\usepackage{figsymbols}", r"\usepackage{times}"]),
     },
 }
 
@@ -122,14 +122,16 @@ def setup_styles(styles: Iterable[str]) -> Iterator[None]:
         and (if "tex" is one of the styles) the environment variable "TEXINPUTS" is set
         to support custom macros."""
     old_tex_inputs = os.environ.get("TEXINPUTS")
+    tainted = False
     try:
         if "tex" in styles:
             import matplotlib  # pylint:disable=import-outside-toplevel
 
             # PGF backend best for LaTeX. matplotlib probably already imported:
             # but should be able to switch as non-interactive.
-            matplotlib.use("pgf", warn=False, force=True)
+            matplotlib.use("pgf", force=True)
             os.environ["TEXINPUTS"] = LATEX_DIR + ":"
+            tainted = True
         styles = [STYLES[style] for style in styles]
 
         import matplotlib.pyplot as plt  # pylint:disable=import-outside-toplevel
@@ -137,7 +139,7 @@ def setup_styles(styles: Iterable[str]) -> Iterator[None]:
         with plt.style.context(styles):
             yield
     finally:
-        if "tex" in styles:
+        if tainted:
             if old_tex_inputs is None:
                 del os.environ["TEXINPUTS"]
             else:

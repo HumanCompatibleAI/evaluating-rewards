@@ -46,7 +46,7 @@ def dummy_env_and_dataset(dims: int = 5):
         actions = np.array([act_space.sample() for _ in range(total_timesteps)])
         next_obs = (obs + actions).clip(0.0, 1.0)
         dones = np.zeros(total_timesteps, dtype=np.bool)
-        return types.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones)
+        return types.Transitions(obs=obs, acts=actions, next_obs=next_obs, dones=dones, infos=None)
 
     return {
         "observation_space": obs_space,

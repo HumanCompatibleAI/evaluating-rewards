@@ -58,7 +58,9 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-def combine_dicts(*dicts: Dict[str, Dict[K, V]],) -> Iterator[Tuple[str, Dict[K, V]]]:
+def combine_dicts(
+    *dicts: Dict[str, Dict[K, V]],
+) -> Iterator[Tuple[str, Dict[K, V]]]:
     """Return a generator merging together the dictionary arguments.
 
     Usage example:

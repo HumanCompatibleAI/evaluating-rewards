@@ -21,7 +21,6 @@ import pandas as pd
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-# Environments registered as a side-effect of importing
 from evaluating_rewards import comparisons, datasets, rewards, serialize
 from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
 from tests import common

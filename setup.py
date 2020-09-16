@@ -26,7 +26,8 @@ def get_version() -> str:
     Changes system path internally to avoid missing dependencies breaking imports.
     """
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "src", "evaluating_rewards"),
+        0,
+        os.path.join(os.path.dirname(__file__), "src", "evaluating_rewards"),
     )
     from version import (  # type:ignore  # pylint:disable=no-name-in-module,import-outside-toplevel
         VERSION,

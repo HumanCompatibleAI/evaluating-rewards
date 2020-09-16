@@ -98,7 +98,9 @@ def paper():
 @plot_gridworld_heatmap_ex.config
 def logging_config(log_root):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root, "plot_gridworld_divergence", util.make_unique_timestamp(),
+        log_root,
+        "plot_gridworld_divergence",
+        util.make_unique_timestamp(),
     )
 
 
@@ -198,8 +200,8 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
                 canonical_kind = "_".join(kind.split("_")[:-1])
                 try:
                     deshape_fn = CANONICAL_DESHAPE_FN[canonical_kind]
-                except KeyError:
-                    raise ValueError(f"Invalid canonicalizer '{canonical_kind}'")
+                except KeyError as e:
+                    raise ValueError(f"Invalid canonicalizer '{canonical_kind}'") from e
 
                 div = distance_fn(
                     src_reward,
@@ -238,7 +240,7 @@ def plot_gridworld_heatmap(
         discount: discount rate of MDP.
         log_dir: directory to write figures and other logging to.
         save_kwargs: passed through to `analysis.save_figs`.
-        """
+    """
     with stylesheets.setup_styles(styles):
         rewards = gridworld_rewards.REWARDS
         if reward_subset is not None:

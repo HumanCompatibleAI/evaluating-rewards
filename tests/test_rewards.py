@@ -113,7 +113,9 @@ DISCOUNTS = [0.9, 0.99, 1.0]
 
 @pytest.fixture(name="helper_serialize_identity")
 def fixture_serialize_identity(
-    graph: tf.Graph, session: tf.Session, venv: vec_env.VecEnv,
+    graph: tf.Graph,
+    session: tf.Session,
+    venv: vec_env.VecEnv,
 ):
     """Creates reward model, saves it, reloads it, and checks for equality."""
 

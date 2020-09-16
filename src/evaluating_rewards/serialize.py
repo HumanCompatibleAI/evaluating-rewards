@@ -67,7 +67,11 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
                     # TODO(adam): RewardFn should probably include dones?
                     dones = np.zeros(len(obs), dtype=np.bool)
                     transitions = types.Transitions(
-                        obs=obs, acts=actions, next_obs=next_obs, dones=dones
+                        obs=obs,
+                        acts=actions,
+                        next_obs=next_obs,
+                        dones=dones,
+                        infos=None,
                     )
                     fd = rewards.make_feed_dict([reward_model], transitions)
                     return sess.run(reward_model.reward, feed_dict=fd)
@@ -135,7 +139,10 @@ reward_registry.register(
 
 
 def load_reward(
-    reward_type: str, reward_path: str, venv: vec_env.VecEnv, discount: Optional[float] = None,
+    reward_type: str,
+    reward_path: str,
+    venv: vec_env.VecEnv,
+    discount: Optional[float] = None,
 ) -> rewards.RewardModel:
     """Load serialized reward model.
 

@@ -323,7 +323,12 @@ class MLPPotentialShaping(BasicRewardModel, PotentialShaping, serialize.LayersSe
         end_potential = ConstantLayer("end_potential")
         end_potential.build(())
         PotentialShaping.__init__(
-            self, old_potential, new_potential, end_potential.constant, self._proc_dones, discount,
+            self,
+            old_potential,
+            new_potential,
+            end_potential.constant,
+            self._proc_dones,
+            discount,
         )
 
         layers["end_potential"] = end_potential

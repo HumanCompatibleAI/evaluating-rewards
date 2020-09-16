@@ -59,7 +59,10 @@ def default_config():
 def logging_config(log_root, tag):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
-        log_root, "table_combined", tag, imit_util.make_unique_timestamp(),
+        log_root,
+        "table_combined",
+        tag,
+        imit_util.make_unique_timestamp(),
     )
 
 
