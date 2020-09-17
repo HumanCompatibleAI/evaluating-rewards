@@ -60,7 +60,7 @@ def default_config():
     del _
 
 
-def visitation_default_config(env_name, visitations_factory_kwargs):
+def _visitation_config(env_name, visitations_factory_kwargs):
     """Default visitation distribution config: rollouts from random policy."""
     # visitations_factory only has an effect when computation_kind == "sample"
     visitations_factory = datasets.transitions_factory_from_serialized_policy
@@ -71,14 +71,21 @@ def visitation_default_config(env_name, visitations_factory_kwargs):
             "policy_path": "dummy",
         }
     dataset_tag = "random_policy"
-    _ = locals()
-    del _
+    return locals()
 
 
-plot_epic_heatmap_ex.config(visitation_default_config)  # register as default
-plot_epic_heatmap_ex.named_config(
-    visitation_default_config
-)  # also as named_config for dataset_permute
+@plot_epic_heatmap_ex.config
+def _visitation_default_config(env_name, visitations_factory_kwargs):
+    locals().update(**_visitation_config(env_name, visitations_factory_kwargs))
+
+
+@plot_epic_heatmap_ex.named_config
+def visitation_config(env_name):
+    """Named config that sets default visitation factory.
+
+    This is needed for other named configs that manipulate visitation factories, but can otherwise
+    be omitted since `_visitation_default_config`  will do the same update."""
+    locals().update(**_visitation_config(env_name, None))
 
 
 @plot_epic_heatmap_ex.config
