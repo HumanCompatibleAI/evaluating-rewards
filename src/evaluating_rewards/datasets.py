@@ -47,8 +47,12 @@ SampleDistFactory = Factory[SampleDist]
 
 
 @contextlib.contextmanager
-def transitions_factory_iid_from_sample_dist(
-    obs_dist: SampleDist, act_dist: SampleDist
+def transitions_factory_iid_from_sample_dist_factory(
+    obs_dist_factory: SampleDistFactory,
+    act_dist_factory: SampleDistFactory,
+    obs_kwargs=None,
+    act_kwargs=None,
+    **kwargs,
 ) -> Iterator[TransitionsCallable]:
     """Samples state and next state i.i.d. from `obs_dist` and actions i.i.d. from `act_dist`.
 
@@ -56,20 +60,25 @@ def transitions_factory_iid_from_sample_dist(
     `canonical_sample` which assume i.i.d. transitions internally.
     """
 
-    def f(total_timesteps: int) -> types.Transitions:
-        obses = obs_dist(total_timesteps)
-        acts = act_dist(total_timesteps)
-        next_obses = obs_dist(total_timesteps)
-        dones = np.zeros(total_timesteps, dtype=np.bool)
-        return types.Transitions(
-            obs=np.array(obses),
-            acts=np.array(acts),
-            next_obs=np.array(next_obses),
-            dones=dones,
-            infos=None,
-        )
+    obs_kwargs = obs_kwargs or {}
+    act_kwargs = act_kwargs or {}
+    with obs_dist_factory(**obs_kwargs, **kwargs) as obs_dist:
+        with act_dist_factory(**act_kwargs, **kwargs) as act_dist:
 
-    yield f
+            def f(total_timesteps: int) -> types.Transitions:
+                obses = obs_dist(total_timesteps)
+                acts = act_dist(total_timesteps)
+                next_obses = obs_dist(total_timesteps)
+                dones = np.zeros(total_timesteps, dtype=np.bool)
+                return types.Transitions(
+                    obs=np.array(obses),
+                    acts=np.array(acts),
+                    next_obs=np.array(next_obses),
+                    dones=dones,
+                    infos=None,
+                )
+
+            yield f
 
 
 def transitions_callable_to_sample_dist(

@@ -129,20 +129,24 @@ def test_sample_canon_shaping(
                 }
             )
 
+    with datasets.transitions_factory_iid_from_sample_dist_factory(
+        obs_dist_factory=datasets.sample_dist_from_space,
+        act_dist_factory=datasets.sample_dist_from_space,
+        obs_kwargs={"space": venv.observation_space},
+        act_kwargs={"space": venv.action_space},
+    ) as iid_generator:
+        batch = iid_generator(256)
+
     with datasets.sample_dist_from_space(venv.observation_space) as obs_dist:
         with datasets.sample_dist_from_space(venv.action_space) as act_dist:
-            with datasets.transitions_factory_iid_from_sample_dist(
-                obs_dist, act_dist
-            ) as iid_generator:
-                batch = iid_generator(256)
-    canon_rew = epic_sample.sample_canon_shaping(
-        models,
-        batch,
-        act_dist,
-        obs_dist,
-        n_mean_samples=256,
-        discount=discount,
-    )
+            canon_rew = epic_sample.sample_canon_shaping(
+                models,
+                batch,
+                act_dist,
+                obs_dist,
+                n_mean_samples=256,
+                discount=discount,
+            )
 
     sparse_vs_affine = tabular.direct_distance(
         canon_rew["evaluating_rewards/PointMassSparseWithCtrl-v0"],

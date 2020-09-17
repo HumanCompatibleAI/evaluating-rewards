@@ -17,7 +17,7 @@
 import functools
 import logging
 import os
-from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, Mapping, Tuple
 
 from imitation.util import util as imit_util
 import numpy as np
@@ -37,7 +37,7 @@ cli_common.make_config(plot_epic_heatmap_ex)
 
 
 @plot_epic_heatmap_ex.config
-def default_config(env_name):
+def default_config():
     """Default configuration values."""
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
@@ -48,6 +48,8 @@ def default_config(env_name):
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
+    visitations_factory_kwargs = {}
+    sample_dist_factory_kwargs = {}
     # n_obs and n_act only applicable for mesh approach
     n_obs = 256
     n_act = 256
@@ -58,23 +60,42 @@ def default_config(env_name):
     del _
 
 
-@plot_epic_heatmap_ex.config
-def visitation_config(env_name):
-    """Default visitation distribution config: """
-    visitations_factory = None  # defaults to datasets.iid_transition_generator
-    visitations_factory_kwargs = {"env_name": env_name}
-    dataset_tag = "iid"
+def visitation_default_config(env_name, visitations_factory_kwargs):
+    """Default visitation distribution config: rollouts from random policy."""
+    # visitations_factory only has an effect when computation_kind == "sample"
+    visitations_factory = datasets.transitions_factory_from_serialized_policy
+    if not visitations_factory_kwargs:
+        visitations_factory_kwargs = {
+            "env_name": env_name,
+            "policy_type": "random",
+            "policy_path": "dummy",
+        }
+    dataset_tag = "random_policy"
     _ = locals()
     del _
 
 
+plot_epic_heatmap_ex.config(visitation_default_config)  # register as default
+plot_epic_heatmap_ex.named_config(
+    visitation_default_config
+)  # also as named_config for dataset_permute
+
+
 @plot_epic_heatmap_ex.config
-def sample_dist_config(env_name):
-    """Default sample distribution config: randomly sample from Gym spaces."""
-    obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
-    act_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=False)
-    sample_dist_factory_kwargs = {"env_name": env_name}
-    sample_dist_tag = "random_space"  # only used for logging
+def sample_dist_config(sample_dist_factory_kwargs, visitations_factory, visitations_factory_kwargs):
+    """Default sample distribution config: marginalize from visitation factory."""
+    obs_sample_dist_factory = functools.partial(
+        datasets.transitions_factory_to_sample_dist_factory, obs=True
+    )
+    act_sample_dist_factory = functools.partial(
+        datasets.transitions_factory_to_sample_dist_factory, obs=False
+    )
+    if not sample_dist_factory_kwargs:
+        sample_dist_factory_kwargs = dict(visitations_factory_kwargs)
+        sample_dist_factory_kwargs["transitions_factory"] = visitations_factory
+    obs_sample_dist_factory_kwargs = {}
+    act_sample_dist_factory_kwargs = {}
+    sample_dist_tag = "marginalized"  # only used for logging
     _ = locals()
     del _
 
@@ -123,53 +144,47 @@ def high_precision():
     del _
 
 
-SAMPLE_FROM_DATASET_FACTORY = dict(
-    obs_sample_dist_factory=functools.partial(
-        datasets.transitions_factory_to_sample_dist_factory, obs=True
-    ),
-    act_sample_dist_factory=functools.partial(
-        datasets.transitions_factory_to_sample_dist_factory, obs=False
-    ),
-)
-
-
 @plot_epic_heatmap_ex.named_config
-def sample_from_serialized_policy():
-    """Configure script to sample observations and actions from rollouts of a serialized policy."""
-    locals().update(**SAMPLE_FROM_DATASET_FACTORY)
-    sample_dist_factory_kwargs = {
-        "transitions_factory": datasets.transitions_factory_from_serialized_policy,
-        "policy_type": "random",
-        "policy_path": "dummy",
-    }
-    sample_dist_tag = "random_policy"
+def sample_from_env_spaces(env_name):
+    """Randomly sample from Gym spaces."""
+    obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
+    act_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=False)
+    sample_dist_factory_kwargs = {"env_name": env_name}
+    obs_sample_dist_factory_kwargs = {}
+    act_sample_dist_factory_kwargs = {}
+    sample_dist_tag = "random_space"  # only used for logging
     _ = locals()
     del _
 
 
 @plot_epic_heatmap_ex.named_config
-def dataset_from_serialized_policy():
-    """Configure script to sample batches from rollouts of a serialized policy.
+def dataset_iid(
+    env_name,
+    obs_sample_dist_factory,
+    act_sample_dist_factory,
+    obs_sample_dist_factory_kwargs,
+    act_sample_dist_factory_kwargs,
+    sample_dist_factory_kwargs,
+    sample_dist_tag,
+):
+    """Visitation distribution is i.i.d. samples from sample distributions.
 
-    Only has effect when `computation_kind` equals `"sample"`.
+    Set this to make `computation_kind` "sample" consistent with "mesh".
+
+    WARNING: you *must* override the `sample_dist` *before* calling this,
+    e.g. by using `sample_from_env_spaces`, since by default it is marginalized from
+    visitation factory, leading to an infinite recursion.
     """
-    visitations_factory = datasets.transitions_factory_from_serialized_policy
+    visitations_factory = datasets.transitions_factory_iid_from_sample_dist_factory
     visitations_factory_kwargs = {
-        "policy_type": "random",
-        "policy_path": "dummy",
+        "obs_dist_factory": obs_sample_dist_factory,
+        "act_dist_factory": act_sample_dist_factory,
+        "obs_kwargs": obs_sample_dist_factory_kwargs,
+        "act_kwargs": act_sample_dist_factory_kwargs,
+        "env_name": env_name,
     }
-    dataset_tag = "random_policy"
-    _ = locals()
-    del _
-
-
-@plot_epic_heatmap_ex.named_config
-def sample_from_random_transitions():
-    locals().update(**SAMPLE_FROM_DATASET_FACTORY)
-    sample_dist_factory_kwargs = {
-        "transitions_factory": datasets.transitions_factory_from_random_model
-    }
-    sample_dist_tag = "random_transitions"
+    visitations_factory_kwargs.update(**sample_dist_factory_kwargs)
+    dataset_tag = "iid_" + sample_dist_tag
     _ = locals()
     del _
 
@@ -182,12 +197,12 @@ def dataset_from_random_transitions():
     del _
 
 
-# TODO(adam): analogous implementation for sample_permute
 @plot_epic_heatmap_ex.named_config
-def dataset_permute(visitations_factory, visitations_factory_kwargs):
+def dataset_permute(visitations_factory, visitations_factory_kwargs, dataset_tag):
     """Permute transitions of factory specified in *previous* named configs on the CLI."""
     visitations_factory_kwargs["factory"] = visitations_factory
     visitations_factory = datasets.transitions_factory_permute_wrapper
+    dataset_tag = "permuted_" + dataset_tag
     _ = locals()
     del _
 
@@ -225,6 +240,9 @@ def mesh_canon(
 
     Specifically, we first call `sample_canon_shaping.discrete_iid_evaluate_models` to evaluate
     on a mesh, and then use `tabular.fully_connected_random_canonical_reward` to remove the shaping.
+
+    In expectation this method should be equivalent to `sample_canon` when the visitation
+    distribution is IID samples from `obs_dist` and `act_dist`.
 
     Args:
         g: the TensorFlow graph.
@@ -279,8 +297,8 @@ def sample_canon(
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
     distance_kind: str,
     discount: float,
-    visitations_factory: Optional[datasets.TransitionsFactory],
-    visitations_factory_kwargs: Optional[Dict[str, Any]],
+    visitations_factory: datasets.TransitionsFactory,
+    visitations_factory_kwargs: Dict[str, Any],
     n_samples: int,
     n_mean_samples: int,
     direct_p: int,
@@ -307,9 +325,6 @@ def sample_canon(
     """
     del g
     logger.info("Sampling dataset")
-    if visitations_factory is None:
-        visitations_factory = datasets.transitions_factory_iid_from_sample_dist
-        visitations_factory_kwargs = dict(obs_dist=obs_dist, act_dist=act_dist)
     with visitations_factory(**visitations_factory_kwargs) as batch_callable:
         batch = batch_callable(n_samples)
 
