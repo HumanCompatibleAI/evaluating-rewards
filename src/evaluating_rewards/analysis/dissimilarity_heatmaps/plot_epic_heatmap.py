@@ -48,15 +48,22 @@ def default_config(env_name):
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
-    visitations_factory = None  # defaults to datasets.iid_transition_generator
-    visitations_factory_kwargs = {"env_name": env_name}
-    dataset_tag = "iid"
     # n_obs and n_act only applicable for mesh approach
     n_obs = 256
     n_act = 256
 
     # Figure parameters
     heatmap_kwargs = {}
+    _ = locals()
+    del _
+
+
+@plot_epic_heatmap_ex.config
+def visitation_config(env_name):
+    """Default visitation distribution config: """
+    visitations_factory = None  # defaults to datasets.iid_transition_generator
+    visitations_factory_kwargs = {"env_name": env_name}
+    dataset_tag = "iid"
     _ = locals()
     del _
 
