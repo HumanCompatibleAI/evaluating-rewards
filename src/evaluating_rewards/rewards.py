@@ -356,19 +356,22 @@ class ConstantLayer(tf.keras.layers.Layer):
             initializer: The initializer to use for the constant weight.
             dtype: dtype of the constant weight.
         """
+        super().__init__(trainable=True, name=name, dtype=dtype)
+
         if initializer is None:
             initializer = tf.zeros_initializer()
         self.initializer = initializer
 
-        self._constant = None
-
-        super().__init__(trainable=True, name=name, dtype=dtype)
-
-    def build(self, input_shape):
         self._constant = self.add_weight(
-            name="constant", shape=(), initializer=self.initializer, use_resource=True
+            name="constant",
+            trainable=True,
+            shape=(),
+            initializer=self.initializer,
+            use_resource=True,
         )
-        super().build(input_shape)
+
+    def build(self, shape):
+        super().build(shape)
 
     def _check_built(self):
         if not self.built:

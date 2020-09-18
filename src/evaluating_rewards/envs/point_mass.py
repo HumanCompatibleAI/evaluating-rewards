@@ -243,7 +243,7 @@ def _point_mass_dist(obs: tf.Tensor, ndim: int) -> tf.Tensor:
 
 # pylint false positive: thinks `reward` is missing, but defined in `rewards.PotentialShaping`
 class PointMassShaping(
-    rewards.BasicRewardModel, rewards.PotentialShaping, serialize.LayersSerializable
+    rewards.PotentialShaping, rewards.BasicRewardModel, serialize.LayersSerializable
 ):  # pylint:disable=abstract-method
     """Potential shaping term, based on distance to goal."""
 
