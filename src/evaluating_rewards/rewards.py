@@ -205,7 +205,7 @@ class PotentialShaping(RewardModel):
         self._discount.build(())
 
         self._old_potential = old_potential
-        is_discounted = tf.cast(self.discount == 1.0, dtype=tf.float32)
+        is_discounted = tf.cast(self.discount < 1.0, dtype=tf.float32)
         end_potential = is_discounted * end_potential
         self._new_potential = end_potential * dones + new_potential * (1 - dones)
         self._reward_output = self.discount * self.new_potential - self.old_potential
