@@ -104,7 +104,8 @@ class PointMassEnv(resettable_env.ResettableEnv):
         return bool(dist < self.threshold)
 
     def obs_from_state(self, state):
-        return np.concatenate([state["pos"], state["vel"], state["goal"]], axis=-1)
+        obs = np.concatenate([state["pos"], state["vel"], state["goal"]], axis=-1)
+        return obs.astype(np.float32)
 
     def state_from_obs(self, obs):
         return {

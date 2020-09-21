@@ -134,7 +134,7 @@ def mesh_input(
     pos = np.stack([x.flatten() for x in mesh[0:n]], axis=-1)
     vel = np.stack([x.flatten() for x in mesh[n : 2 * n]], axis=-1)
     goal_obs = np.broadcast_to(goal, (pos.shape[0], n))
-    obs = np.concatenate((pos, vel, goal_obs), axis=-1)
+    obs = np.concatenate((pos, vel, goal_obs), axis=-1).astype(env.observation_space.dtype)
     actions = np.stack([x.flatten() for x in mesh[2 * n : 3 * n]], axis=-1)
 
     states = env.state_from_obs(obs)

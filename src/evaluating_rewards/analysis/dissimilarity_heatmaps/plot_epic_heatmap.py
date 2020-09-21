@@ -48,7 +48,7 @@ def default_config():
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
-    visitations_factory_kwargs = {}
+    visitations_factory_kwargs = None
     sample_dist_factory_kwargs = {}
     # n_obs and n_act only applicable for mesh approach
     n_obs = 256
@@ -64,7 +64,7 @@ def _visitation_config(env_name, visitations_factory_kwargs):
     """Default visitation distribution config: rollouts from random policy."""
     # visitations_factory only has an effect when computation_kind == "sample"
     visitations_factory = datasets.transitions_factory_from_serialized_policy
-    if not visitations_factory_kwargs:
+    if visitations_factory_kwargs is None:
         visitations_factory_kwargs = {
             "env_name": env_name,
             "policy_type": "random",
@@ -197,8 +197,9 @@ def dataset_iid(
 
 
 @plot_epic_heatmap_ex.named_config
-def dataset_from_random_transitions():
+def dataset_from_random_transitions(env_name):
     visitations_factory = datasets.transitions_factory_from_random_model
+    visitations_factory_kwargs = {"env_name": env_name}
     dataset_tag = "random_transitions"
     _ = locals()
     del _
