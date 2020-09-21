@@ -1,4 +1,4 @@
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019, 2020 DeepMind Technologies Limited, Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# pylint:disable=too-many-lines
 
 """Deep neural network reward models."""
 
@@ -370,7 +372,8 @@ class ConstantLayer(tf.keras.layers.Layer):
             use_resource=True,
         )
 
-    def build(self, shape):
+    def build(self, shape):  # pylint:disable=useless-super-delegation
+        # Keras complains if we do not define a build, even if it does nothing
         super().build(shape)
 
     def _check_built(self):
