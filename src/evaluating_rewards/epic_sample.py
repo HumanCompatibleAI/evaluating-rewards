@@ -14,6 +14,7 @@
 
 """Metrics based on sampling to approximate a canonical reward in an equivalence class."""
 
+import dataclasses
 from typing import Mapping, Tuple, TypeVar
 
 from imitation.data import types
@@ -261,6 +262,9 @@ def sample_canon_shaping(
         A mapping from keys to NumPy arrays containing rewards from the model evaluated on batch
         and then canonicalized to be invariant to potential shaping and scale.
     """
+    # EPIC only defined on infinite-horizon MDPs, so pretend episodes never end.
+    # SOMEDAY(adam): add explicit support for finite-horizon?
+    batch = dataclasses.replace(batch, dones=np.zeros_like(batch.dones))
     raw_rew = rewards.evaluate_models(models, batch)
 
     # Sample-based estimate of mean reward
