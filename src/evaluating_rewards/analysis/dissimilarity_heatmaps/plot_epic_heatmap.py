@@ -216,6 +216,20 @@ def dataset_permute(visitations_factory, visitations_factory_kwargs, dataset_tag
 
 
 @plot_epic_heatmap_ex.named_config
+def dataset_noise(env_name, visitations_factory, visitations_factory_kwargs, dataset_tag):
+    """Add noise to transitions of factory specified in *previous* named configs on the CLI."""
+    visitations_factory_kwargs = {
+        "factory": visitations_factory,
+        "noise_env_name": env_name,
+    }
+    visitations_factory_kwargs["factory"] = visitations_factory
+    visitations_factory = datasets.transitions_factory_noise_wrapper
+    dataset_tag = "noised_" + dataset_tag
+    _ = locals()
+    del _
+
+
+@plot_epic_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     n_samples = 64

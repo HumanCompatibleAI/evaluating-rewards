@@ -20,8 +20,9 @@ can be taken with respect to.
 """
 
 import contextlib
+import dataclasses
 import functools
-from typing import Callable, ContextManager, Iterator, TypeVar, Union
+from typing import Callable, ContextManager, Iterator, Optional, TypeVar, Union
 
 import gym
 from imitation.data import rollout, types
@@ -229,7 +230,7 @@ def transitions_factory_permute_wrapper(
     rng: np.random.RandomState = np.random,
     **kwargs,
 ) -> Iterator[TransitionsCallable]:
-    """Permutes states and actions uniformly at random in transitions from `callable` uniformly.
+    """Permutes states and actions uniformly at random in transitions from `factory`.
 
     Samples transitions from `factory`, to obtain a buffer of `multiplier` times the number of
     requested transitions `n`. Returns a random slice of the transitions, sampled without
@@ -252,10 +253,9 @@ def transitions_factory_permute_wrapper(
         number of timesteps `n` specified in the argument.
     """
     buf = {k: np.empty((0)) for k in ["obs", "acts", "next_obs", "dones"]}
-
     with factory(**kwargs) as transitions_callable:
 
-        def f(n: int) -> np.ndarray:
+        def f(n: int) -> types.Transitions:
             target_size = n * multiplier
             delta = target_size - len(buf["obs"])
             if delta > 0:
@@ -279,6 +279,63 @@ def transitions_factory_permute_wrapper(
         yield f
 
 
+@contextlib.contextmanager
+def transitions_factory_noise_wrapper(
+    factory: TransitionsFactory,
+    noise_env_name: str,
+    obs_noise: Optional[SampleDist] = None,
+    obs_noise_scale: float = 1.0,
+    acts_noise: Optional[SampleDist] = None,
+    acts_noise_scale: float = 1.0,
+    next_obs_noise: Optional[SampleDist] = None,
+    next_obs_noise_scale: float = 1.0,
+    **kwargs,
+) -> Iterator[TransitionsCallable]:
+    """Adds noise to transitions from `factory`.
+
+    Args:
+        factory: The factory to add noise to.
+        noise_env_name: The Gym identifier for the environment.
+        obs_noise: A distribution to sample additive noise for `obs` from; if unspecified,
+                   then samples from the observation space of `env_name`.
+        obs_noise_scale: Multiplier for `obs_noise`.
+        acts_noise: A distribution to sample additive noise for `acts` from; if unspecified,
+                   then samples from the action space of `env_name`.
+        acts_noise_scale: Multiplier for `acts_noise`.
+        next_obs_noise: A distribution to sample additive noise for `next_obs` from;
+                        if unspecified, then samples from the observation space of `env_name`.
+        next_obs_noise_scale: Multiplier for `next_obs_noise`.
+
+    Yields:
+        A function that will perform the sampling process described above for a
+        number of timesteps `n` specified in the argument.
+    """
+
+    with contextlib.ExitStack() as stack:
+        obs_noise = obs_noise or stack.enter_context(
+            sample_dist_from_env_name(noise_env_name, obs=True)
+        )
+        next_obs_noise = next_obs_noise or stack.enter_context(
+            sample_dist_from_env_name(noise_env_name, obs=True)
+        )
+        acts_noise = acts_noise or stack.enter_context(
+            sample_dist_from_env_name(noise_env_name, obs=False)
+        )
+
+        with factory(**kwargs) as transitions_callable:
+
+            def f(n: int) -> types.Transitions:
+                trans = transitions_callable(n)
+                return dataclasses.replace(
+                    trans,
+                    obs=trans.obs + obs_noise_scale * obs_noise(n),
+                    acts=trans.acts + acts_noise_scale * acts_noise(n),
+                    next_obs=trans.next_obs + next_obs_noise_scale * next_obs_noise(n),
+                )
+
+            yield f
+
+
 # *** Sample distribution factories ***
 
 
@@ -297,7 +354,7 @@ def sample_dist_from_env_name(env_name: str, obs: bool) -> Iterator[SampleDist]:
     env = gym.make(env_name)
     try:
         space = env.observation_space if obs else env.action_space
-        with sample_dist_from_space(space) as sample_dist:
-            yield sample_dist
     finally:
         env.close()
+    with sample_dist_from_space(space) as sample_dist:
+        yield sample_dist
