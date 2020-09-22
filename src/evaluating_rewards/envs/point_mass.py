@@ -267,8 +267,8 @@ class PointMassShaping(
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
 
-        old_potential = _point_mass_dist(self._proc_obs, self.ndim)
-        new_potential = _point_mass_dist(self._proc_next_obs, self.ndim)
+        old_potential = -_point_mass_dist(self._proc_obs, self.ndim)
+        new_potential = -_point_mass_dist(self._proc_next_obs, self.ndim)
         end_potential = tf.constant(0.0)
         rewards.PotentialShaping.__init__(
             self, old_potential, new_potential, end_potential, self._proc_dones, discount
