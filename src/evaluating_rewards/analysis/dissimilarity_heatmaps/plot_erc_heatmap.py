@@ -19,6 +19,7 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Mapping, Tuple
 
+from imitation.data import rollout
 from imitation.util import util as imit_util
 import numpy as np
 import pandas as pd
@@ -203,7 +204,7 @@ def batch_compute_returns(
         batch_size = min(batch_episodes, remainder)
 
         logger.info(f"Computing returns for {batch_size} episodes: {remainder}/{n_episodes} left")
-        trajectories = trajectory_callable(batch_size)
+        trajectories = trajectory_callable(rollout.min_episodes(batch_size))
         rets = rewards.compute_return_of_models(models, trajectories, discount)
         for k, v in rets.items():
             returns[k].append(v)

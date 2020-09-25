@@ -32,9 +32,9 @@ import numpy as np
 from stable_baselines.common import base_class, policies, vec_env
 
 T = TypeVar("T")
+TrajectoryCallable = Callable[[rollout.GenTrajTerminationFn], Sequence[types.Trajectory]]
 DatasetCallable = Callable[[int], T]
-"""Parameter specifies number of episodes (TrajectoryCallable) or timesteps (otherwise)."""
-TrajectoryCallable = DatasetCallable[Sequence[types.Trajectory]]
+"""int parameter specifies number of timesteps."""
 TransitionsCallable = DatasetCallable[types.Transitions]
 SampleDist = DatasetCallable[np.ndarray]
 
@@ -65,16 +65,9 @@ def transitions_factory_from_trajectory_factory(
     with trajectory_factory(**kwargs) as trajectory_callable:
 
         def f(total_timesteps: int) -> types.Transitions:
-            trajs = []
-            num_timesteps = 0
-            while num_timesteps < total_timesteps:
-                sampled = trajectory_callable(1)
-                traj = sampled[0]
-                trajs.append(traj)
-                num_timesteps += len(traj)
-
+            trajs = trajectory_callable(sample_until=rollout.min_timesteps(total_timesteps))
             trans = rollout.flatten_trajectories(trajs)
-            assert len(trans) == num_timesteps
+            assert len(trans) >= total_timesteps
             as_dict = dataclasses.asdict(trans)
             truncated = {k: arr[:total_timesteps] for k, arr in as_dict.items()}
             return dataclasses.replace(trans, **truncated)
@@ -173,10 +166,8 @@ def trajectory_factory_from_policy(
 ) -> Iterator[TrajectoryCallable]:
     """Generator returning rollouts from a policy in a given environment."""
 
-    def f(total_episodes: int) -> Sequence[types.Trajectory]:
-        return rollout.generate_trajectories(
-            policy, venv, sample_until=rollout.min_episodes(total_episodes)
-        )
+    def f(sample_until: rollout.GenTrajTerminationFn) -> Sequence[types.Trajectory]:
+        return rollout.generate_trajectories(policy, venv, sample_until=sample_until)
 
     yield f
 
@@ -223,8 +214,8 @@ def trajectory_factory_noise_wrapper(
 
         with factory(**kwargs) as trajectory_callable:
 
-            def f(n: int) -> Sequence[types.Trajectory]:
-                trajs = trajectory_callable(n)
+            def f(sample_until: rollout.GenTrajTerminationFn) -> Sequence[types.Trajectory]:
+                trajs = trajectory_callable(sample_until)
                 res = []
                 for traj in trajs:
                     new_obs = traj.obs + obs_noise_scale * obs_noise(len(traj.obs))
