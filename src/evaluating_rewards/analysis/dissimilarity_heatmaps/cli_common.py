@@ -32,9 +32,10 @@ import sacred
 import scipy.stats
 from stable_baselines.common import vec_env
 
-from evaluating_rewards import rewards, serialize, util
-from evaluating_rewards.analysis import stylesheets, visualize
+from evaluating_rewards import serialize
+from evaluating_rewards.analysis import stylesheets, util, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
+from evaluating_rewards.rewards import base
 
 AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
 RewardCfg = Tuple[str, str]  # (type, path)
@@ -67,7 +68,7 @@ def load_models(
     env_name: str,
     reward_cfgs: Iterable[RewardCfg],
     discount: float,
-) -> Mapping[RewardCfg, rewards.RewardModel]:
+) -> Mapping[RewardCfg, base.RewardModel]:
     """Load models specified by the `reward_cfgs`.
 
     Args:

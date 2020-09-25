@@ -21,7 +21,7 @@ import hypothesis
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hp_numpy
 from imitation.data import rollout
-from imitation.policies import base
+from imitation.policies import base as base_policies
 from imitation.rewards import reward_net
 from imitation.util import serialize as util_serialize
 import numpy as np
@@ -29,8 +29,9 @@ import pytest
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import datasets, rewards, serialize
+from evaluating_rewards import datasets, serialize
 from evaluating_rewards.envs import mujoco, point_mass
+from evaluating_rewards.rewards import base
 from tests import common
 
 ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
@@ -59,10 +60,10 @@ STANDALONE_REWARD_MODELS = {
 }
 
 GENERAL_REWARD_MODELS = {
-    "mlp": {"model_class": rewards.MLPRewardModel, "kwargs": {}},
-    "mlp_wide": {"model_class": rewards.MLPRewardModel, "kwargs": {"hid_sizes": [64, 64]}},
-    "mlp_potential": {"model_class": rewards.MLPPotentialShaping, "kwargs": {}},
-    "constant": {"model_class": rewards.ConstantReward, "kwargs": {}},
+    "mlp": {"model_class": base.MLPRewardModel, "kwargs": {}},
+    "mlp_wide": {"model_class": base.MLPRewardModel, "kwargs": {"hid_sizes": [64, 64]}},
+    "mlp_potential": {"model_class": base.MLPPotentialShaping, "kwargs": {}},
+    "constant": {"model_class": base.ConstantReward, "kwargs": {}},
 }
 ENVS_KWARGS = {env: {"env_name": env} for env in ENVS}
 STANDALONE_REWARD_MODELS.update(common.combine_dicts(ENVS_KWARGS, GENERAL_REWARD_MODELS))
@@ -80,10 +81,10 @@ STANDALONE_REWARD_MODELS.update(
 )
 
 REWARD_WRAPPERS = [
-    rewards.RewardModelWrapper,
-    rewards.StopGradientsModelWrapper,
-    rewards.AffineTransform,
-    rewards.MLPPotentialShapingWrapper,
+    base.RewardModelWrapper,
+    base.StopGradientsModelWrapper,
+    base.AffineTransform,
+    base.MLPPotentialShapingWrapper,
 ]
 
 GROUND_TRUTH = {
@@ -105,7 +106,7 @@ GROUND_TRUTH = {
 ENV_POTENTIALS = [
     # (env_name, potential_class)
     # Tests require the environments are fixed length.
-    ("seals/CartPole-v0", rewards.MLPPotentialShaping),
+    ("seals/CartPole-v0", base.MLPPotentialShaping),
     ("evaluating_rewards/PointMassLine-v0", point_mass.PointMassShaping),
 ]
 DISCOUNTS = [0.9, 0.99, 1.0]
@@ -120,7 +121,7 @@ def fixture_serialize_identity(
     """Creates reward model, saves it, reloads it, and checks for equality."""
 
     def f(make_model):
-        policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+        policy = base_policies.RandomPolicy(venv.observation_space, venv.action_space)
         with datasets.transitions_factory_from_policy(venv, policy) as dataset_callable:
             batch = dataset_callable(1024)
 
@@ -138,7 +139,7 @@ def fixture_serialize_identity(
                     loaded_indirect = serialize.load_reward(model_name, tmpdir, venv)
 
                 models = {"o": original, "ld": loaded_direct, "li": loaded_indirect}
-                preds = rewards.evaluate_models(models, batch)
+                preds = base.evaluate_models(models, batch)
 
             for model in models.values():
                 assert original.observation_space == model.observation_space
@@ -171,11 +172,11 @@ def test_serialize_identity_linear_combination(helper_serialize_identity):
     """Checks for equality between original and reloaded LC of reward models."""
 
     def make_model(env):
-        constant_a = rewards.ConstantReward(env.observation_space, env.action_space)
+        constant_a = base.ConstantReward(env.observation_space, env.action_space)
         weight_a = tf.constant(42.0)
-        constant_b = rewards.ConstantReward(env.observation_space, env.action_space)
+        constant_b = base.ConstantReward(env.observation_space, env.action_space)
         weight_b = tf.get_variable("weight_b", initializer=tf.constant(13.37))
-        return rewards.LinearCombinationModelWrapper(
+        return base.LinearCombinationModelWrapper(
             {"constant": (constant_a, weight_a), "zero": (constant_b, weight_b)}
         )
 
@@ -189,7 +190,7 @@ def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls, disc
     """Checks for equality between original and loaded wrapped reward."""
 
     def make_model(env):
-        mlp = rewards.MLPRewardModel(env.observation_space, env.action_space)
+        mlp = base.MLPRewardModel(env.observation_space, env.action_space)
         model = wrapper_cls(mlp)
         model.set_discount(discount)
         return model
@@ -203,7 +204,7 @@ def test_serialize_identity_wrapper(helper_serialize_identity, wrapper_cls, disc
 def test_serialize_identity_reward_net(helper_serialize_identity, cls, use_test):
     def make_model(env):
         net = cls(env.observation_space, env.action_space)
-        return rewards.RewardNetToRewardModel(net, use_test=use_test)
+        return base.RewardNetToRewardModel(net, use_test=use_test)
 
     return helper_serialize_identity(make_model)
 
@@ -212,14 +213,14 @@ def test_serialize_identity_reward_net(helper_serialize_identity, cls, use_test)
 def test_ground_truth_similar_to_gym(graph, session, venv, reward_id):
     """Checks that reward models predictions match those of Gym reward."""
     # Generate rollouts, recording Gym reward
-    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    policy = base_policies.RandomPolicy(venv.observation_space, venv.action_space)
     transitions = rollout.generate_transitions(policy, venv, n_timesteps=1024)
     gym_reward = transitions.rews
 
     # Make predictions using reward model
     with graph.as_default(), session.as_default():
         reward_model = serialize.load_reward(reward_id, "dummy", venv, 1.0)
-        pred_reward = rewards.evaluate_models({"m": reward_model}, transitions)["m"]
+        pred_reward = base.evaluate_models({"m": reward_model}, transitions)["m"]
 
     # Are the predictions close to true Gym reward?
     np.testing.assert_allclose(gym_reward, pred_reward, rtol=0, atol=5e-5)
@@ -239,7 +240,7 @@ def test_potential_shaping_cycle(
     Requires environment be fixed length, otherwise the episode return will vary
     (except in the undiscounted case).
     """
-    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    policy = base_policies.RandomPolicy(venv.observation_space, venv.action_space)
     trajectories = rollout.generate_trajectories(
         policy, venv, sample_until=rollout.min_episodes(num_episodes)
     )
@@ -257,9 +258,9 @@ def test_potential_shaping_cycle(
     with graph.as_default(), session.as_default():
         reward_model = potential_cls(venv.observation_space, venv.action_space, discount=discount)
         session.run(tf.global_variables_initializer())
-        rews = rewards.evaluate_models({"m": reward_model}, transitions)
+        rews = base.evaluate_models({"m": reward_model}, transitions)
 
-    rets = rewards.compute_return_from_rews(rews, transitions.dones, discount=discount)["m"]
+    rets = base.compute_return_from_rews(rews, transitions.dones, discount=discount)["m"]
     if discount == 1.0:
         assert np.allclose(rets, 0.0, atol=1e-5)
     assert np.allclose(rets, np.mean(rets), atol=1e-5)
@@ -282,20 +283,20 @@ def test_potential_shaping_invariants(
     # When done, new_potential should always be zero.
     # self.discount * new_potential - old_potential should equal the output
     # Same old_obs should have same old_potential; same new_obs should have same new_potential.
-    policy = base.RandomPolicy(venv.observation_space, venv.action_space)
+    policy = base_policies.RandomPolicy(venv.observation_space, venv.action_space)
     transitions = rollout.generate_transitions(policy, venv, n_timesteps=num_timesteps)
 
     with graph.as_default(), session.as_default():
         potential = potential_cls(venv.observation_space, venv.action_space, discount=discount)
         session.run(tf.global_variables_initializer())
-        (old_pot,), (new_pot,) = rewards.evaluate_potentials([potential], transitions)
+        (old_pot,), (new_pot,) = base.evaluate_potentials([potential], transitions)
 
     # Check invariant 1: new_potential must be zero when dones is true
     transitions_all_done = dataclasses.replace(
         transitions, dones=np.ones_like(transitions.dones, dtype=np.bool)
     )
     with session.as_default():
-        _, new_pot_done = rewards.evaluate_potentials([potential], transitions_all_done)
+        _, new_pot_done = base.evaluate_potentials([potential], transitions_all_done)
     expected_new_pot_done = 0.0 if discount == 1.0 else np.mean(new_pot_done)
     assert np.allclose(new_pot_done, expected_new_pot_done)
 
@@ -305,7 +306,7 @@ def test_potential_shaping_invariants(
         np.random.shuffle(arr)
         trans = dataclasses.replace(transitions, **{fld: arr})
         with session.as_default():
-            return rewards.evaluate_potentials([potential], trans)
+            return base.evaluate_potentials([potential], trans)
 
     (old_pot_shuffled,), _ = _shuffle("next_obs")
     _, (new_pot_shuffled,) = _shuffle("obs")
@@ -314,7 +315,7 @@ def test_potential_shaping_invariants(
 
     # Check invariant 4: that reward output is as expected given potentials
     with session.as_default():
-        rew = rewards.evaluate_models({"m": potential}, transitions)["m"]
+        rew = base.evaluate_models({"m": potential}, transitions)["m"]
     assert np.allclose(rew, discount * new_pot - old_pot)
 
 
@@ -331,18 +332,18 @@ def test_least_l2_affine_random():
 
     for shift, scale in zip(shifts, scales):
         target = source * scale + shift
-        params = rewards.least_l2_affine(source, target)
+        params = base.least_l2_affine(source, target)
         assert np.allclose([shift, scale], [params.shift, params.scale])
         assert params.scale >= 0
 
         for has_shift in [False, True]:
             target = source * scale
-            params = rewards.least_l2_affine(source, target, shift=has_shift)
+            params = base.least_l2_affine(source, target, shift=has_shift)
             assert np.allclose([0.0, scale], [params.shift, params.scale])
 
         for has_scale in [False, True]:
             target = source + shift
-            params = rewards.least_l2_affine(source, target, scale=has_scale)
+            params = base.least_l2_affine(source, target, scale=has_scale)
             assert np.allclose([shift, 1.0], [params.shift, params.scale], atol=0.1)
 
 
@@ -351,12 +352,12 @@ def test_least_l2_affine_zero():
     for _ in range(NUM_SAMPLES):
         source = np.random.randn(REWARD_LEN)
 
-        params = rewards.least_l2_affine(source, -source)
+        params = base.least_l2_affine(source, -source)
         assert np.allclose([0.0], [params.scale])
         assert params.scale >= 0
         assert np.allclose([0.0], [params.shift], atol=0.1)
 
-        params = rewards.least_l2_affine(source, np.zeros_like(source))
+        params = base.least_l2_affine(source, np.zeros_like(source))
         assert np.allclose([0.0, 0.0], [params.shift, params.scale])
         assert params.scale >= 0
 
@@ -369,7 +370,7 @@ def _test_compute_return_from_rews(dones: np.ndarray, discount: float) -> None:
         "ones": np.ones(len(dones)),
         "increasing": increasing,
     }
-    ep_returns = rewards.compute_return_from_rews(rews, dones, discount)
+    ep_returns = base.compute_return_from_rews(rews, dones, discount)
     assert ep_returns.keys() == rews.keys()
 
     num_eps = np.sum(dones)

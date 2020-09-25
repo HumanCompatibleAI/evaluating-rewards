@@ -21,8 +21,9 @@ import pandas as pd
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import comparisons, datasets, rewards, serialize
+from evaluating_rewards import datasets, serialize
 from evaluating_rewards import envs  # noqa: F401  pylint:disable=unused-import
+from evaluating_rewards.rewards import base, comparisons
 from tests import common
 
 PM_REWARD_TYPES = {
@@ -71,7 +72,7 @@ def test_regress(
         with graph.as_default():
             with session.as_default():
                 with tf.variable_scope("source") as source_scope:
-                    source = rewards.MLPRewardModel(venv.observation_space, venv.action_space)
+                    source = base.MLPRewardModel(venv.observation_space, venv.action_space)
 
                 with tf.variable_scope("target"):
                     target_model = serialize.load_reward(target, "dummy", venv, discount)

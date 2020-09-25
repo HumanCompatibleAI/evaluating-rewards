@@ -23,13 +23,14 @@ import numpy as np
 from stable_baselines.common import policies, vec_env
 import tensorflow as tf
 
-from evaluating_rewards import rewards, serialize
+from evaluating_rewards import serialize
+from evaluating_rewards.rewards import base
 
 
 class MonteCarloGreedyPolicy(policies.BasePolicy):
     """Policy choosing actions to greedily maximize reward."""
 
-    def __init__(self, venv: vec_env.VecEnv, reward_model: rewards.RewardModel, n_samples=100):
+    def __init__(self, venv: vec_env.VecEnv, reward_model: base.RewardModel, n_samples=100):
         """Builds a MonteCarloGreedyPolicy. Note this is not trainable.
 
         At each timestep, for each observation it samples n_samples actions,
@@ -105,7 +106,7 @@ class MonteCarloGreedyPolicy(policies.BasePolicy):
         batch = types.Transitions(
             obs=dup_obs, acts=dup_actions, next_obs=next_obs, dones=dones, infos=None
         )
-        feed_dict = rewards.make_feed_dict([self.reward_model], batch)
+        feed_dict = base.make_feed_dict([self.reward_model], batch)
         # TODO(): add a function to RewardModel to compute this?
         reward = self.sess.run(self.reward_model.reward, feed_dict=feed_dict)
 

@@ -20,25 +20,27 @@ from typing import Any, Dict, Mapping, Type
 
 import sacred
 
-from evaluating_rewards import comparisons, datasets, serialize
+from evaluating_rewards import datasets, serialize
+from evaluating_rewards.distances import npec, transitions_datasets
+from evaluating_rewards.rewards import comparisons
 from evaluating_rewards.scripts import regress_utils, script_utils
 
-model_comparison_ex = sacred.Experiment("model_comparison")
+npec_comparison_ex = sacred.Experiment("npec_comparison")
 
 
-@model_comparison_ex.config
+@npec_comparison_ex.config
 def default_config():
     """Default configuration values."""
     locals().update(**regress_utils.DEFAULT_CONFIG)
-    dataset_factory = datasets.transitions_factory_from_serialized_policy
-    dataset_factory_kwargs = dict()
+    visitations_factory = datasets.transitions_factory_from_serialized_policy
+    visitations_factory_kwargs = dict()
 
     # Model to fit to target
     source_reward_type = "evaluating_rewards/PointMassSparseWithCtrl-v0"
     source_reward_path = "dummy"
 
     # Model to train and hyperparameters
-    comparison_class = comparisons.RegressWrappedModel
+    comparison_class = npec.RegressWrappedModel
     comparison_kwargs = {
         "learning_rate": 1e-2,
     }
@@ -53,65 +55,65 @@ def default_config():
     del _
 
 
-@model_comparison_ex.config
-def default_kwargs(dataset_factory, dataset_factory_kwargs, comparison_class, comparison_kwargs):
-    """Sets dataset_factory_kwargs to defaults when dataset_factory not overridden."""
+@npec_comparison_ex.config
+def default_kwargs(
+    visitations_factory, visitations_factory_kwargs, comparison_class, comparison_kwargs
+):
+    """Sets visitations_factory_kwargs to defaults when visitations_factory not overridden."""
     # TODO(): remove this function when Sacred issue #238 is fixed
     if (  # pylint:disable=comparison-with-callable
-        dataset_factory == datasets.transitions_factory_from_serialized_policy
-        and not dataset_factory_kwargs
+        visitations_factory == datasets.transitions_factory_from_serialized_policy
+        and not visitations_factory_kwargs
     ):
-        dataset_factory_kwargs = dict(policy_type="random", policy_path="dummy")
-    if (
-        comparison_class == comparisons.RegressWrappedModel
-        and "model_wrapper" not in comparison_kwargs
-    ):
-        comparison_kwargs["model_wrapper"] = comparisons.equivalence_model_wrapper
+        visitations_factory_kwargs = dict(policy_type="random", policy_path="dummy")
+    if comparison_class == npec.RegressWrappedModel and "model_wrapper" not in comparison_kwargs:
+        comparison_kwargs["model_wrapper"] = npec.equivalence_model_wrapper
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
-@model_comparison_ex.named_config
+@npec_comparison_ex.named_config
 def alternating_maximization():
     """Use less flexible (but sometimes more accurate) RegressEquivalentLeastSq.
 
     Uses least-squares loss and affine + potential shaping wrapping.
     """
-    comparison_class = comparisons.RegressEquivalentLeastSqModel
+    comparison_class = npec.RegressEquivalentLeastSqModel
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
-@model_comparison_ex.named_config
+@npec_comparison_ex.named_config
 def affine_only():
     """Equivalence class consists of just affine transformations."""
     comparison_kwargs = {  # noqa: F841  pylint:disable=unused-variable
-        "model_wrapper": functools.partial(comparisons.equivalence_model_wrapper, potential=False),
+        "model_wrapper": functools.partial(npec.equivalence_model_wrapper, potential=False),
     }
 
 
-@model_comparison_ex.named_config
+@npec_comparison_ex.named_config
 def no_rescale():
     """Equivalence class are shifts plus potential shaping (no scaling)."""
     comparison_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "model_wrapper": functools.partial(
-            comparisons.equivalence_model_wrapper, affine_kwargs=dict(scale=False)
+            npec.equivalence_model_wrapper,
+            affine_kwargs=dict(scale=False),
         ),
     }
 
 
-@model_comparison_ex.named_config
+@npec_comparison_ex.named_config
 def shaping_only():
     """Equivalence class consists of just potential shaping."""
     comparison_kwargs = {
-        "model_wrapper": functools.partial(comparisons.equivalence_model_wrapper, affine=False),
+        "model_wrapper": functools.partial(npec.equivalence_model_wrapper, affine=False),
     }
     affine_size = None
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
-@model_comparison_ex.named_config
+@npec_comparison_ex.named_config
 def ellp_loss():
     """Use mean (x-y)^p loss, default to p=0.5 (sparsity inducing)"""
     p = 0.5
@@ -129,7 +131,7 @@ def ellp_loss():
 # but they're intending to add it.)
 
 
-@model_comparison_ex.named_config
+@npec_comparison_ex.named_config
 def test():
     """Small number of epochs, finish quickly, intended for tests / debugging."""
     affine_size = 512
@@ -138,26 +140,18 @@ def test():
     del _
 
 
-@model_comparison_ex.named_config
-def dataset_random_transition():
-    """Randomly samples state and action and computes next state from dynamics."""
-    dataset_factory = datasets.transitions_factory_from_random_model
-    dataset_factory_kwargs = {}
-    _ = locals()  # quieten flake8 unused variable warning
-    del _
+script_utils.add_logging_config(npec_comparison_ex, "model_comparison")
+transitions_datasets.make_config(npec_comparison_ex)
 
 
-script_utils.add_logging_config(model_comparison_ex, "model_comparison")
-
-
-@model_comparison_ex.main
+@npec_comparison_ex.main
 def model_comparison(
     _seed: int,  # pylint:disable=invalid-name
     # Dataset
     env_name: str,
     discount: float,
-    dataset_factory: datasets.TransitionsFactory,
-    dataset_factory_kwargs: Dict[str, Any],
+    visitations_factory: datasets.TransitionsFactory,
+    visitations_factory_kwargs: Dict[str, Any],
     # Source specification
     source_reward_type: str,
     source_reward_path: str,
@@ -175,7 +169,9 @@ def model_comparison(
     log_dir: str,
 ) -> Mapping[str, Any]:
     """Entry-point into script to regress source onto target reward model."""
-    with dataset_factory(env_name, seed=_seed, **dataset_factory_kwargs) as dataset_generator:
+    with visitations_factory(
+        env_name, seed=_seed, **visitations_factory_kwargs
+    ) as dataset_generator:
 
         def make_source(venv):
             return serialize.load_reward(source_reward_type, source_reward_path, venv, discount)
@@ -209,4 +205,4 @@ def model_comparison(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(model_comparison_ex, "model_comparison")
+    script_utils.experiment_main(npec_comparison_ex, "model_comparison")

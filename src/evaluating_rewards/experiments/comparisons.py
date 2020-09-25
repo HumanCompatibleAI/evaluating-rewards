@@ -21,7 +21,8 @@ from typing import Any, Dict
 
 import numpy as np
 
-from evaluating_rewards import comparisons, datasets, rewards
+from evaluating_rewards import datasets
+from evaluating_rewards.rewards import base, comparisons
 
 
 def norm_diff(predicted: np.ndarray, actual: np.ndarray, norm: int):
@@ -48,7 +49,7 @@ def norm_diff(predicted: np.ndarray, actual: np.ndarray, norm: int):
 
 def constant_baseline(
     match: comparisons.RegressModel,
-    target: rewards.RewardModel,
+    target: base.RewardModel,
     dataset: datasets.TransitionsCallable,
     test_size: int = 4096,
 ) -> Dict[str, Any]:
@@ -65,7 +66,7 @@ def constant_baseline(
     """
     test_set = dataset(test_size)
     models = {"matched": match.model, "target": target}
-    preds = rewards.evaluate_models(models, test_set)
+    preds = base.evaluate_models(models, test_set)
 
     actual_delta = preds["matched"] - preds["target"]
     return {

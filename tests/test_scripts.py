@@ -50,9 +50,9 @@ EXPERIMENTS = {
     "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, type(None), [], {}),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
     "table_combined": (table_combined.table_combined_ex, type(None), [], {}),
-    "comparison": (npec_comparison.model_comparison_ex, dict, [], {}),
+    "comparison": (npec_comparison.npec_comparison_ex, dict, [], {}),
     "comparison_alternating": (
-        npec_comparison.model_comparison_ex,
+        npec_comparison.npec_comparison_ex,
         dict,
         ["alternating_maximization"],
         {"fit_kwargs": {"epoch_timesteps": 4096}},

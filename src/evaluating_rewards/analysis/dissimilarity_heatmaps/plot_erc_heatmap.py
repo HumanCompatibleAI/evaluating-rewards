@@ -26,8 +26,11 @@ import pandas as pd
 import sacred
 import tensorflow as tf
 
-from evaluating_rewards import datasets, rewards, tabular, util
+from evaluating_rewards import datasets
+from evaluating_rewards.analysis import util
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
+from evaluating_rewards.distances import tabular
+from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
 
 plot_erc_heatmap_ex = sacred.Experiment("plot_erc_heatmap")
@@ -175,7 +178,7 @@ def correlation_distance(
 
 def batch_compute_returns(
     trajectory_callable: datasets.TrajectoryCallable,
-    models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
+    models: Mapping[cli_common.RewardCfg, base.RewardModel],
     discount: float,
     n_episodes: int,
     batch_episodes: int = 256,
@@ -205,7 +208,7 @@ def batch_compute_returns(
 
         logger.info(f"Computing returns for {batch_size} episodes: {remainder}/{n_episodes} left")
         trajectories = trajectory_callable(rollout.min_episodes(batch_size))
-        rets = rewards.compute_return_of_models(models, trajectories, discount)
+        rets = base.compute_return_of_models(models, trajectories, discount)
         for k, v in rets.items():
             returns[k].append(v)
         remainder -= batch_size

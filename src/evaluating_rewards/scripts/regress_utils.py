@@ -23,12 +23,13 @@ from imitation.util import networks, util
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import rewards, serialize
+from evaluating_rewards import serialize
+from evaluating_rewards.rewards import base
 
 T = TypeVar("T")
 V = TypeVar("V")
 
-EnvRewardFactory = Callable[[gym.Space, gym.Space], rewards.RewardModel]
+EnvRewardFactory = Callable[[gym.Space, gym.Space], base.RewardModel]
 
 
 DEFAULT_CONFIG = {
@@ -36,7 +37,7 @@ DEFAULT_CONFIG = {
     "discount": 0.99,
     "target_reward_type": "evaluating_rewards/Zero-v0",
     "target_reward_path": "dummy",
-    "model_reward_type": rewards.MLPRewardModel,
+    "model_reward_type": base.MLPRewardModel,
 }
 
 
@@ -47,11 +48,11 @@ def logging_config(log_root, env_name):
 
 
 MakeModelFn = Callable[[vec_env.VecEnv], T]
-MakeTrainerFn = Callable[[rewards.RewardModel, tf.VariableScope, rewards.RewardModel], T]
-DoTrainingFn = Callable[[rewards.RewardModel, T], V]
+MakeTrainerFn = Callable[[base.RewardModel, tf.VariableScope, base.RewardModel], T]
+DoTrainingFn = Callable[[base.RewardModel, T], V]
 
 
-def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> rewards.RewardModel:
+def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> base.RewardModel:
     return model_reward_type(venv.observation_space, venv.action_space)
 
 

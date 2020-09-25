@@ -32,7 +32,7 @@ import pandas as pd
 from stable_baselines.common import policies, vec_env
 import tensorflow as tf
 
-from evaluating_rewards import rewards
+from evaluating_rewards.rewards import base
 
 
 class TrajectoryPreference(NamedTuple):
@@ -132,7 +132,7 @@ class PreferenceComparisonTrainer:
 
     def __init__(
         self,
-        model: rewards.RewardModel,
+        model: base.RewardModel,
         # TODO(): implement get_parameters method in RewardModel
         # (It's awkward for caller to have to compute parameters.)
         model_params: Iterable[tf.Tensor],
@@ -311,7 +311,7 @@ class PreferenceComparisonTrainer:
         next_obs = _concatenate(preferences, "obs", slice(1, None))
         dones = np.zeros(len(obs), dtype=np.bool)
         batch = types.Transitions(obs=obs, acts=acts, next_obs=next_obs, dones=dones, infos=None)
-        feed_dict = rewards.make_feed_dict([self.model], batch)
+        feed_dict = base.make_feed_dict([self.model], batch)
         labels = np.array([p.label for p in preferences])
         feed_dict[self._preference_labels] = labels
         return feed_dict
@@ -335,7 +335,7 @@ class PreferenceComparisonTrainer:
         self,
         venv: vec_env.VecEnv,
         policy: policies.BasePolicy,
-        target: rewards.RewardModel,
+        target: base.RewardModel,
         trajectory_length: int,
         total_comparisons: int,
     ) -> pd.DataFrame:
@@ -364,7 +364,7 @@ class PreferenceComparisonTrainer:
             batch = []
             # Sample trajectories and compute their returns
             trajectories = generate_trajectories(venv, policy, trajectory_length, num_trajectories)
-            returns = rewards.compute_return_of_models({"t": target}, trajectories)["t"]
+            returns = base.compute_return_of_models({"t": target}, trajectories)["t"]
 
             # Sample pairs of trajectories at random and compare
             idxs = np.random.choice(num_trajectories, size=(num_trajectories,), replace=False)

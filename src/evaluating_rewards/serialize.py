@@ -28,11 +28,11 @@ import numpy as np
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import rewards
+from evaluating_rewards.rewards import base
 
 ZERO_REWARD = "evaluating_rewards/Zero-v0"
 
-RewardLoaderFn = Callable[[str, vec_env.VecEnv], rewards.RewardModel]
+RewardLoaderFn = Callable[[str, vec_env.VecEnv], base.RewardModel]
 
 
 def get_output_dir():
@@ -73,7 +73,7 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
                         dones=dones,
                         infos=None,
                     )
-                    fd = rewards.make_feed_dict([reward_model], transitions)
+                    fd = base.make_feed_dict([reward_model], transitions)
                     return sess.run(reward_model.reward, feed_dict=fd)
 
                 yield reward_fn
@@ -94,7 +94,7 @@ def _load_imitation(use_test: bool) -> RewardLoaderFn:
         A function that loads reward networks.
     """
 
-    def f(path: str, venv: vec_env.VecEnv) -> rewards.RewardModel:
+    def f(path: str, venv: vec_env.VecEnv) -> base.RewardModel:
         """Loads a reward network saved to path, for environment venv.
 
         Arguments:
@@ -110,18 +110,18 @@ def _load_imitation(use_test: bool) -> RewardLoaderFn:
             net = reward_net.RewardNet.load(path)
             assert venv.observation_space == net.observation_space
             assert venv.action_space == net.action_space
-            return rewards.RewardNetToRewardModel(net, use_test=use_test)
+            return base.RewardNetToRewardModel(net, use_test=use_test)
 
     return f
 
 
-def _load_native(path: str, venv: vec_env.VecEnv) -> rewards.RewardModel:
+def _load_native(path: str, venv: vec_env.VecEnv) -> base.RewardModel:
     """Load a RewardModel that implemented the Serializable interface."""
     random_id = uuid.uuid4().hex
     with tf.variable_scope(f"model_{random_id}"):
         logging.info(f"Loading native evaluating rewards model from '{path}'")
         model = util_serialize.Serializable.load(path)
-        if not isinstance(model, rewards.RewardModel):
+        if not isinstance(model, base.RewardModel):
             raise TypeError(f"Serialized object from '{path}' is not a RewardModel")
         assert venv.observation_space == model.observation_space
         assert venv.action_space == model.action_space
@@ -134,7 +134,7 @@ reward_registry.register(key="imitation/RewardNet_shaped-v0", value=_load_imitat
 reward_registry.register(key="evaluating_rewards/RewardModel-v0", value=_load_native)
 reward_registry.register(
     key="evaluating_rewards/Zero-v0",
-    value=registry.build_loader_fn_require_space(rewards.ZeroReward),
+    value=registry.build_loader_fn_require_space(base.ZeroReward),
 )
 
 
@@ -143,7 +143,7 @@ def load_reward(
     reward_path: str,
     venv: vec_env.VecEnv,
     discount: Optional[float] = None,
-) -> rewards.RewardModel:
+) -> base.RewardModel:
     """Load serialized reward model.
 
     Args:

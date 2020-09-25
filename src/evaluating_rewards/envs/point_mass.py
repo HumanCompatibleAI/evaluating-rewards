@@ -24,8 +24,8 @@ import numpy as np
 from stable_baselines.common import policies
 import tensorflow as tf
 
-from evaluating_rewards import rewards
 from evaluating_rewards import serialize as reward_serialize
+from evaluating_rewards.rewards import base
 
 
 class PointMassEnv(resettable_env.ResettableEnv):
@@ -153,7 +153,7 @@ class PointMassEnv(resettable_env.ResettableEnv):
             self.viewer = None
 
 
-class PointMassGroundTruth(rewards.BasicRewardModel, serialize.LayersSerializable):
+class PointMassGroundTruth(base.BasicRewardModel, serialize.LayersSerializable):
     """RewardModel representing the true (dense) reward in PointMass."""
 
     def __init__(
@@ -165,7 +165,7 @@ class PointMassGroundTruth(rewards.BasicRewardModel, serialize.LayersSerializabl
         assert remainder == 0
         self.ctrl_coef = ctrl_coef
 
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
+        base.BasicRewardModel.__init__(self, observation_space, action_space)
         self._reward = self.build_reward()
 
     def build_reward(self):
@@ -182,7 +182,7 @@ class PointMassGroundTruth(rewards.BasicRewardModel, serialize.LayersSerializabl
         return self._reward
 
 
-class PointMassSparseReward(rewards.BasicRewardModel, serialize.LayersSerializable):
+class PointMassSparseReward(base.BasicRewardModel, serialize.LayersSerializable):
     """A sparse reward for the point mass being close to the goal.
 
     Should produce similar behavior to PointMassGroundTruth. However, it is not
@@ -215,7 +215,7 @@ class PointMassSparseReward(rewards.BasicRewardModel, serialize.LayersSerializab
         self.ctrl_coef = ctrl_coef
         self.threshold = threshold
         self.goal_offset = goal_offset
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
+        base.BasicRewardModel.__init__(self, observation_space, action_space)
 
         self._reward = self.build_reward()
 
@@ -244,7 +244,7 @@ def _point_mass_dist(obs: tf.Tensor, ndim: int) -> tf.Tensor:
 
 # pylint false positive: thinks `reward` is missing, but defined in `rewards.PotentialShaping`
 class PointMassShaping(
-    rewards.PotentialShaping, rewards.BasicRewardModel, serialize.LayersSerializable
+    base.PotentialShaping, base.BasicRewardModel, serialize.LayersSerializable
 ):  # pylint:disable=abstract-method
     """Potential shaping term, based on distance to goal."""
 
@@ -263,14 +263,14 @@ class PointMassShaping(
         """
         params = dict(locals())
 
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
+        base.BasicRewardModel.__init__(self, observation_space, action_space)
         self.ndim, remainder = divmod(observation_space.shape[0], 3)
         assert remainder == 0
 
         old_potential = -_point_mass_dist(self._proc_obs, self.ndim)
         new_potential = -_point_mass_dist(self._proc_next_obs, self.ndim)
         end_potential = tf.constant(0.0)
-        rewards.PotentialShaping.__init__(
+        base.PotentialShaping.__init__(
             self, old_potential, new_potential, end_potential, self._proc_dones, discount
         )
 
@@ -278,7 +278,7 @@ class PointMassShaping(
         serialize.LayersSerializable.__init__(**params, layers={"discount": self._discount})
 
 
-class PointMassDenseReward(rewards.LinearCombinationModelWrapper):
+class PointMassDenseReward(base.LinearCombinationModelWrapper):
     """Sparse reward plus potential shaping."""
 
     def __init__(

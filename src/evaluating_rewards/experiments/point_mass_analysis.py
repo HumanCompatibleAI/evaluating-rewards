@@ -28,8 +28,9 @@ import numpy as np
 import seaborn as sns
 import xarray
 
-from evaluating_rewards import datasets, rewards
+from evaluating_rewards import datasets
 from evaluating_rewards.envs import point_mass
+from evaluating_rewards.rewards import base
 
 
 def no_op(*args, **kwargs):
@@ -147,7 +148,7 @@ def mesh_input(
 
 
 def evaluate_reward_model(
-    env: point_mass.PointMassEnv, model: rewards.RewardModel, goal: np.ndarray, **kwargs
+    env: point_mass.PointMassEnv, model: base.RewardModel, goal: np.ndarray, **kwargs
 ) -> xarray.DataArray:
     """Computes the reward predicted by model on environment.
 
@@ -163,7 +164,7 @@ def evaluate_reward_model(
     assert model.observation_space == env.observation_space
     assert model.action_space == env.action_space
     idxs, dataset = mesh_input(env, goal=goal, **kwargs)
-    reward = rewards.evaluate_models({"m": model}, dataset)["m"]
+    reward = base.evaluate_models({"m": model}, dataset)["m"]
     reward = reward.reshape(*[len(idx) for idx in idxs])
     reward = xarray.DataArray(reward, coords=idxs, dims=["position", "velocity", "acceleration"])
     return reward

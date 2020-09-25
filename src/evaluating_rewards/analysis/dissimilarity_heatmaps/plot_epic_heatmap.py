@@ -25,8 +25,11 @@ import pandas as pd
 import sacred
 import tensorflow as tf
 
-from evaluating_rewards import datasets, epic_sample, rewards, tabular, util
+from evaluating_rewards import datasets
+from evaluating_rewards.analysis import util
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
+from evaluating_rewards.distances import epic_sample, tabular, transitions_datasets
+from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
 
 plot_epic_heatmap_ex = sacred.Experiment("plot_epic_heatmap")
@@ -34,6 +37,7 @@ logger = logging.getLogger("evaluating_rewards.analysis.plot_epic_heatmap")
 
 
 cli_common.make_config(plot_epic_heatmap_ex)
+transitions_datasets.make_config(plot_epic_heatmap_ex)
 
 
 @plot_epic_heatmap_ex.config
@@ -152,87 +156,6 @@ def high_precision():
 
 
 @plot_epic_heatmap_ex.named_config
-def sample_from_env_spaces(env_name):
-    """Randomly sample from Gym spaces."""
-    obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
-    act_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=False)
-    sample_dist_factory_kwargs = {"env_name": env_name}
-    obs_sample_dist_factory_kwargs = {}
-    act_sample_dist_factory_kwargs = {}
-    sample_dist_tag = "random_space"  # only used for logging
-    _ = locals()
-    del _
-
-
-@plot_epic_heatmap_ex.named_config
-def dataset_iid(
-    env_name,
-    obs_sample_dist_factory,
-    act_sample_dist_factory,
-    obs_sample_dist_factory_kwargs,
-    act_sample_dist_factory_kwargs,
-    sample_dist_factory_kwargs,
-    sample_dist_tag,
-):
-    """Visitation distribution is i.i.d. samples from sample distributions.
-
-    Set this to make `computation_kind` "sample" consistent with "mesh".
-
-    WARNING: you *must* override the `sample_dist` *before* calling this,
-    e.g. by using `sample_from_env_spaces`, since by default it is marginalized from
-    visitation factory, leading to an infinite recursion.
-    """
-    visitations_factory = datasets.transitions_factory_iid_from_sample_dist_factory
-    visitations_factory_kwargs = {
-        "obs_dist_factory": obs_sample_dist_factory,
-        "act_dist_factory": act_sample_dist_factory,
-        "obs_kwargs": obs_sample_dist_factory_kwargs,
-        "act_kwargs": act_sample_dist_factory_kwargs,
-        "env_name": env_name,
-    }
-    visitations_factory_kwargs.update(**sample_dist_factory_kwargs)
-    dataset_tag = "iid_" + sample_dist_tag
-    _ = locals()
-    del _
-
-
-@plot_epic_heatmap_ex.named_config
-def dataset_from_random_transitions(env_name):
-    visitations_factory = datasets.transitions_factory_from_random_model
-    visitations_factory_kwargs = {"env_name": env_name}
-    dataset_tag = "random_transitions"
-    _ = locals()
-    del _
-
-
-@plot_epic_heatmap_ex.named_config
-def dataset_permute(visitations_factory, visitations_factory_kwargs, dataset_tag):
-    """Permute transitions of factory specified in *previous* named configs on the CLI."""
-    visitations_factory_kwargs["factory"] = visitations_factory
-    visitations_factory = datasets.transitions_factory_permute_wrapper
-    dataset_tag = "permuted_" + dataset_tag
-    _ = locals()
-    del _
-
-
-@plot_epic_heatmap_ex.named_config
-def dataset_noise_rollouts(env_name):
-    """Add noise to rollouts of serialized policy."""
-    visitations_factory_kwargs = {
-        "trajectory_factory": datasets.trajectory_factory_noise_wrapper,
-        "factory": datasets.trajectory_factory_from_serialized_policy,
-        "policy_type": "random",
-        "policy_path": "dummy",
-        "noise_env_name": env_name,
-        "env_name": env_name,
-    }
-    visitations_factory = datasets.transitions_factory_from_trajectory_factory
-    dataset_tag = "noised_random_policy"
-    _ = locals()
-    del _
-
-
-@plot_epic_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     n_samples = 64
@@ -251,7 +174,7 @@ def mesh_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
+    models: Mapping[cli_common.RewardCfg, base.RewardModel],
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
     distance_kind: str,
@@ -317,7 +240,7 @@ def sample_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[cli_common.RewardCfg, rewards.RewardModel],
+    models: Mapping[cli_common.RewardCfg, base.RewardModel],
     x_reward_cfgs: Iterable[cli_common.RewardCfg],
     y_reward_cfgs: Iterable[cli_common.RewardCfg],
     distance_kind: str,

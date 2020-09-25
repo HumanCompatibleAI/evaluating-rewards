@@ -29,7 +29,9 @@ import scipy as sp
 import seaborn as sns
 import tensorflow as tf
 
-from evaluating_rewards import comparisons, datasets, rewards
+from evaluating_rewards import datasets
+import evaluating_rewards.distances.npec
+from evaluating_rewards.rewards import base, comparisons
 
 TensorCallable = Callable[..., tf.Tensor]
 
@@ -51,15 +53,15 @@ def _compare_synthetic_build_base_models(
         noise_kwargs = {"use_act": False, "use_next_obs": False}
 
     with tf.variable_scope("ground_truth"):
-        ground_truth = rewards.MLPRewardModel(
+        ground_truth = base.MLPRewardModel(
             observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
         )
 
     with tf.variable_scope("noise"):
-        noise_reward = rewards.MLPRewardModel(
+        noise_reward = base.MLPRewardModel(
             observation_space, action_space, hid_sizes=reward_hids, **noise_kwargs
         )
-        noise_potential = rewards.MLPPotentialShaping(
+        noise_potential = base.MLPPotentialShaping(
             observation_space,
             action_space,
             hid_sizes=dataset_potential_hids,
@@ -69,7 +71,7 @@ def _compare_synthetic_build_base_models(
 
         # Additive constant and scaling of ground truth
         initializer = tf.initializers.ones
-        constant_one_model = rewards.ConstantReward(
+        constant_one_model = base.ConstantReward(
             observation_space, action_space, initializer=initializer
         )
 
@@ -77,10 +79,10 @@ def _compare_synthetic_build_base_models(
 
 
 def _compare_synthetic_build_comparison_graph(
-    ground_truth: rewards.RewardModel,
-    noise_reward: rewards.RewardModel,
-    noise_potential: rewards.RewardModel,
-    constant_one_model: rewards.RewardModel,
+    ground_truth: base.RewardModel,
+    noise_reward: base.RewardModel,
+    noise_potential: base.RewardModel,
+    constant_one_model: base.RewardModel,
     model_affine: bool,
     model_potential: bool,
     discount: float,
@@ -107,19 +109,19 @@ def _compare_synthetic_build_comparison_graph(
                     "constant": (constant_one_model, gt_constant),
                 }
 
-                noised_ground_shaped = rewards.LinearCombinationModelWrapper(models)
+                noised_ground_shaped = base.LinearCombinationModelWrapper(models)
                 originals[(rew_nm, pot_nm)] = noised_ground_shaped
 
                 with tf.variable_scope("matching"):
                     model_wrapper = functools.partial(
-                        comparisons.equivalence_model_wrapper,
+                        evaluating_rewards.distances.npec.equivalence_model_wrapper,
                         affine=model_affine,
                         potential=model_potential,
                         hid_sizes=model_potential_hids,
                         activation=model_activation,
                         discount=discount,
                     )
-                    matched = comparisons.RegressWrappedModel(
+                    matched = evaluating_rewards.distances.npec.RegressWrappedModel(
                         noised_ground_shaped,
                         ground_truth,
                         model_wrapper=model_wrapper,
@@ -142,15 +144,15 @@ def _compare_synthetic_eval(
     gt_scale: float,
     model_affine: bool,
     model_potential: bool,
-    ground_truth: rewards.RewardModel,
-    noise_reward: rewards.RewardModel,
+    ground_truth: base.RewardModel,
+    noise_reward: base.RewardModel,
     reward_noise: np.ndarray,
     potential_noise: np.ndarray,
 ):
     intrinsics = {}
     shapings = {}
     extrinsics = {}
-    ub_intrinsic = rewards.evaluate_models({"n": noise_reward}, test_set)["n"]
+    ub_intrinsic = base.evaluate_models({"n": noise_reward}, test_set)["n"]
     ub_intrinsic = np.linalg.norm(ub_intrinsic) / np.sqrt(len(ub_intrinsic))
     ub_intrinsics = {}
     final_constants = {}
@@ -164,7 +166,7 @@ def _compare_synthetic_eval(
             if model_potential:
                 shaping_model = matched.model_extra["shaping"].models["shaping"][0]
 
-            res = comparisons.summary_comparison(
+            res = summary_comparison(
                 original=original,
                 matched=matched.model,
                 target=ground_truth,
@@ -180,7 +182,7 @@ def _compare_synthetic_eval(
             if model_affine:
                 final = matched.model_extra["affine"].get_weights()
             else:
-                final = rewards.AffineParameters(shift=0, scale=1.0)
+                final = base.AffineParameters(shift=0, scale=1.0)
             final_constants[(rew_nm, pot_nm)] = final.shift
             final_scales[(rew_nm, pot_nm)] = final.scale
 
@@ -339,7 +341,7 @@ def compare_synthetic(
             logging.info(f"Pretraining {key}")
             initial = matched.fit_affine(pretrain_set)
         else:
-            initial = rewards.AffineParameters(shift=0, scale=1)
+            initial = base.AffineParameters(shift=0, scale=1)
         initial_constants[key] = initial.shift
         initial_scales[key] = initial.scale
 
@@ -375,14 +377,14 @@ def summary_stats(
 ):
     """Compute summary statistics of a random reward and potential model."""
     # Construct randomly initialized reward and potential
-    rew_model = rewards.MLPRewardModel(observation_space, action_space, reward_hids)
-    pot_model = rewards.MLPPotentialShaping(observation_space, action_space, potential_hids)
+    rew_model = base.MLPRewardModel(observation_space, action_space, reward_hids)
+    pot_model = base.MLPPotentialShaping(observation_space, action_space, potential_hids)
     tf.get_default_session().run(tf.global_variables_initializer())
 
     # Compute their predictions on dataset
     models = {"reward": rew_model, "shaping": pot_model}
-    preds = rewards.evaluate_models(models, dataset)
-    potentials = rewards.evaluate_potentials([pot_model], dataset)
+    preds = base.evaluate_models(models, dataset)
+    potentials = base.evaluate_potentials([pot_model], dataset)
     old_potential = potentials[0][0]
     new_potential = potentials[1][0]
 
@@ -414,3 +416,48 @@ def plot_shaping_comparison(
         **kwargs,
     )
     return longform
+
+
+def summary_comparison(
+    original: base.RewardModel,
+    matched: base.RewardModel,
+    target: base.RewardModel,
+    test_set: types.Transitions,
+    shaping: Optional[base.RewardModel] = None,
+) -> Tuple[float, float, float]:
+    """Compare rewards in terms of intrinsic and shaping difference.
+
+    Args:
+        original: The inferred reward model.
+        matched: The reward model after trying to match target via shaping.
+        target: The target reward model (e.g. ground truth, if available).
+        test_set: A dataset to evaluate on.
+        shaping: A reward model adding potential shaping to original.
+                If unspecified, will return 0 for the shaping component.
+
+    Returns:
+        A tuple (intrinsic, shaping, extrinsic). The intrinsic difference is the
+        approximation of the nearest point between the equivalence classes for
+        original and target. Shaping is the magnitude of the potential shaping
+        term we are adding. Extrinsic is the raw difference between original and
+        target without any transformations.
+    """
+    models = {"original": original, "matched": matched, "target": target}
+
+    if shaping is not None:
+        models["shaping"] = shaping
+
+    preds = base.evaluate_models(models, test_set)
+    intrinsic_l2 = _scaled_norm(preds["matched"] - preds["target"])
+    if "shaping" in preds:
+        shaping_l2 = _scaled_norm(preds["shaping"])
+    else:
+        shaping_l2 = 0.0
+    extrinsic_l2 = _scaled_norm(preds["original"] - preds["target"])
+
+    return intrinsic_l2, shaping_l2, extrinsic_l2
+
+
+def _scaled_norm(x):
+    """l2 norm, normalized to be invariant to length of vectors."""
+    return np.linalg.norm(x) / np.sqrt(len(x))

@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
-from evaluating_rewards import rewards
+from evaluating_rewards.rewards import base
 
 DeshapeFn = Callable[[np.ndarray, float], np.ndarray]
 
@@ -101,7 +101,7 @@ def closest_reward_am(
     for _ in range(n_iter):
         potential = closest_potential(closest_reward, target, discount)
         closest_reward = shape(closest_reward, potential, discount)
-        params = rewards.least_l2_affine(closest_reward.flatten(), target.flatten(), shift=shift)
+        params = base.least_l2_affine(closest_reward.flatten(), target.flatten(), shift=shift)
         closest_reward = closest_reward * params.scale + params.shift
     return closest_reward
 
