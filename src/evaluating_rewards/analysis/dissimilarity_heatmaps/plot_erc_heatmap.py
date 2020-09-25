@@ -76,6 +76,21 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
 
 
 @plot_erc_heatmap_ex.named_config
+def dataset_noise_rollouts(env_name):
+    """Add noise to rollouts of serialized policy."""
+    trajectory_factory = datasets.trajectory_factory_noise_wrapper
+    trajectory_factory_kwargs = {
+        "factory": datasets.trajectory_factory_from_serialized_policy,
+        "policy_type": "random",
+        "policy_path": "dummy",
+        "noise_env_name": env_name,
+        "env_name": env_name,
+    }
+    _ = locals()
+    del _
+
+
+@plot_erc_heatmap_ex.named_config
 def paper():
     """Figures suitable for inclusion in paper.
 

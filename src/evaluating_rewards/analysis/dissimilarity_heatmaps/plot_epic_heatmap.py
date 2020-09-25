@@ -216,15 +216,18 @@ def dataset_permute(visitations_factory, visitations_factory_kwargs, dataset_tag
 
 
 @plot_epic_heatmap_ex.named_config
-def dataset_noise(env_name, visitations_factory, visitations_factory_kwargs, dataset_tag):
-    """Add noise to transitions of factory specified in *previous* named configs on the CLI."""
+def dataset_noise_rollouts(env_name):
+    """Add noise to rollouts of serialized policy."""
     visitations_factory_kwargs = {
-        "factory": visitations_factory,
+        "trajectory_factory": datasets.trajectory_factory_noise_wrapper,
+        "factory": datasets.trajectory_factory_from_serialized_policy,
+        "policy_type": "random",
+        "policy_path": "dummy",
         "noise_env_name": env_name,
+        "env_name": env_name,
     }
-    visitations_factory_kwargs["factory"] = visitations_factory
-    visitations_factory = datasets.transitions_factory_noise_wrapper
-    dataset_tag = "noised_" + dataset_tag
+    visitations_factory = datasets.transitions_factory_from_trajectory_factory
+    dataset_tag = "noised_random_policy"
     _ = locals()
     del _
 

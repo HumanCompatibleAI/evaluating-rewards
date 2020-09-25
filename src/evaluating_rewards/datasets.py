@@ -22,7 +22,7 @@ can be taken with respect to.
 import contextlib
 import dataclasses
 import functools
-from typing import Callable, ContextManager, Iterator, Optional, TypeVar, Union
+from typing import Callable, ContextManager, Iterator, Optional, Sequence, TypeVar, Union
 
 import gym
 from imitation.data import rollout, types
@@ -34,7 +34,7 @@ from stable_baselines.common import base_class, policies, vec_env
 T = TypeVar("T")
 DatasetCallable = Callable[[int], T]
 """Parameter specifies number of episodes (TrajectoryCallable) or timesteps (otherwise)."""
-TrajectoryCallable = DatasetCallable[types.Trajectory]
+TrajectoryCallable = DatasetCallable[Sequence[types.Trajectory]]
 TransitionsCallable = DatasetCallable[types.Transitions]
 SampleDist = DatasetCallable[np.ndarray]
 
@@ -45,6 +45,41 @@ TransitionsFactory = Factory[TransitionsCallable]
 SampleDistFactory = Factory[SampleDist]
 
 # *** Conversion functions ***
+
+
+@contextlib.contextmanager
+def transitions_factory_from_trajectory_factory(
+    trajectory_factory: TrajectoryFactory,
+    **kwargs,
+) -> Iterator[TransitionsCallable]:
+    """Generates and flattens trajectories until target timesteps reached, truncating if overshot.
+
+    Args:
+        trajectory_factory: The factory to sample trajectories from.
+        kwargs: Passed through to the factory.
+
+    Yields:
+        A function that will perform the sampling process described above for a
+        number of transitions `n` specified in the argument.
+    """
+    with trajectory_factory(**kwargs) as trajectory_callable:
+
+        def f(total_timesteps: int) -> types.Transitions:
+            trajs = []
+            num_timesteps = 0
+            while num_timesteps < total_timesteps:
+                sampled = trajectory_callable(1)
+                traj = sampled[0]
+                trajs.append(traj)
+                num_timesteps += len(traj)
+
+            trans = rollout.flatten_trajectories(trajs)
+            assert len(trans) == num_timesteps
+            as_dict = dataclasses.asdict(trans)
+            truncated = {k: arr[:total_timesteps] for k, arr in as_dict.items()}
+            return dataclasses.replace(trans, **truncated)
+
+        yield f
 
 
 @contextlib.contextmanager
@@ -135,10 +170,10 @@ def _factory_via_serialized(
 @contextlib.contextmanager
 def trajectory_factory_from_policy(
     venv: vec_env.VecEnv, policy: Union[base_class.BaseRLModel, policies.BasePolicy]
-) -> Iterator[TransitionsCallable]:
+) -> Iterator[TrajectoryCallable]:
     """Generator returning rollouts from a policy in a given environment."""
 
-    def f(total_episodes: int) -> types.Transitions:
+    def f(total_episodes: int) -> Sequence[types.Trajectory]:
         return rollout.generate_trajectories(
             policy, venv, sample_until=rollout.min_episodes(total_episodes)
         )
@@ -149,6 +184,56 @@ def trajectory_factory_from_policy(
 trajectory_factory_from_serialized_policy = functools.partial(
     _factory_via_serialized, trajectory_factory_from_policy
 )
+
+
+@contextlib.contextmanager
+def trajectory_factory_noise_wrapper(
+    factory: TrajectoryFactory,
+    noise_env_name: str,
+    obs_noise: Optional[SampleDist] = None,
+    obs_noise_scale: float = 1.0,
+    acts_noise: Optional[SampleDist] = None,
+    acts_noise_scale: float = 1.0,
+    **kwargs,
+) -> Iterator[TrajectoryCallable]:
+    """Adds noise to transitions from `factory`.
+
+    Args:
+        factory: The factory to add noise to.
+        noise_env_name: The Gym identifier for the environment.
+        obs_noise: A distribution to sample additive noise for `obs` from; if unspecified,
+                   then samples from the observation space of `env_name`.
+        obs_noise_scale: Multiplier for `obs_noise`.
+        acts_noise: A distribution to sample additive noise for `acts` from; if unspecified,
+                   then samples from the action space of `env_name`.
+        acts_noise_scale: Multiplier for `acts_noise`.
+
+    Yields:
+        A function that will perform the sampling process described above for a
+        number of trajectories `n` specified in the argument.
+    """
+
+    with contextlib.ExitStack() as stack:
+        obs_noise = obs_noise or stack.enter_context(
+            sample_dist_from_env_name(noise_env_name, obs=True)
+        )
+        acts_noise = acts_noise or stack.enter_context(
+            sample_dist_from_env_name(noise_env_name, obs=False)
+        )
+
+        with factory(**kwargs) as trajectory_callable:
+
+            def f(n: int) -> Sequence[types.Trajectory]:
+                trajs = trajectory_callable(n)
+                res = []
+                for traj in trajs:
+                    new_obs = traj.obs + obs_noise_scale * obs_noise(len(traj.obs))
+                    new_acts = traj.acts + acts_noise_scale * acts_noise(len(traj.acts))
+                    traj = dataclasses.replace(traj, obs=new_obs, acts=new_acts)
+                    res.append(traj)
+                return res
+
+            yield f
 
 
 # *** Transition factories ***
@@ -277,63 +362,6 @@ def transitions_factory_permute_wrapper(
             return res
 
         yield f
-
-
-@contextlib.contextmanager
-def transitions_factory_noise_wrapper(
-    factory: TransitionsFactory,
-    noise_env_name: str,
-    obs_noise: Optional[SampleDist] = None,
-    obs_noise_scale: float = 1.0,
-    acts_noise: Optional[SampleDist] = None,
-    acts_noise_scale: float = 1.0,
-    next_obs_noise: Optional[SampleDist] = None,
-    next_obs_noise_scale: float = 1.0,
-    **kwargs,
-) -> Iterator[TransitionsCallable]:
-    """Adds noise to transitions from `factory`.
-
-    Args:
-        factory: The factory to add noise to.
-        noise_env_name: The Gym identifier for the environment.
-        obs_noise: A distribution to sample additive noise for `obs` from; if unspecified,
-                   then samples from the observation space of `env_name`.
-        obs_noise_scale: Multiplier for `obs_noise`.
-        acts_noise: A distribution to sample additive noise for `acts` from; if unspecified,
-                   then samples from the action space of `env_name`.
-        acts_noise_scale: Multiplier for `acts_noise`.
-        next_obs_noise: A distribution to sample additive noise for `next_obs` from;
-                        if unspecified, then samples from the observation space of `env_name`.
-        next_obs_noise_scale: Multiplier for `next_obs_noise`.
-
-    Yields:
-        A function that will perform the sampling process described above for a
-        number of timesteps `n` specified in the argument.
-    """
-
-    with contextlib.ExitStack() as stack:
-        obs_noise = obs_noise or stack.enter_context(
-            sample_dist_from_env_name(noise_env_name, obs=True)
-        )
-        next_obs_noise = next_obs_noise or stack.enter_context(
-            sample_dist_from_env_name(noise_env_name, obs=True)
-        )
-        acts_noise = acts_noise or stack.enter_context(
-            sample_dist_from_env_name(noise_env_name, obs=False)
-        )
-
-        with factory(**kwargs) as transitions_callable:
-
-            def f(n: int) -> types.Transitions:
-                trans = transitions_callable(n)
-                return dataclasses.replace(
-                    trans,
-                    obs=trans.obs + obs_noise_scale * obs_noise(n),
-                    acts=trans.acts + acts_noise_scale * acts_noise(n),
-                    next_obs=trans.next_obs + next_obs_noise_scale * next_obs_noise(n),
-                )
-
-            yield f
 
 
 # *** Sample distribution factories ***
