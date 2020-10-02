@@ -13,3 +13,6 @@
 # limitations under the License.
 
 """Modules to handle fundamental operations on reward models."""
+
+# TODO(adam): remove this backward compatibility import after old pickle files deprecated
+from evaluating_rewards.rewards.base import *  # noqa: F401,F403
