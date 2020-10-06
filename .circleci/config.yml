@@ -20,6 +20,9 @@ executors:
   my-executor:
     docker:
       - image: humancompatibleai/evaluating_rewards:base
+        auth:
+                username: $DOCKERHUB_USERNAME
+                password: $DOCKERHUB_PASSWORD
     working_directory: /evaluating-rewards
     environment:
       # If you change these, also change scripts/code_checks.sh
@@ -119,5 +122,7 @@ workflows:
     jobs:
       - lintandtype:
           context: MuJoCo
+          context: adam-docker-hub-creds
       - unit-test:
           context: MuJoCo
+          context: adam-docker-hub-creds
