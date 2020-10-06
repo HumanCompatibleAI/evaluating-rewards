@@ -1,4 +1,4 @@
-# Copyright 2019 Adam Gleave
+# Copyright 2020 Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ executors:
   my-executor:
     docker:
       - image: humancompatibleai/evaluating_rewards:base
+        auth:
+                username: $DOCKERHUB_USERNAME
+                password: $DOCKERHUB_PASSWORD
     working_directory: /evaluating-rewards
     environment:
       # If you change these, also change scripts/code_checks.sh
@@ -118,6 +121,10 @@ workflows:
   test:
     jobs:
       - lintandtype:
-          context: MuJoCo
+          context: 
+          - MuJoCo
+          - docker-hub-creds
       - unit-test:
-          context: MuJoCo
+          context: 
+          - MuJoCo
+          - docker-hub-creds
