@@ -123,8 +123,8 @@ workflows:
       - lintandtype:
           context: 
           - MuJoCo
-          - adam-docker-hub-creds
+          - docker-hub-creds
       - unit-test:
           context: 
           - MuJoCo
-          - adam-docker-hub-creds
+          - docker-hub-creds
