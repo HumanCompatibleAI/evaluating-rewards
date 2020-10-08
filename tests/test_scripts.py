@@ -50,9 +50,9 @@ EXPERIMENTS = {
     "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, type(None), [], {}),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
     "table_combined": (table_combined.table_combined_ex, type(None), [], {}),
-    "comparison": (npec_comparison.model_comparison_ex, dict, [], {}),
+    "comparison": (npec_comparison.npec_comparison_ex, dict, [], {}),
     "comparison_alternating": (
-        npec_comparison.model_comparison_ex,
+        npec_comparison.npec_comparison_ex,
         dict,
         ["alternating_maximization"],
         {"fit_kwargs": {"epoch_timesteps": 4096}},
@@ -62,22 +62,21 @@ EXPERIMENTS = {
 }
 
 
-def add_canon_experiments():
-    """Add testcases for `evaluating_rewards.analysis.dissimilarity_heatmaps.plot_canon_heatmap`."""
+def add_epic_experiments():
+    """Add testcases for `evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap`."""
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
-            EXPERIMENTS[f"plot_canon_heatmap_{computation_kind}_{distance_kind}"] = (
+            EXPERIMENTS[f"plot_epic_heatmap_{computation_kind}_{distance_kind}"] = (
                 plot_epic_heatmap.plot_epic_heatmap_ex,
                 type(None),
                 [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
             )
     NAMED_CONFIGS = {
-        "random_policy": ["sample_from_serialized_policy"],
-        "random_policy_batch": ["sample_from_serialized_policy", "dataset_from_serialized_policy"],
-        "random_transitions_batch": [
+        "random_spaces": ["point_mass", "sample_from_env_spaces"],
+        "random_spaces_both": ["point_mass", "sample_from_env_spaces", "dataset_iid"],
+        "random_transitions_both": [
             "point_mass",
-            "sample_from_random_transitions",
             "dataset_from_random_transitions",
         ],
     }
@@ -109,7 +108,7 @@ def add_gridworld_experiments():
         )
 
 
-add_canon_experiments()
+add_epic_experiments()
 add_gridworld_experiments()
 
 

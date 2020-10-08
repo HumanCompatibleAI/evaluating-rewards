@@ -1,4 +1,4 @@
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2019, 2020 DeepMind Technologies Limited, Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# pylint:disable=too-many-lines
 
 """Deep neural network reward models."""
 
@@ -205,7 +207,7 @@ class PotentialShaping(RewardModel):
         self._discount.build(())
 
         self._old_potential = old_potential
-        is_discounted = tf.cast(self.discount == 1.0, dtype=tf.float32)
+        is_discounted = tf.cast(self.discount < 1.0, dtype=tf.float32)
         end_potential = is_discounted * end_potential
         self._new_potential = end_potential * dones + new_potential * (1 - dones)
         self._reward_output = self.discount * self.new_potential - self.old_potential
@@ -356,19 +358,23 @@ class ConstantLayer(tf.keras.layers.Layer):
             initializer: The initializer to use for the constant weight.
             dtype: dtype of the constant weight.
         """
+        super().__init__(trainable=True, name=name, dtype=dtype)
+
         if initializer is None:
             initializer = tf.zeros_initializer()
         self.initializer = initializer
 
-        self._constant = None
-
-        super().__init__(trainable=True, name=name, dtype=dtype)
-
-    def build(self, input_shape):
         self._constant = self.add_weight(
-            name="constant", shape=(), initializer=self.initializer, use_resource=True
+            name="constant",
+            trainable=True,
+            shape=(),
+            initializer=self.initializer,
+            use_resource=True,
         )
-        super().build(input_shape)
+
+    def build(self, shape):  # pylint:disable=useless-super-delegation
+        # Keras complains if we do not define a build, even if it does nothing
+        super().build(shape)
 
     def _check_built(self):
         if not self.built:

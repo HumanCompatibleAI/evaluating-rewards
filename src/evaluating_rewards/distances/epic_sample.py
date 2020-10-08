@@ -14,13 +14,16 @@
 
 """Metrics based on sampling to approximate a canonical reward in an equivalence class."""
 
+import dataclasses
 from typing import Mapping, Tuple, TypeVar
 
 from imitation.data import types
 import numpy as np
 import tensorflow as tf
 
-from evaluating_rewards import datasets, rewards, tabular
+from evaluating_rewards import datasets
+from evaluating_rewards.distances import tabular
+from evaluating_rewards.rewards import base
 
 K = TypeVar("K")
 
@@ -71,7 +74,7 @@ def _make_mesh_tensors(inputs: Mapping[K, np.ndarray]) -> Mapping[K, tf.Tensor]:
 
 
 def mesh_evaluate_models(
-    models: Mapping[K, rewards.RewardModel],
+    models: Mapping[K, base.RewardModel],
     obs: np.ndarray,
     actions: np.ndarray,
     next_obs: np.ndarray,
@@ -111,7 +114,7 @@ def mesh_evaluate_models(
 
 
 def discrete_iid_evaluate_models(
-    models: Mapping[K, rewards.RewardModel],
+    models: Mapping[K, base.RewardModel],
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
     n_obs: int,
@@ -146,7 +149,7 @@ def _tile_first_dim(xs: np.ndarray, reps: int) -> np.ndarray:
 
 
 def sample_mean_rews(
-    models: Mapping[K, rewards.RewardModel],
+    models: Mapping[K, base.RewardModel],
     mean_from_obs: np.ndarray,
     act_samples: np.ndarray,
     next_obs_samples: np.ndarray,
@@ -199,7 +202,7 @@ def sample_mean_rews(
             dones=np.zeros(len(obs_repeated), dtype=np.bool),
             infos=None,
         )
-        rews = rewards.evaluate_models(models, batch)
+        rews = base.evaluate_models(models, batch)
         rews = {k: v.reshape(len(obs), -1) for k, v in rews.items()}
         for k, m in mean_rews.items():
             means = np.mean(rews[k], axis=1)
@@ -212,7 +215,7 @@ def sample_mean_rews(
 
 
 def sample_canon_shaping(
-    models: Mapping[K, rewards.RewardModel],
+    models: Mapping[K, base.RewardModel],
     batch: types.Transitions,
     act_dist: datasets.SampleDist,
     obs_dist: datasets.SampleDist,
@@ -261,7 +264,10 @@ def sample_canon_shaping(
         A mapping from keys to NumPy arrays containing rewards from the model evaluated on batch
         and then canonicalized to be invariant to potential shaping and scale.
     """
-    raw_rew = rewards.evaluate_models(models, batch)
+    # EPIC only defined on infinite-horizon MDPs, so pretend episodes never end.
+    # SOMEDAY(adam): add explicit support for finite-horizon?
+    batch = dataclasses.replace(batch, dones=np.zeros_like(batch.dones))
+    raw_rew = base.evaluate_models(models, batch)
 
     # Sample-based estimate of mean reward
     act_samples = act_dist(n_mean_samples)

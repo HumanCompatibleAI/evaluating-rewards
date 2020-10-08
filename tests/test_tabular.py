@@ -22,7 +22,7 @@ from hypothesis.extra import numpy as hp_numpy
 import numpy as np
 import pytest
 
-from evaluating_rewards import tabular
+from evaluating_rewards.distances import tabular
 
 
 # pylint:disable=no-value-for-parameter

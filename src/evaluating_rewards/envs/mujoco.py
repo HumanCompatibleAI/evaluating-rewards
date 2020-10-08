@@ -22,11 +22,11 @@ import numpy as np
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import rewards
 from evaluating_rewards import serialize as reward_serialize
+from evaluating_rewards.rewards import base
 
 
-class MujocoHardcodedReward(rewards.BasicRewardModel, serialize.LayersSerializable):
+class MujocoHardcodedReward(base.BasicRewardModel, serialize.LayersSerializable):
     """Hardcoded (non-trainable) reward model for a MuJoCo environment."""
 
     def __init__(self, observation_space: gym.Space, action_space: gym.Space, **kwargs):
@@ -38,7 +38,7 @@ class MujocoHardcodedReward(rewards.BasicRewardModel, serialize.LayersSerializab
             **kwargs: Extra parameters to serialize and store in the instance,
                     accessible as attributes.
         """
-        rewards.BasicRewardModel.__init__(self, observation_space, action_space)
+        base.BasicRewardModel.__init__(self, observation_space, action_space)
         serialize.LayersSerializable.__init__(
             self,
             layers={},

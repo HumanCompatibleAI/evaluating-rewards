@@ -20,8 +20,9 @@ can be taken with respect to.
 """
 
 import contextlib
+import dataclasses
 import functools
-from typing import Callable, ContextManager, Iterator, TypeVar, Union
+from typing import Callable, ContextManager, Iterator, Optional, Sequence, TypeVar, Union
 
 import gym
 from imitation.data import rollout, types
@@ -31,9 +32,9 @@ import numpy as np
 from stable_baselines.common import base_class, policies, vec_env
 
 T = TypeVar("T")
+TrajectoryCallable = Callable[[rollout.GenTrajTerminationFn], Sequence[types.Trajectory]]
 DatasetCallable = Callable[[int], T]
-"""Parameter specifies number of episodes (TrajectoryCallable) or timesteps (otherwise)."""
-TrajectoryCallable = DatasetCallable[types.Trajectory]
+"""int parameter specifies number of timesteps."""
 TransitionsCallable = DatasetCallable[types.Transitions]
 SampleDist = DatasetCallable[np.ndarray]
 
@@ -47,8 +48,40 @@ SampleDistFactory = Factory[SampleDist]
 
 
 @contextlib.contextmanager
-def transitions_factory_iid_from_sample_dist(
-    obs_dist: SampleDist, act_dist: SampleDist
+def transitions_factory_from_trajectory_factory(
+    trajectory_factory: TrajectoryFactory,
+    **kwargs,
+) -> Iterator[TransitionsCallable]:
+    """Generates and flattens trajectories until target timesteps reached, truncating if overshot.
+
+    Args:
+        trajectory_factory: The factory to sample trajectories from.
+        kwargs: Passed through to the factory.
+
+    Yields:
+        A function that will perform the sampling process described above for a
+        number of transitions `n` specified in the argument.
+    """
+    with trajectory_factory(**kwargs) as trajectory_callable:
+
+        def f(total_timesteps: int) -> types.Transitions:
+            trajs = trajectory_callable(sample_until=rollout.min_timesteps(total_timesteps))
+            trans = rollout.flatten_trajectories(trajs)
+            assert len(trans) >= total_timesteps
+            as_dict = dataclasses.asdict(trans)
+            truncated = {k: arr[:total_timesteps] for k, arr in as_dict.items()}
+            return dataclasses.replace(trans, **truncated)
+
+        yield f
+
+
+@contextlib.contextmanager
+def transitions_factory_iid_from_sample_dist_factory(
+    obs_dist_factory: SampleDistFactory,
+    act_dist_factory: SampleDistFactory,
+    obs_kwargs=None,
+    act_kwargs=None,
+    **kwargs,
 ) -> Iterator[TransitionsCallable]:
     """Samples state and next state i.i.d. from `obs_dist` and actions i.i.d. from `act_dist`.
 
@@ -56,20 +89,25 @@ def transitions_factory_iid_from_sample_dist(
     `canonical_sample` which assume i.i.d. transitions internally.
     """
 
-    def f(total_timesteps: int) -> types.Transitions:
-        obses = obs_dist(total_timesteps)
-        acts = act_dist(total_timesteps)
-        next_obses = obs_dist(total_timesteps)
-        dones = np.zeros(total_timesteps, dtype=np.bool)
-        return types.Transitions(
-            obs=np.array(obses),
-            acts=np.array(acts),
-            next_obs=np.array(next_obses),
-            dones=dones,
-            infos=None,
-        )
+    obs_kwargs = obs_kwargs or {}
+    act_kwargs = act_kwargs or {}
+    with obs_dist_factory(**obs_kwargs, **kwargs) as obs_dist:
+        with act_dist_factory(**act_kwargs, **kwargs) as act_dist:
 
-    yield f
+            def f(total_timesteps: int) -> types.Transitions:
+                obses = obs_dist(total_timesteps)
+                acts = act_dist(total_timesteps)
+                next_obses = obs_dist(total_timesteps)
+                dones = np.zeros(total_timesteps, dtype=np.bool)
+                return types.Transitions(
+                    obs=np.array(obses),
+                    acts=np.array(acts),
+                    next_obs=np.array(next_obses),
+                    dones=dones,
+                    infos=None,
+                )
+
+            yield f
 
 
 def transitions_callable_to_sample_dist(
@@ -125,13 +163,11 @@ def _factory_via_serialized(
 @contextlib.contextmanager
 def trajectory_factory_from_policy(
     venv: vec_env.VecEnv, policy: Union[base_class.BaseRLModel, policies.BasePolicy]
-) -> Iterator[TransitionsCallable]:
+) -> Iterator[TrajectoryCallable]:
     """Generator returning rollouts from a policy in a given environment."""
 
-    def f(total_episodes: int) -> types.Transitions:
-        return rollout.generate_trajectories(
-            policy, venv, sample_until=rollout.min_episodes(total_episodes)
-        )
+    def f(sample_until: rollout.GenTrajTerminationFn) -> Sequence[types.Trajectory]:
+        return rollout.generate_trajectories(policy, venv, sample_until=sample_until)
 
     yield f
 
@@ -139,6 +175,56 @@ def trajectory_factory_from_policy(
 trajectory_factory_from_serialized_policy = functools.partial(
     _factory_via_serialized, trajectory_factory_from_policy
 )
+
+
+@contextlib.contextmanager
+def trajectory_factory_noise_wrapper(
+    factory: TrajectoryFactory,
+    noise_env_name: str,
+    obs_noise: Optional[SampleDist] = None,
+    obs_noise_scale: float = 1.0,
+    acts_noise: Optional[SampleDist] = None,
+    acts_noise_scale: float = 1.0,
+    **kwargs,
+) -> Iterator[TrajectoryCallable]:
+    """Adds noise to transitions from `factory`.
+
+    Args:
+        factory: The factory to add noise to.
+        noise_env_name: The Gym identifier for the environment.
+        obs_noise: A distribution to sample additive noise for `obs` from; if unspecified,
+                   then samples from the observation space of `env_name`.
+        obs_noise_scale: Multiplier for `obs_noise`.
+        acts_noise: A distribution to sample additive noise for `acts` from; if unspecified,
+                   then samples from the action space of `env_name`.
+        acts_noise_scale: Multiplier for `acts_noise`.
+
+    Yields:
+        A function that will perform the sampling process described above for a
+        number of trajectories `n` specified in the argument.
+    """
+
+    with contextlib.ExitStack() as stack:
+        obs_noise = obs_noise or stack.enter_context(
+            sample_dist_from_env_name(noise_env_name, obs=True)
+        )
+        acts_noise = acts_noise or stack.enter_context(
+            sample_dist_from_env_name(noise_env_name, obs=False)
+        )
+
+        with factory(**kwargs) as trajectory_callable:
+
+            def f(sample_until: rollout.GenTrajTerminationFn) -> Sequence[types.Trajectory]:
+                trajs = trajectory_callable(sample_until)
+                res = []
+                for traj in trajs:
+                    new_obs = traj.obs + obs_noise_scale * obs_noise(len(traj.obs))
+                    new_acts = traj.acts + acts_noise_scale * acts_noise(len(traj.acts))
+                    traj = dataclasses.replace(traj, obs=new_obs, acts=new_acts)
+                    res.append(traj)
+                return res
+
+            yield f
 
 
 # *** Transition factories ***
@@ -213,6 +299,62 @@ def transitions_factory_from_random_model(
     yield f
 
 
+@contextlib.contextmanager
+def transitions_factory_permute_wrapper(
+    factory: TransitionsFactory,
+    multiplier: int = 32,
+    rng: np.random.RandomState = np.random,
+    **kwargs,
+) -> Iterator[TransitionsCallable]:
+    """Permutes states and actions uniformly at random in transitions from `factory`.
+
+    Samples transitions from `factory`, to obtain a buffer of `multiplier` times the number of
+    requested transitions `n`. Returns a random slice of the transitions, sampled without
+    replacement independently from all states (i.e. starting and next states) and actions.
+    The returned transitions are then deleted from the buffer; in subsequent calls, `n`
+    transitions are sampled. In this way, the buffer only imposes a one-time overhead.
+
+    The effect of this is to return transitions that `callable` might never generate. This is
+    useful when you wish to have counterfactual transitions, but stay close to a realistic
+    state and action distribution implicitly given by `callable`.
+
+    Args:
+        factory: The factory to sample transitions from.
+        multiplier: Scale factor of the buffer compared to `n`, the number of requested transitions.
+        rng: Random state.
+        kwargs: passed through to factory.
+
+    Yields:
+        A function that will perform the sampling process described above for a
+        number of timesteps `n` specified in the argument.
+    """
+    buf = {k: np.empty((0)) for k in ["obs", "acts", "next_obs", "dones"]}
+    with factory(**kwargs) as transitions_callable:
+
+        def f(n: int) -> types.Transitions:
+            target_size = n * multiplier
+            delta = target_size - len(buf["obs"])
+            if delta > 0:
+                transitions = transitions_callable(delta)
+                for k, v in buf.items():
+                    new_v = getattr(transitions, k)
+                    if len(v) > 0:
+                        new_v = np.concatenate(v, new_v)
+                    buf[k] = new_v
+
+            assert len(buf["obs"]) == target_size
+            idxs = {k: rng.choice(target_size, size=n, replace=False) for k in buf.keys()}
+            res = {k: buf[k][idx] for k, idx in idxs.items()}
+            res = types.Transitions(**res, infos=None)
+
+            for k, idx in idxs.items():
+                buf[k] = np.delete(buf[k], idx)
+
+            return res
+
+        yield f
+
+
 # *** Sample distribution factories ***
 
 
@@ -231,7 +373,7 @@ def sample_dist_from_env_name(env_name: str, obs: bool) -> Iterator[SampleDist]:
     env = gym.make(env_name)
     try:
         space = env.observation_space if obs else env.action_space
-        with sample_dist_from_space(space) as sample_dist:
-            yield sample_dist
     finally:
         env.close()
+    with sample_dist_from_space(space) as sample_dist:
+        yield sample_dist

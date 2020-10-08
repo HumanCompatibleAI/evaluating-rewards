@@ -21,7 +21,8 @@ from imitation.policies import serialize as policies_serialize
 from imitation.util import util
 import sacred
 
-from evaluating_rewards import preferences, rewards
+from evaluating_rewards import preferences
+from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import regress_utils, script_utils
 
 train_preferences_ex = sacred.Experiment("train_preferences")
@@ -39,7 +40,7 @@ def default_config():
     trajectory_length = 5  # length of trajectories compared
 
     # Hyperparameters
-    model_reward_type = rewards.MLPRewardModel
+    model_reward_type = base.MLPRewardModel
     total_timesteps = 5e6  # total number of steps to train for
     batch_timesteps = 10000  # total number of timesteps in each batch
     learning_rate = 1e-2

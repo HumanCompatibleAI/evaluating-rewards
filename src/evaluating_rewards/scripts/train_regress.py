@@ -19,7 +19,8 @@ from typing import Any, Dict, Mapping
 
 import sacred
 
-from evaluating_rewards import comparisons, datasets, rewards
+from evaluating_rewards import datasets
+from evaluating_rewards.rewards import base, comparisons
 from evaluating_rewards.scripts import regress_utils, script_utils
 
 train_regress_ex = sacred.Experiment("train_regress")
@@ -33,7 +34,7 @@ def default_config():
     dataset_factory_kwargs = dict()
 
     # Model to train and hyperparameters
-    model_reward_type = rewards.MLPRewardModel
+    model_reward_type = base.MLPRewardModel
     total_timesteps = 10e6
     batch_size = 4096
     learning_rate = 2e-2

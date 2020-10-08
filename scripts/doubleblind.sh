@@ -4,7 +4,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR="$( dirname "${SCRIPT_DIR}" )"
 
 OPTIONS="-v -z -r -lpt"
-EXCLUDES="LICENSE README.md CONTRIBUTING.md setup.py scripts/ .circleci/ notebooks/ runners/launch_docker.sh tests/data/ .git *.pkl requirements*.txt"
+EXCLUDES="LICENSE README.md CONTRIBUTING.md setup.py scripts/ .circleci/ examples/epic_demo.ipynb notebooks/ runners/launch_docker.sh tests/data/ .git *.pkl requirements*.txt"
 
 # Refuse to compile if we find any of these words in non-excluded sources
 # Adam(^|[^O]): excludes my name (Adam), but not AdamOptimizer

@@ -13,7 +13,6 @@ pylint>=2.6.0
 pytype
 pytest
 pytest-cov
-# Switch back to PyPi once release containing https://github.com/chrisjsewell/pytest-notebook/pull/11 comes out
-pytest-notebook @ git+https://github.com/AdamGleave/pytest-notebook.git@pytest6-api-fix
+pytest-notebook
 pytest-shard
 pytest-xdist

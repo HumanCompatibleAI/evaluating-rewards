@@ -17,7 +17,8 @@
 import numpy as np
 import pytest
 
-from evaluating_rewards import tabular, util
+from evaluating_rewards.analysis import util
+from evaluating_rewards.distances import tabular
 
 CROSS_DISTANCE_TEST_CASES = [
     {"rewxs": {}, "rewys": {"bar": np.zeros(4)}, "expected": {}},
