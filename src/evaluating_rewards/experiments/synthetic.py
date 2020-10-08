@@ -30,7 +30,7 @@ import seaborn as sns
 import tensorflow as tf
 
 from evaluating_rewards import datasets
-import evaluating_rewards.distances.npec
+from evaluating_rewards.distances import npec
 from evaluating_rewards.rewards import base, comparisons
 
 TensorCallable = Callable[..., tf.Tensor]
@@ -114,14 +114,14 @@ def _compare_synthetic_build_comparison_graph(
 
                 with tf.variable_scope("matching"):
                     model_wrapper = functools.partial(
-                        evaluating_rewards.distances.npec.equivalence_model_wrapper,
+                        npec.equivalence_model_wrapper,
                         affine=model_affine,
                         potential=model_potential,
                         hid_sizes=model_potential_hids,
                         activation=model_activation,
                         discount=discount,
                     )
-                    matched = evaluating_rewards.distances.npec.RegressWrappedModel(
+                    matched = npec.RegressWrappedModel(
                         noised_ground_shaped,
                         ground_truth,
                         model_wrapper=model_wrapper,
@@ -418,6 +418,11 @@ def plot_shaping_comparison(
     return longform
 
 
+def _scaled_norm(x):
+    """l2 norm, normalized to be invariant to length of vectors."""
+    return np.linalg.norm(x) / np.sqrt(len(x))
+
+
 def summary_comparison(
     original: base.RewardModel,
     matched: base.RewardModel,
@@ -456,8 +461,3 @@ def summary_comparison(
     extrinsic_l2 = _scaled_norm(preds["original"] - preds["target"])
 
     return intrinsic_l2, shaping_l2, extrinsic_l2
-
-
-def _scaled_norm(x):
-    """l2 norm, normalized to be invariant to length of vectors."""
-    return np.linalg.norm(x) / np.sqrt(len(x))
