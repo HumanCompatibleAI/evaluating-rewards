@@ -57,7 +57,7 @@ def make_config(
 
         WARNING: you *must* override the `sample_dist` *before* calling this,
         e.g. by using `sample_from_env_spaces`, since by default it is marginalized from
-        visitation factory, leading to an infinite recursion.
+        `visitations_factory`, leading to an infinite recursion.
         """
         visitations_factory = datasets.transitions_factory_iid_from_sample_dist_factory
         visitations_factory_kwargs = {

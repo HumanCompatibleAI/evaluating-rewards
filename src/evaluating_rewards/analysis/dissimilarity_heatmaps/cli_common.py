@@ -39,6 +39,7 @@ from evaluating_rewards.rewards import base
 
 AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
 RewardCfg = Tuple[str, str]  # (type, path)
+AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
 
 logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.cli_common")
 
