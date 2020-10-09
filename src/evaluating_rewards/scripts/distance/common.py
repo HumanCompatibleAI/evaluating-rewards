@@ -18,11 +18,10 @@ Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatma
 """
 
 import functools
-import itertools
 import logging
 import os
 import pickle
-from typing import Callable, Iterable, Mapping, Sequence, Tuple
+from typing import Any, Callable, Iterable, Mapping, Sequence, Tuple
 
 import gym
 import numpy as np
@@ -40,6 +39,74 @@ RewardCfg = Tuple[str, str]  # (type, path)
 AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
 
 logger = logging.getLogger("evaluating_rewards.scripts.distance.common")
+
+
+def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
+    cfgs = [(kind, "dummy") for kind in kinds]
+    res = dict(kwargs)
+    res.update({"x_reward_cfgs": cfgs, "y_reward_cfgs": cfgs})
+    return res
+
+
+POINT_MASS_KINDS = [
+    f"evaluating_rewards/PointMass{label}-v0"
+    for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
+]
+POINT_MAZE_KINDS = [
+    "imitation/PointMazeGroundTruthWithCtrl-v0",
+    "imitation/PointMazeGroundTruthNoCtrl-v0",
+]
+MUJOCO_STANDARD_ORDER = [
+    "ForwardNoCtrl",
+    "ForwardWithCtrl",
+    "BackwardNoCtrl",
+    "BackwardWithCtrl",
+]
+
+COMMON_CONFIGS = {
+    # evaluating_rewards/PointMass* environments.
+    "point_mass": _config_from_kinds(
+        POINT_MASS_KINDS, env_name="evaluating_rewards/PointMassLine-v0"
+    ),
+    # imitation/PointMaze{Left,Right}-v0 environments
+    "point_maze": _config_from_kinds(
+        POINT_MAZE_KINDS,
+        env_name="imitation/PointMazeLeft-v0",
+    ),
+    # Compare rewards learned in imitation/PointMaze* to the ground-truth reward
+    "point_maze_learned": {
+        "env_name": "imitation/PointMazeLeftVel-v0",
+        "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
+        "y_reward_cfgs": [
+            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
+            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
+            (
+                "imitation/RewardNet_unshaped-v0",
+                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
+            ),
+            (
+                "imitation/RewardNet_unshaped-v0",
+                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
+            ),
+        ],
+    },
+    # seals version of the canonical MuJoCo tasks
+    "half_cheetah": _config_from_kinds(
+        [
+            f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
+            for suffix in MUJOCO_STANDARD_ORDER
+        ],
+        env_name="seals/HalfCheetah-v0",
+    ),
+    "hopper": _config_from_kinds(
+        kinds=[
+            f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
+            for prefix in ["GroundTruth", "Backflip"]
+            for suffix in MUJOCO_STANDARD_ORDER
+        ],
+        env_name="seals/Hopper-v0",
+    ),
+}
 
 
 def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:
@@ -133,24 +200,6 @@ def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
     return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
 
 
-MUJOCO_STANDARD_ORDER = [
-    "ForwardNoCtrl",
-    "ForwardWithCtrl",
-    "BackwardNoCtrl",
-    "BackwardWithCtrl",
-]
-
-
-POINT_MASS_KINDS = [
-    f"evaluating_rewards/PointMass{label}-v0"
-    for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
-]
-
-
-def _hardcoded_model_cfg(kinds: Iterable[str]) -> Iterable[RewardCfg]:
-    return [(kind, "dummy") for kind in kinds]
-
-
 def make_config(
     experiment: sacred.Experiment,
 ):  # pylint: disable=unused-variable,too-many-statements
@@ -175,7 +224,6 @@ def make_config(
     def default_config():
         """Default configuration values."""
         env_name = "evaluating_rewards/PointMassLine-v0"
-        kinds = POINT_MASS_KINDS
         data_root = serialize.get_output_dir()  # where models are read from
         log_root = serialize.get_output_dir()  # where results are written to
         n_bootstrap = 1000  # number of bootstrap samples
@@ -187,17 +235,6 @@ def make_config(
         x_reward_cfgs = None
         y_reward_cfgs = None
 
-        _ = locals()
-        del _
-
-    @experiment.config
-    def reward_config(kinds, x_reward_cfgs, y_reward_cfgs):
-        """Default reward configuration: hardcoded reward model types from kinds."""
-        if kinds is not None:
-            if x_reward_cfgs is None:
-                x_reward_cfgs = _hardcoded_model_cfg(kinds)
-            if y_reward_cfgs is None:
-                y_reward_cfgs = _hardcoded_model_cfg(kinds)
         _ = locals()
         del _
 
@@ -218,72 +255,8 @@ def make_config(
         if "sample" in aggregate_kinds:
             aggregate_fns["sample"] = sample_mean_sd
 
-    @experiment.named_config
-    def point_mass():
-        """Heatmaps for evaluating_rewards/PointMass* environments."""
-        env_name = "evaluating_rewards/PointMassLine-v0"
-        kinds = POINT_MASS_KINDS
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def point_maze():
-        """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
-        env_name = "imitation/PointMazeLeft-v0"
-        kinds = [
-            "imitation/PointMazeGroundTruthWithCtrl-v0",
-            "imitation/PointMazeGroundTruthNoCtrl-v0",
-        ]
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def point_maze_learned():
-        """Compare rewards learned in PointMaze to the ground-truth reward."""
-        # Analyzes models generated by `runners/transfer_point_maze.sh`.
-        env_name = "imitation/PointMazeLeftVel-v0"
-        x_reward_cfgs = [
-            ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
-        ]
-        y_reward_cfgs = [
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
-            ),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
-            ),
-        ]
-        kinds = None
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def half_cheetah():
-        """Heatmaps for HalfCheetah-v3."""
-        env_name = "seals/HalfCheetah-v0"
-        kinds = [
-            f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
-            for suffix in MUJOCO_STANDARD_ORDER
-        ]
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def hopper():
-        """Heatmaps for Hopper-v3."""
-        env_name = "seals/Hopper-v0"
-        activities = ["GroundTruth", "Backflip"]
-        kinds = [
-            f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
-            for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
-        ]
-        del activities
-        _ = locals()
-        del _
+    for name, cfg in COMMON_CONFIGS.items():
+        experiment.add_named_config(name, cfg)
 
 
 def make_main(

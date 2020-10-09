@@ -25,6 +25,7 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import sacred
 
+from evaluating_rewards import serialize
 from evaluating_rewards.analysis import stylesheets, visualize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common, heatmaps
 from evaluating_rewards.distances import transitions_datasets
@@ -42,7 +43,18 @@ transitions_datasets.make_config(plot_heatmap_ex)
 @plot_heatmap_ex.config
 def default_config():
     """Default configuration values."""
-    heatmap_kwargs = {}  # noqa: F841  pylint:disable=unused-variable
+    # TODO(adam): remove data_root?
+    data_root = serialize.get_output_dir()  # where values are read from
+    log_root = serialize.get_output_dir()  # where results are written to
+    vals_path = None
+
+    # Reward configurations: models to compare
+    x_reward_cfgs = None
+    y_reward_cfgs = None
+    heatmap_kwargs = {}
+
+    _ = locals()
+    del _
 
 
 @plot_heatmap_ex.config
