@@ -27,16 +27,16 @@ import tensorflow as tf
 
 from evaluating_rewards import datasets
 from evaluating_rewards.analysis import util
-from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.distances import epic_sample, tabular, transitions_datasets
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
+from evaluating_rewards.scripts.distance import common
 
 epic_distance_ex = sacred.Experiment("epic_distance")
 logger = logging.getLogger("evaluating_rewards.scripts.distance.epic")
 
 
-cli_common.make_config(epic_distance_ex)
+common.make_config(epic_distance_ex)
 transitions_datasets.make_config(epic_distance_ex)
 
 
@@ -160,8 +160,6 @@ def test():
     n_mean_samples = 64
     n_obs = 16
     n_act = 16
-    # Do not include "tex" in styles here: this will break on CI.
-    styles = ["paper", "heatmap-1col"]
     _ = locals()
     del _
 
@@ -172,15 +170,15 @@ def mesh_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[cli_common.RewardCfg, base.RewardModel],
-    x_reward_cfgs: Iterable[cli_common.RewardCfg],
-    y_reward_cfgs: Iterable[cli_common.RewardCfg],
+    models: Mapping[common.RewardCfg, base.RewardModel],
+    x_reward_cfgs: Iterable[common.RewardCfg],
+    y_reward_cfgs: Iterable[common.RewardCfg],
     distance_kind: str,
     discount: float,
     n_obs: int,
     n_act: int,
     direct_p: int,
-) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], float]:
+) -> Mapping[Tuple[common.RewardCfg, common.RewardCfg], float]:
     """
     Computes approximation of canon distance by discretizing and then using a tabular method.
 
@@ -238,9 +236,9 @@ def sample_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[cli_common.RewardCfg, base.RewardModel],
-    x_reward_cfgs: Iterable[cli_common.RewardCfg],
-    y_reward_cfgs: Iterable[cli_common.RewardCfg],
+    models: Mapping[common.RewardCfg, base.RewardModel],
+    x_reward_cfgs: Iterable[common.RewardCfg],
+    y_reward_cfgs: Iterable[common.RewardCfg],
     distance_kind: str,
     discount: float,
     visitations_factory: datasets.TransitionsFactory,
@@ -248,7 +246,7 @@ def sample_canon(
     n_samples: int,
     n_mean_samples: int,
     direct_p: int,
-) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], float]:
+) -> Mapping[Tuple[common.RewardCfg, common.RewardCfg], float]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -303,17 +301,17 @@ def sample_canon(
 def compute_vals(
     env_name: str,
     discount: float,
-    x_reward_cfgs: Iterable[cli_common.RewardCfg],
-    y_reward_cfgs: Iterable[cli_common.RewardCfg],
+    x_reward_cfgs: Iterable[common.RewardCfg],
+    y_reward_cfgs: Iterable[common.RewardCfg],
     obs_sample_dist_factory: datasets.SampleDistFactory,
     act_sample_dist_factory: datasets.SampleDistFactory,
     sample_dist_factory_kwargs: Dict[str, Any],
     n_seeds: int,
-    aggregate_fns: Mapping[str, cli_common.AggregateFn],
+    aggregate_fns: Mapping[str, common.AggregateFn],
     computation_kind: str,
     data_root: str,
     log_dir: str,
-) -> cli_common.AggregatedDistanceReturn:
+) -> common.AggregatedDistanceReturn:
     """Computes values for dissimilarity heatmaps.
 
     Args:
@@ -337,8 +335,8 @@ def compute_vals(
     os.makedirs(log_dir, exist_ok=True)  # fail early if we cannot write to log_dir
 
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
-    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
+    x_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
     logger.info("Loading models")
     g = tf.Graph()
@@ -346,7 +344,7 @@ def compute_vals(
         sess = tf.Session()
         with sess.as_default():
             reward_cfgs = x_reward_cfgs + y_reward_cfgs
-            models = cli_common.load_models(env_name, reward_cfgs, discount)
+            models = common.load_models(env_name, reward_cfgs, discount)
 
     if computation_kind == "sample":
         computation_fn = sample_canon

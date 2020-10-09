@@ -28,16 +28,16 @@ import tensorflow as tf
 
 from evaluating_rewards import datasets
 from evaluating_rewards.analysis import util
-from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
 from evaluating_rewards.distances import tabular
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
+from evaluating_rewards.scripts.distance import common
 
 erc_distance_ex = sacred.Experiment("erc_distance")
 logger = logging.getLogger("evaluating_rewards.scripts.distance.erc")
 
 
-cli_common.make_config(erc_distance_ex)
+common.make_config(erc_distance_ex)
 
 
 @erc_distance_ex.config
@@ -93,18 +93,6 @@ def dataset_noise_rollouts(env_name):
 
 
 @erc_distance_ex.named_config
-def paper():
-    """Figures suitable for inclusion in paper.
-
-    By convention we present them to the right, so turn off y-axis labels.
-    """
-    styles = ["paper", "heatmap", "heatmap-3col", "heatmap-3col-right", "tex"]
-    heatmap_kwargs = {"yaxis": False, "vmin": 0.0, "vmax": 1.0}
-    _ = locals()
-    del _
-
-
-@erc_distance_ex.named_config
 def high_precision():
     """Compute tight confidence intervals for publication quality figures.
 
@@ -120,21 +108,19 @@ def high_precision():
 def test():
     """Intended for debugging/unit test."""
     n_episodes = 64
-    # Do not include "tex" in styles here: this will break on CI.
-    styles = ["paper", "heatmap-1col"]
     _ = locals()
     del _
 
 
 @erc_distance_ex.capture
 def correlation_distance(
-    returns: Mapping[cli_common.RewardCfg, np.ndarray],
-    x_reward_cfgs: Iterable[cli_common.RewardCfg],
-    y_reward_cfgs: Iterable[cli_common.RewardCfg],
+    returns: Mapping[common.RewardCfg, np.ndarray],
+    x_reward_cfgs: Iterable[common.RewardCfg],
+    y_reward_cfgs: Iterable[common.RewardCfg],
     corr_kind: str,
     n_bootstrap: int,
     alpha: float = 0.95,
-) -> cli_common.AggregatedDistanceReturn:
+) -> common.AggregatedDistanceReturn:
     """
     Computes correlation of episode returns.
 
@@ -177,11 +163,11 @@ def correlation_distance(
 
 def batch_compute_returns(
     trajectory_callable: datasets.TrajectoryCallable,
-    models: Mapping[cli_common.RewardCfg, base.RewardModel],
+    models: Mapping[common.RewardCfg, base.RewardModel],
     discount: float,
     n_episodes: int,
     batch_episodes: int = 256,
-) -> Mapping[cli_common.RewardCfg, np.ndarray]:
+) -> Mapping[common.RewardCfg, np.ndarray]:
     """Compute returns under `models` of trajectories sampled from `trajectory_callable`.
 
     Batches the trajectory sampling and computation to efficiently compute returns with a small
@@ -219,14 +205,14 @@ def batch_compute_returns(
 def compute_vals(
     env_name: str,
     discount: float,
-    x_reward_cfgs: Iterable[cli_common.RewardCfg],
-    y_reward_cfgs: Iterable[cli_common.RewardCfg],
+    x_reward_cfgs: Iterable[common.RewardCfg],
+    y_reward_cfgs: Iterable[common.RewardCfg],
     trajectory_factory: datasets.TrajectoryFactory,
     trajectory_factory_kwargs: Dict[str, Any],
     n_episodes: int,
     data_root: str,
     log_dir: str,
-) -> cli_common.AggregatedDistanceReturn:
+) -> common.AggregatedDistanceReturn:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
@@ -246,8 +232,8 @@ def compute_vals(
     os.makedirs(log_dir, exist_ok=True)  # fail early if we cannot write to log_dir
 
     # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
-    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
+    x_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
     logger.info("Loading models")
     g = tf.Graph()
@@ -255,7 +241,7 @@ def compute_vals(
         sess = tf.Session()
         with sess.as_default():
             reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
-            models = cli_common.load_models(env_name, reward_cfgs, discount)
+            models = common.load_models(env_name, reward_cfgs, discount)
 
     logger.info("Sampling trajectories")
     with trajectory_factory(**trajectory_factory_kwargs) as trajectory_callable:

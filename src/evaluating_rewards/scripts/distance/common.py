@@ -21,20 +21,16 @@ import functools
 import itertools
 import logging
 import os
-import pickle
-from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Iterable, Mapping, Sequence, Tuple
 
 import gym
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import sacred
 import scipy.stats
 from stable_baselines.common import vec_env
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import stylesheets, util, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
+from evaluating_rewards.analysis import util
 from evaluating_rewards.rewards import base
 
 AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
@@ -135,136 +131,6 @@ def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
     return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
 
 
-def oned_mapping_to_series(dissimilarity: Mapping[Tuple[RewardCfg, RewardCfg], float]) -> pd.Series:
-    """Converts mapping to a series.
-
-    Args:
-        dissimilarity: A mapping from pairs of configurations to a float.
-
-    Returns:
-        A Series with a multi-index based on the configurations.
-    """
-    dissimilarity = {
-        (xtype, xpath, ytype, ypath): v
-        for ((xtype, xpath), (ytype, ypath)), v in dissimilarity.items()
-    }
-    dissimilarity = pd.Series(dissimilarity)
-    dissimilarity.index.names = [
-        "target_reward_type",
-        "target_reward_path",
-        "source_reward_type",
-        "source_reward_path",
-    ]
-    return dissimilarity
-
-
-def twod_mapping_to_multi_series(
-    aggregated: Mapping[Any, Mapping[str, float]]
-) -> Mapping[str, pd.Series]:
-    """Converts a nested mapping to a mapping of dissimilarity series.
-
-    Args:
-        aggregated: A mapping over a mapping from strings to sequences of floats.
-
-    Returns:
-        A mapping from strings to MultiIndex series returned by `oned_mapping_to_series`,
-        after transposing the inner and outer keys of the mapping.
-    """
-    keys = list(set((tuple(v.keys()) for v in aggregated.values())))
-    assert len(keys) == 1
-    vals = {outer_key: {k: v[outer_key] for k, v in aggregated.items()} for outer_key in keys[0]}
-    return {k: oned_mapping_to_series(v) for k, v in vals.items()}
-
-
-# TODO(adam): dead code?
-def apply_multi_aggregate_fns(
-    dissimilarities: Mapping[Any, Sequence[float]],
-    aggregate_fns: Mapping[str, AggregateFn],
-) -> Mapping[str, pd.Series]:
-    """Aggregate dissimilarities: e.g. confidence intervals.
-
-    Args:
-        dissimilarities: Mapping over sequences of floats.
-        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
-
-    Returns:
-         A mapping from string keys of the form "{aggregator}_{inner}" to Series, where
-         `aggregator` is the name of the aggregation function and `inner` is a key returned
-         by the aggregator.
-    """
-    res = {}
-    for name, aggregate_fn in aggregate_fns.items():
-        logger.info(f"Aggregating {name}")
-        aggregated = {k: aggregate_fn(v) for k, v in dissimilarities.items()}
-        aggregated = twod_mapping_to_multi_series(aggregated)
-        res.update({f"{name}_{k}": v for k, v in aggregated.items()})
-    return res
-
-
-def _usual_label_fstr(distance_name: str) -> str:
-    return "{transform_start}" + distance_name + "({args}){transform_end}"
-
-
-def pretty_label_fstr(name: str) -> str:
-    """Abbreviation to use in legend for colorbar."""
-    if name.endswith("lower"):
-        return _usual_label_fstr("D_L")
-    elif name.endswith("upper"):
-        return _usual_label_fstr("D_U")
-    elif name.endswith("middle") or name.endswith("mean"):
-        return _usual_label_fstr(r"\bar{{D}}")
-    elif name.endswith("width"):
-        return _usual_label_fstr("D_W")
-    elif name.endswith("sd"):
-        return r"\mathrm{{SD}}\left[" + _usual_label_fstr("D") + r"\right]"
-    else:
-        return _usual_label_fstr("D")
-
-
-def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
-    """Plot heatmap for each dissimilarity series in `dissimilarities`.
-
-    Args:
-        dissimilarities: Mapping from strings to dissimilarity matrix.
-        kwargs: Passed through to `heatmaps.compact_heatmaps`.
-
-    Returns:
-        A Mapping from strings to figures, with keys "{k}_{mask}" for mask config `mask` from
-        `dissimilarities[k]`.
-    """
-    figs = {}
-    for name, val in dissimilarities.items():
-        label_fstr = pretty_label_fstr(name)
-        extra_kwargs = {}
-        if name.endswith("width"):
-            extra_kwargs["fmt"] = functools.partial(heatmaps.short_e, precision=0)
-        heatmap_figs = heatmaps.compact_heatmaps(
-            dissimilarity=val, label_fstr=label_fstr, **kwargs, **extra_kwargs
-        )
-        figs.update({f"{name}_{k}": v for k, v in heatmap_figs.items()})
-    return figs
-
-
-def save_artifacts(
-    vals: Mapping[str, pd.Series], styles: Iterable[str], log_dir: str, heatmap_kwargs, save_kwargs
-) -> None:
-    """Plot a figure for each entry in `vals`, and save figures as well as pickled raw values."""
-    os.makedirs(log_dir, exist_ok=True)
-
-    logging.info("Saving raw values")
-    with open(os.path.join(log_dir, "vals.pkl"), "wb") as f:
-        pickle.dump(vals, f)
-
-    logging.info("Plotting figures")
-    with stylesheets.setup_styles(styles):
-        try:
-            figs = multi_heatmaps(vals, **heatmap_kwargs)
-            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-        finally:
-            for fig in figs:
-                plt.close(fig)
-
-
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",
     "ForwardWithCtrl",
@@ -277,16 +143,6 @@ POINT_MASS_KINDS = [
     f"evaluating_rewards/PointMass{label}-v0"
     for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
 ]
-
-
-def _norm(args: Iterable[str]) -> bool:
-    return any(reward_masks.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
-
-
-def _hopper_activity(args: Iterable[str]) -> bool:
-    pattern = r"evaluating_rewards/(.*)(GroundTruth|Backflip)(.*)"
-    repl = reward_masks.replace(pattern, r"\1\2")(args)
-    return len(set(repl)) > 1 and reward_masks.no_ctrl(args)
 
 
 def _hardcoded_model_cfg(kinds: Iterable[str]) -> Iterable[RewardCfg]:
@@ -344,23 +200,6 @@ def make_config(
         del _
 
     @experiment.config
-    def figure_config(kinds):
-        """Defaults for figure parameters."""
-        heatmap_kwargs = {
-            "masks": {"all": [reward_masks.always_true]},
-            "after_plot": heatmaps.horizontal_ticks,
-        }
-        if kinds and "order" not in heatmap_kwargs:
-            heatmap_kwargs["order"] = kinds
-        styles = ["paper", "heatmap", "heatmap-3col", "tex"]
-        styles_for_env = []
-        save_kwargs = {
-            "fmt": "pdf",
-        }
-        _ = locals()
-        del _
-
-    @experiment.config
     def aggregate_fns(aggregate_kinds, n_bootstrap, alpha):
         """Make a mapping of aggregate functions of kinds `subset` with specified parameters.
 
@@ -378,29 +217,10 @@ def make_config(
             aggregate_fns["sample"] = sample_mean_sd
 
     @experiment.named_config
-    def large():
-        """Large output size, high precision."""
-        styles = ["paper", "heatmap", "heatmap-1col", "tex"]
-        heatmap_kwargs = {
-            "fmt": heatmaps.short_e,
-            "cbar_kws": dict(fraction=0.05),
-        }
-        _ = locals()
-        del _
-
-    @experiment.named_config
     def point_mass():
         """Heatmaps for evaluating_rewards/PointMass* environments."""
         env_name = "evaluating_rewards/PointMassLine-v0"
         kinds = POINT_MASS_KINDS
-        heatmap_kwargs = {}
-        heatmap_kwargs["masks"] = {
-            "diagonal": [reward_masks.zero, reward_masks.same],
-            "control": [reward_masks.zero, reward_masks.control],
-            "dense_vs_sparse": [reward_masks.zero, reward_masks.sparse_or_dense],
-            "norm": [reward_masks.zero, reward_masks.same, _norm],
-            "all": [reward_masks.always_true],
-        }
         _ = locals()
         del _
 
@@ -412,9 +232,6 @@ def make_config(
             "imitation/PointMazeGroundTruthWithCtrl-v0",
             "imitation/PointMazeGroundTruthNoCtrl-v0",
         ]
-        heatmap_kwargs = {
-            "masks": {"all": [reward_masks.always_true]},  # "all" is still only 2x2
-        }
         _ = locals()
         del _
 
@@ -450,16 +267,6 @@ def make_config(
             f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
             for suffix in MUJOCO_STANDARD_ORDER
         ]
-        heatmap_kwargs = {
-            "masks": {
-                "diagonal": [reward_masks.zero, reward_masks.same],
-                "control": [reward_masks.zero, reward_masks.control],
-                "direction": [reward_masks.zero, reward_masks.direction],
-                "no_ctrl": [reward_masks.zero, reward_masks.no_ctrl],
-                "all": [reward_masks.always_true],
-            },
-        }
-        styles_for_env = ["small-labels"]  # downscale emoji labels slightly
         _ = locals()
         del _
 
@@ -473,58 +280,5 @@ def make_config(
             for prefix, suffix in itertools.product(activities, MUJOCO_STANDARD_ORDER)
         ]
         del activities
-        heatmap_kwargs = {}
-        heatmap_kwargs["masks"] = {
-            "diagonal": [reward_masks.zero, reward_masks.same],
-            "control": [reward_masks.zero, reward_masks.control],
-            "direction": [reward_masks.zero, reward_masks.direction],
-            "no_ctrl": [reward_masks.zero, reward_masks.no_ctrl],
-            "different_activity": [reward_masks.zero, _hopper_activity],
-            "all": [reward_masks.always_true],
-        }
-        styles_for_env = ["tiny-font"]
         _ = locals()
         del _
-
-
-def make_main(
-    experiment, compute_vals: Callable[[], Mapping[str, pd.Series]]
-):  # pylint: disable=unused-variable
-    """Insert entry-point into script to produce dissimilarity heatmaps.
-
-    Args:
-        experiment: The Sacred experiment to modify.
-        compute_vals: An thunk (no-argument callable) which, when called, computes a mapping from
-            keywords to Series containing dissimilarity values to plot. It is usually a Sacred
-            capture function which obtains its other arguments from the Sacred config implicitly.
-    """
-
-    @experiment.main
-    def main(
-        vals_path: Optional[str],
-        styles: Iterable[str],
-        styles_for_env: Iterable[str],
-        log_dir: str,
-        heatmap_kwargs: Mapping[str, Any],
-        save_kwargs: Mapping[str, Any],
-    ) -> None:
-        """
-        Entry-point into script to produce dissimilarity heatmaps.
-
-        Args:
-            vals_path: path to precomputed values to plot. Skips everything but plotting logic
-                if specified. This is useful for regenerating figures in a new style from old data.
-            styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
-            styles_for_env: additional styles to apply, set by environment-specific configs.
-            log_dir: directory to write figures and other logging to.
-            heatmap_kwargs: passed through to `analysis.compact_heatmaps`.
-            save_kwargs: passed through to `analysis.save_figs`.
-        """
-        if vals_path is not None:
-            with open(vals_path, "rb") as f:
-                vals = pickle.load(f)
-        else:
-            vals = compute_vals()
-
-        styles = list(styles) + list(styles_for_env)
-        save_artifacts(vals, styles, log_dir, heatmap_kwargs, save_kwargs)
