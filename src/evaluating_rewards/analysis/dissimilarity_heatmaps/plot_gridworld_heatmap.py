@@ -90,10 +90,11 @@ def paper():
         "dirt_path",
         "cliff_walk",
     ]
-    heatmap_kwargs = {  # noqa: F841  pylint:disable=unused-variable
-        "order": reward_subset,
+    heatmap_kwargs = {
         "cbar_kws": dict(fraction=0.05),
     }
+    _ = locals()
+    del _
 
 
 @plot_gridworld_heatmap_ex.config

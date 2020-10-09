@@ -43,7 +43,6 @@ transitions_datasets.make_config(plot_heatmap_ex)
 @plot_heatmap_ex.config
 def default_config():
     """Default configuration values."""
-    # TODO(adam): remove data_root?
     data_root = serialize.get_output_dir()  # where values are read from
     log_root = serialize.get_output_dir()  # where results are written to
     vals_path = None
@@ -169,16 +168,26 @@ def twod_mapping_to_multi_series(
         A mapping from strings to MultiIndex series returned by `oned_mapping_to_series`,
         after transposing the inner and outer keys of the mapping.
     """
-    # keys = list(set((tuple(v.keys()) for v in aggregated.values())))
-    # assert len(keys) == 1
-    # vals = {outer_key: {k: v[outer_key] for k, v in aggregated.items()} for outer_key in keys[0]}
     return {k: oned_mapping_to_series(v) for k, v in aggregated.items()}
+
+
+def select_subset(
+    vals: common.AggregatedDistanceReturn,
+    x_reward_cfgs: Iterable[common.RewardCfg],
+    y_reward_cfgs: Iterable[common.RewardCfg],
+) -> common.AggregatedDistanceReturn:
+    return {
+        k: {(x, y): v[(x, y)] for x in x_reward_cfgs for y in y_reward_cfgs}
+        for k, v in vals.items()
+    }
 
 
 @plot_heatmap_ex.main
 def plot_heatmap(
     vals_path: str,
-    # TODO(adam): do we need both styles?
+    data_root: str,
+    x_reward_cfgs: Iterable[common.RewardCfg],
+    y_reward_cfgs: Iterable[common.RewardCfg],
     styles: Iterable[str],
     styles_for_env: Iterable[str],
     log_dir: str,
@@ -187,10 +196,14 @@ def plot_heatmap(
     save_kwargs: Mapping[str, Any],
 ) -> None:
     """Plots a figure for each entry loaded from `vals_path`."""
+    # TODO(adam): document args in docstring
+    # Sacred turns our tuples into lists :(, undo
+    x_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+    y_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
     # TODO(adam): how to specify vals_path?
     with open(vals_path, "rb") as f:
         aggregated_raw = pickle.load(f)
-
+    aggregated_raw = select_subset(aggregated_raw, x_reward_cfgs, y_reward_cfgs)
     aggregated = twod_mapping_to_multi_series(aggregated_raw)
 
     logging.info("Plotting figures")

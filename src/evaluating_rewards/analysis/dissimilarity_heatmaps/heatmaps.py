@@ -131,7 +131,7 @@ def median_seeds(series: pd.Series) -> pd.Series:
     seeds = [name for name in series.index.names if "seed" in name]
     if seeds:
         non_seeds = [name for name in series.index.names if name not in seeds]
-        series = series.groupby(non_seeds).median()
+        series = series.groupby(non_seeds, sort=False).median()
     return series
 
 
@@ -150,7 +150,6 @@ short_fmt = functools.partial(short_e, precision=1)
 def compact_heatmaps(
     dissimilarity: pd.Series,
     masks: Mapping[str, Iterable[results.FilterFn]],
-    order: Optional[Iterable[str]] = None,
     after_plot: Callable[[], None] = lambda: None,
     **kwargs: Dict[str, Any],
 ) -> Mapping[str, plt.Figure]:
@@ -162,7 +161,6 @@ def compact_heatmaps(
                 source_reward_{type,path}, and any number of seed indices.
                 source_reward_path, if present, is rewritten into source_reward_type
                 and a seed index.
-        order: The order to plot the source and reward types.
         masks: A mapping from strings to collections of filter functions. Any
                 (source, reward) pair not matching one of these filters is masked
                 from the figure.
@@ -176,21 +174,6 @@ def compact_heatmaps(
     dissimilarity = dissimilarity.copy()
     dissimilarity = transformations.rewrite_index(dissimilarity)
     dissimilarity = compact(dissimilarity)
-
-    if order is not None:
-        source_order = list(order)
-        if serialize.ZERO_REWARD in dissimilarity.index.get_level_values("source_reward_type"):
-            if serialize.ZERO_REWARD not in source_order:
-                source_order.append(serialize.ZERO_REWARD)
-
-        # This is meant to reorder, but not remove anything.
-        idx = dissimilarity.index
-        source_matches = set(source_order) == set(idx.get_level_values("source_reward_type"))
-        target_matches = set(order) == set(idx.get_level_values("target_reward_type"))
-        assert source_matches, "reindexing would remove/add elements not just change order"
-        assert target_matches, "reindexing would remove/add elements not just change order"
-        dissimilarity = dissimilarity.reindex(index=source_order, level="source_reward_type")
-        dissimilarity = dissimilarity.reindex(index=order, level="target_reward_type")
 
     figs = {}
     for name, matchings in masks.items():

@@ -28,20 +28,6 @@ from evaluating_rewards.scripts.distance import common
 logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.cli_common")
 
 
-MUJOCO_STANDARD_ORDER = [
-    "ForwardNoCtrl",
-    "ForwardWithCtrl",
-    "BackwardNoCtrl",
-    "BackwardWithCtrl",
-]
-
-
-POINT_MASS_KINDS = [
-    f"evaluating_rewards/PointMass{label}-v0"
-    for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
-]
-
-
 def _norm(args: Iterable[str]) -> bool:
     return any(reward_masks.match("evaluating_rewards/PointMassGroundTruth-v0")(args))
 
