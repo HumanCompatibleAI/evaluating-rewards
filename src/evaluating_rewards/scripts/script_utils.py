@@ -55,7 +55,7 @@ def add_sacred_symlink(observer: observers.FileStorageObserver):
 
 
 def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):
-    """Returns a main function for experiment."""
+    """Main function for experiment."""
 
     sacred_dir = os.path.join(serialize.get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)

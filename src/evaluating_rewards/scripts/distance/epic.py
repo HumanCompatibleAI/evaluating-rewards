@@ -297,55 +297,41 @@ def sample_canon(
     return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1)
 
 
-@epic_distance_ex.main
+@epic_distance_ex.capture
 def compute_vals(
-    env_name: str,
-    discount: float,
+    models: Mapping[common.RewardCfg, base.RewardModel],
     x_reward_cfgs: Iterable[common.RewardCfg],
     y_reward_cfgs: Iterable[common.RewardCfg],
+    g: tf.Graph,
+    sess: tf.Session,
     obs_sample_dist_factory: datasets.SampleDistFactory,
     act_sample_dist_factory: datasets.SampleDistFactory,
     sample_dist_factory_kwargs: Dict[str, Any],
     n_seeds: int,
     aggregate_fns: Mapping[str, common.AggregateFn],
     computation_kind: str,
-    data_root: str,
     log_dir: str,
 ) -> common.AggregatedDistanceReturn:
     """Computes values for dissimilarity heatmaps.
 
     Args:
-        env_name: the name of the environment to plot rewards for.
+        models: a mapping from reward configurations to loaded reward models.
+            An entry should be present for each value in `x_reward_cfgs` and `y_reward_cfgs`.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        g: TensorFlow graph `models` are loaded into.
+        sess: TensorFlow session `g` belongs to.
         obs_sample_dist_factory: factory to generate sample distribution for observations.
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
         n_seeds: the number of independent seeds to take.
         aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
-        n_bootstrap: the number of bootstrap samples to take when computing the mean of seeds.
-        alpha: percentile confidence interval.
         computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
-        data_root: directory to load learned reward models from.
         log_dir: directory to save data to.
 
     Returns:
         A mapping of keywords to Series.
     """
-    os.makedirs(log_dir, exist_ok=True)  # fail early if we cannot write to log_dir
-
-    # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
-    y_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
-
-    logger.info("Loading models")
-    g = tf.Graph()
-    with g.as_default():
-        sess = tf.Session()
-        with sess.as_default():
-            reward_cfgs = x_reward_cfgs + y_reward_cfgs
-            models = common.load_models(env_name, reward_cfgs, discount)
-
     if computation_kind == "sample":
         computation_fn = sample_canon
     elif computation_kind == "mesh":
@@ -377,12 +363,10 @@ def compute_vals(
                 outer_key = f"{name}_{k2}"
                 vals.setdefault(outer_key, {})[k] = v2
 
-    logger.info("Saving aggregated values")
-    with open(os.path.join(log_dir, "aggregated.pkl"), "wb") as f:
-        pickle.dump(vals, f)
-
     return vals
 
+
+common.make_main(epic_distance_ex, compute_vals)
 
 if __name__ == "__main__":
     script_utils.experiment_main(epic_distance_ex, "epic_distance")

@@ -201,47 +201,38 @@ def batch_compute_returns(
     return returns
 
 
-@erc_distance_ex.main
+@erc_distance_ex.capture
 def compute_vals(
-    env_name: str,
-    discount: float,
+    models: Mapping[common.RewardCfg, base.RewardModel],
     x_reward_cfgs: Iterable[common.RewardCfg],
     y_reward_cfgs: Iterable[common.RewardCfg],
+    g: tf.Graph,
+    sess: tf.Session,
+    discount: float,
     trajectory_factory: datasets.TrajectoryFactory,
     trajectory_factory_kwargs: Dict[str, Any],
     n_episodes: int,
-    data_root: str,
     log_dir: str,
 ) -> common.AggregatedDistanceReturn:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
-        env_name: the name of the environment to plot rewards for.
-        discount: the discount rate for shaping.
+        models: a mapping from reward configurations to loaded reward models.
+            An entry should be present for each value in `x_reward_cfgs` and `y_reward_cfgs`.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        g: TensorFlow graph `models` are loaded into.
+        sess: TensorFlow session `g` belongs to.
+        discount: the discount rate for shaping.
         trajectory_factory: factory to generate trajectories.
         trajectory_factory_kwargs: arguments to pass to the factory.
         n_episodes: the number of episodes to compute correlation over.
-        data_root: directory to load learned reward models from.
         log_dir: directory to save data to.
 
     Returns:
         A mapping of keywords to Series.
     """
-    os.makedirs(log_dir, exist_ok=True)  # fail early if we cannot write to log_dir
-
-    # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
-    y_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
-
-    logger.info("Loading models")
-    g = tf.Graph()
-    with g.as_default():
-        sess = tf.Session()
-        with sess.as_default():
-            reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
-            models = common.load_models(env_name, reward_cfgs, discount)
+    del g  # we don't need the graph
 
     logger.info("Sampling trajectories")
     with trajectory_factory(**trajectory_factory_kwargs) as trajectory_callable:
@@ -256,6 +247,8 @@ def compute_vals(
         pickle.dump(aggregated, f)
     return aggregated
 
+
+common.make_main(erc_distance_ex, compute_vals)
 
 if __name__ == "__main__":
     script_utils.experiment_main(erc_distance_ex, "erc_distance")

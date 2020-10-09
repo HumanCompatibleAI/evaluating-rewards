@@ -21,6 +21,7 @@ import functools
 import itertools
 import logging
 import os
+import pickle
 from typing import Callable, Iterable, Mapping, Sequence, Tuple
 
 import gym
@@ -28,6 +29,7 @@ import numpy as np
 import sacred
 import scipy.stats
 from stable_baselines.common import vec_env
+import tensorflow as tf
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis import util
@@ -37,7 +39,7 @@ AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
 RewardCfg = Tuple[str, str]  # (type, path)
 AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
 
-logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.cli_common")
+logger = logging.getLogger("evaluating_rewards.scripts.distance.common")
 
 
 def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:
@@ -282,3 +284,71 @@ def make_config(
         del activities
         _ = locals()
         del _
+
+
+def make_main(
+    experiment: sacred.Experiment, compute_vals: Callable[..., AggregatedDistanceReturn]
+):  # pylint: disable=unused-variable
+    """Helper to make main function for distance scripts.
+
+    Specifically, register a main function with `experiment` that:
+      - Creates log directory.
+      - Canonicalizes reward configurations.
+      - Loads reward models.
+      - Calls `compute_vals`.
+      - Saves the return value of `compute_vals` in the log directory.
+
+    Args:
+        experiment: the Sacred experiment to register a main function with.
+        compute_vals: a function to call to compute the distances.
+            It is always passed a graph `g`, session `sess`, loaded models `models`, and
+            canonicalized reward configurations `x_reward_cfgs` and `y_reward_cfgs`.
+            It is typically defined with `@experiment.capture` in which case Sacred will
+            fill in other parameters defined in the configuration.
+      -"""
+
+    @experiment.main
+    def main(
+        env_name: str,
+        discount: float,
+        x_reward_cfgs: Iterable[RewardCfg],
+        y_reward_cfgs: Iterable[RewardCfg],
+        data_root: str,
+        log_dir: str,
+    ) -> AggregatedDistanceReturn:
+        """Wrapper around `compute_vals` performing common setup and saving logic.
+
+        Args:
+            env_name: the name of the environment to compare rewards for.
+            x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+            y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+            data_root: directory to load learned reward models from.
+            log_dir: directory to save data to.
+
+        Returns:
+            The values returned by `compute_vals`.
+        """
+        os.makedirs(log_dir, exist_ok=True)  # fail early if we cannot write to log_dir
+
+        # Sacred turns our tuples into lists :(, undo
+        x_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
+        y_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
+
+        logger.info("Loading models")
+        g = tf.Graph()
+        with g.as_default():
+            sess = tf.Session()
+            with sess.as_default():
+                reward_cfgs = x_reward_cfgs + y_reward_cfgs
+                models = load_models(env_name, reward_cfgs, discount)
+
+        # If `compute_vals` is a capture function, then Sacred will fill in other parameters
+        aggregated = compute_vals(
+            g=g, sess=sess, models=models, x_reward_cfgs=x_reward_cfgs, y_reward_cfgs=y_reward_cfgs
+        )
+
+        logger.info("Saving aggregated values")
+        with open(os.path.join(log_dir, "aggregated.pkl"), "wb") as f:
+            pickle.dump(aggregated, f)
+
+        return aggregated
