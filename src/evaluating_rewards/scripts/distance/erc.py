@@ -112,6 +112,46 @@ def test():
     del _
 
 
+def batch_compute_returns(
+    trajectory_callable: datasets.TrajectoryCallable,
+    models: Mapping[common.RewardCfg, base.RewardModel],
+    discount: float,
+    n_episodes: int,
+    batch_episodes: int = 256,
+) -> Mapping[common.RewardCfg, np.ndarray]:
+    """Compute returns under `models` of trajectories sampled from `trajectory_callable`.
+
+    Batches the trajectory sampling and computation to efficiently compute returns with a small
+    memory footprint.
+
+    Args:
+        trajectory_callable: a callable which generates trajectories.
+        models: a mapping from configurations to reward models.
+        discount: the discount rate for computing returns.
+        n_episodes: the total number of episodes to sample from `trajectory_callable`.
+        batch_episodes: the maximum number of episodes to sample at a time. This should be chosen
+            to be large enough to take advantage of parallel evaluation of the reward models and to
+            amortize the fixed costs inherent in trajectory sampling. However, it should be small
+            enough that a batch of trajectories does not take up too much memory. The default of
+            256 episodes works well in most environments, but might need to be decreased for
+            environments with very large trajectories (e.g. image observations, long episodes).
+    """
+    logger.info("Computing returns")
+    remainder = n_episodes
+    returns = collections.defaultdict(list)
+    while remainder > 0:
+        batch_size = min(batch_episodes, remainder)
+
+        logger.info(f"Computing returns for {batch_size} episodes: {remainder}/{n_episodes} left")
+        trajectories = trajectory_callable(rollout.min_episodes(batch_size))
+        rets = base.compute_return_of_models(models, trajectories, discount)
+        for k, v in rets.items():
+            returns[k].append(v)
+        remainder -= batch_size
+    returns = {k: np.concatenate(v) for k, v in returns.items()}
+    return returns
+
+
 @erc_distance_ex.capture
 def correlation_distance(
     returns: Mapping[common.RewardCfg, np.ndarray],
@@ -161,46 +201,6 @@ def correlation_distance(
     return {k2: {k1: v2} for k1, v1 in distance.items() for k2, v2 in v1.items()}
 
 
-def batch_compute_returns(
-    trajectory_callable: datasets.TrajectoryCallable,
-    models: Mapping[common.RewardCfg, base.RewardModel],
-    discount: float,
-    n_episodes: int,
-    batch_episodes: int = 256,
-) -> Mapping[common.RewardCfg, np.ndarray]:
-    """Compute returns under `models` of trajectories sampled from `trajectory_callable`.
-
-    Batches the trajectory sampling and computation to efficiently compute returns with a small
-    memory footprint.
-
-    Args:
-        trajectory_callable: a callable which generates trajectories.
-        models: a mapping from configurations to reward models.
-        discount: the discount rate for computing returns.
-        n_episodes: the total number of episodes to sample from `trajectory_callable`.
-        batch_episodes: the maximum number of episodes to sample at a time. This should be chosen
-            to be large enough to take advantage of parallel evaluation of the reward models and to
-            amortize the fixed costs inherent in trajectory sampling. However, it should be small
-            enough that a batch of trajectories does not take up too much memory. The default of
-            256 episodes works well in most environments, but might need to be decreased for
-            environments with very large trajectories (e.g. image observations, long episodes).
-    """
-    logger.info("Computing returns")
-    remainder = n_episodes
-    returns = collections.defaultdict(list)
-    while remainder > 0:
-        batch_size = min(batch_episodes, remainder)
-
-        logger.info(f"Computing returns for {batch_size} episodes: {remainder}/{n_episodes} left")
-        trajectories = trajectory_callable(rollout.min_episodes(batch_size))
-        rets = base.compute_return_of_models(models, trajectories, discount)
-        for k, v in rets.items():
-            returns[k].append(v)
-        remainder -= batch_size
-    returns = {k: np.concatenate(v) for k, v in returns.items()}
-    return returns
-
-
 @erc_distance_ex.capture
 def compute_vals(
     models: Mapping[common.RewardCfg, base.RewardModel],
@@ -239,12 +239,13 @@ def compute_vals(
         with sess.as_default():
             returns = batch_compute_returns(trajectory_callable, models, discount, n_episodes)
 
+    logger.info("Saving episode returns")
+    with open(os.path.join(log_dir, "returns.pkl"), "wb") as f:
+        pickle.dump(returns, f)
+
     aggregated = correlation_distance(  # pylint:disable=no-value-for-parameter
         returns, x_reward_cfgs, y_reward_cfgs
     )
-    logger.info("Saving aggregated values")
-    with open(os.path.join(log_dir, "aggregated.pkl"), "wb") as f:
-        pickle.dump(aggregated, f)
     return aggregated
 
 

@@ -350,7 +350,6 @@ def compute_vals(
                 for k, v in dissimilarity.items():
                     dissimilarities.setdefault(k, []).append(v)
 
-    # TODO(adam): support loading these dissimilarities and re-aggregating?
     logger.info("Saving raw dissimilarities")
     with open(os.path.join(log_dir, "dissimilarities.pkl"), "wb") as f:
         pickle.dump(dissimilarities, f)
