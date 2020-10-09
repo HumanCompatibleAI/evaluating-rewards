@@ -14,7 +14,7 @@
 
 """Helper methods for computing NPEC distance.
 
-See also `scripts.npec_comparison` and `analysis.dissimilarity_heatmaps.plot_npec_heatmap`.
+See also `scripts.npec_comparison` and `analysis.distances.plot_npec_heatmap`.
 """
 import collections
 import functools

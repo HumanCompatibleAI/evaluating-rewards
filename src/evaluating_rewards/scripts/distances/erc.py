@@ -31,10 +31,10 @@ from evaluating_rewards.analysis import util
 from evaluating_rewards.distances import tabular
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.distance import common
+from evaluating_rewards.scripts.distances import common
 
 erc_distance_ex = sacred.Experiment("erc_distance")
-logger = logging.getLogger("evaluating_rewards.scripts.distance.erc")
+logger = logging.getLogger("evaluating_rewards.scripts.distances.erc")
 
 
 common.make_config(erc_distance_ex)

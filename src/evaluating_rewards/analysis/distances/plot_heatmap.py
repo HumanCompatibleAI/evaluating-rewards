@@ -18,7 +18,7 @@ import functools
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping, Tuple
+from typing import Any, Iterable, Mapping
 
 from imitation.util import util as imit_util
 from matplotlib import pyplot as plt
@@ -27,10 +27,10 @@ import sacred
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis import stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
+from evaluating_rewards.analysis.distances import aggregated, heatmaps, reward_masks
 from evaluating_rewards.distances import transitions_datasets
 from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.distance import common
+from evaluating_rewards.scripts.distances import common
 
 plot_heatmap_ex = sacred.Experiment("plot_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_heatmap")
@@ -251,39 +251,6 @@ def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mappin
     return figs
 
 
-def oned_mapping_to_series(
-    vals: Mapping[Tuple[common.RewardCfg, common.RewardCfg], float]
-) -> pd.Series:
-    """Converts mapping to a series.
-
-    Args:
-        vals: A mapping from pairs of configurations to a float.
-
-    Returns:
-        A Series with a multi-index based on the configurations.
-    """
-    vals = {(xtype, xpath, ytype, ypath): v for ((xtype, xpath), (ytype, ypath)), v in vals.items()}
-    vals = pd.Series(vals)
-    vals.index.names = [
-        "target_reward_type",
-        "target_reward_path",
-        "source_reward_type",
-        "source_reward_path",
-    ]
-    return vals
-
-
-def select_subset(
-    vals: common.AggregatedDistanceReturn,
-    x_reward_cfgs: Iterable[common.RewardCfg],
-    y_reward_cfgs: Iterable[common.RewardCfg],
-) -> common.AggregatedDistanceReturn:
-    return {
-        k: {(x, y): v[(x, y)] for x in x_reward_cfgs for y in y_reward_cfgs}
-        for k, v in vals.items()
-    }
-
-
 @plot_heatmap_ex.main
 def plot_heatmap(
     vals_path: str,
@@ -301,7 +268,7 @@ def plot_heatmap(
 
     Args:
         vals_path: path to pickle file containing aggregated values.
-            Produced by `evaluating_rewards.scripts.distance.*`.
+            Produced by `evaluating_rewards.scripts.distances.*`.
         data_root: the root with respect to canonicalize reward configurations.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
@@ -318,9 +285,9 @@ def plot_heatmap(
 
     # TODO(adam): how to specify vals_path?
     with open(vals_path, "rb") as f:
-        aggregated_raw = pickle.load(f)
-    aggregated_raw = select_subset(aggregated_raw, x_reward_cfgs, y_reward_cfgs)
-    aggregated = {k: oned_mapping_to_series(v) for k, v in aggregated_raw.items()}
+        raw = pickle.load(f)
+    raw = aggregated.select_subset(raw, x_reward_cfgs, y_reward_cfgs)
+    vals = {k: aggregated.oned_mapping_to_series(v) for k, v in raw.items()}
 
     logging.info("Plotting figures")
     vals_dir = os.path.dirname(vals_path)
@@ -332,7 +299,7 @@ def plot_heatmap(
     styles = list(styles) + list(styles_for_env)
     with stylesheets.setup_styles(styles):
         try:
-            figs = multi_heatmaps(aggregated, **heatmap_kwargs)
+            figs = multi_heatmaps(vals, **heatmap_kwargs)
             visualize.save_figs(log_dir, figs.items(), **save_kwargs)
         finally:
             for fig in figs:

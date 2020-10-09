@@ -30,10 +30,10 @@ from evaluating_rewards.analysis import util
 from evaluating_rewards.distances import epic_sample, tabular, transitions_datasets
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.distance import common
+from evaluating_rewards.scripts.distances import common
 
 epic_distance_ex = sacred.Experiment("epic_distance")
-logger = logging.getLogger("evaluating_rewards.scripts.distance.epic")
+logger = logging.getLogger("evaluating_rewards.scripts.distances.epic")
 
 
 common.make_config(epic_distance_ex)

@@ -20,13 +20,10 @@ import pandas as pd
 import sacred
 import xarray as xr
 
-from evaluating_rewards.analysis.dissimilarity_heatmaps import (
-    plot_gridworld_heatmap,
-    table_combined,
-)
+from evaluating_rewards.analysis.distances import plot_gridworld_heatmap, table_combined
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
 from evaluating_rewards.scripts import npec_comparison, train_preferences, train_regress
-from evaluating_rewards.scripts.distance import epic, erc
+from evaluating_rewards.scripts.distances import epic, erc
 from tests import common
 
 
@@ -93,7 +90,7 @@ EXPERIMENTS = {
 
 
 def add_epic_experiments():
-    """Add testcases for `evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap`."""
+    """Add testcases for `evaluating_rewards.analysis.distances.plot_epic_heatmap`."""
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
             EXPERIMENTS[f"epic_distance_{computation_kind}_{distance_kind}"] = (

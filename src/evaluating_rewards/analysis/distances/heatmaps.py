@@ -25,7 +25,7 @@ import seaborn as sns
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis import results
-from evaluating_rewards.analysis.dissimilarity_heatmaps import reward_masks, transformations
+from evaluating_rewards.analysis.distances import reward_masks, transformations
 
 
 def short_e(x: float, precision: int = 2) -> str:

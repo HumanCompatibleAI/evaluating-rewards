@@ -26,7 +26,7 @@ import sacred
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis import gridworld_rewards, stylesheets, visualize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import heatmaps, reward_masks
+from evaluating_rewards.analysis.distances import heatmaps, reward_masks
 from evaluating_rewards.analysis.reward_figures import gridworld_reward_heatmap
 from evaluating_rewards.distances import tabular
 from evaluating_rewards.scripts import script_utils

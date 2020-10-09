@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Configurations for dissimilarity_heatmaps heatmaps.
+"""Configurations for distances heatmaps.
 
 Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatmap}`.
 """
@@ -38,7 +38,7 @@ AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
 RewardCfg = Tuple[str, str]  # (type, path)
 AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
 
-logger = logging.getLogger("evaluating_rewards.scripts.distance.common")
+logger = logging.getLogger("evaluating_rewards.scripts.distances.common")
 
 
 def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
@@ -223,7 +223,6 @@ def make_config(
     @experiment.config
     def default_config():
         """Default configuration values."""
-        env_name = "evaluating_rewards/PointMassLine-v0"
         data_root = serialize.get_output_dir()  # where models are read from
         log_root = serialize.get_output_dir()  # where results are written to
         n_bootstrap = 1000  # number of bootstrap samples
@@ -231,12 +230,13 @@ def make_config(
         aggregate_kinds = ("bootstrap", "studentt", "sample")
         vals_path = None
 
-        # Reward configurations: models to compare
-        x_reward_cfgs = None
-        y_reward_cfgs = None
-
         _ = locals()
         del _
+
+    @experiment.config
+    def point_mass_as_default():
+        """Default to PointMass as environment so scripts work out-of-the-box."""
+        locals().update(**COMMON_CONFIGS["point_mass"])
 
     @experiment.config
     def aggregate_fns(aggregate_kinds, n_bootstrap, alpha):
@@ -301,6 +301,8 @@ def make_main(
         Returns:
             The values returned by `compute_vals`.
         """
+        os.makedirs(log_dir, exist_ok=True)  # fail fast if log directory cannot be created
+
         # Sacred turns our tuples into lists :(, undo
         x_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
         y_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
