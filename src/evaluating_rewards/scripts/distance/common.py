@@ -328,8 +328,6 @@ def make_main(
         Returns:
             The values returned by `compute_vals`.
         """
-        os.makedirs(log_dir, exist_ok=True)  # fail early if we cannot write to log_dir
-
         # Sacred turns our tuples into lists :(, undo
         x_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
         y_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
@@ -347,8 +345,9 @@ def make_main(
             g=g, sess=sess, models=models, x_reward_cfgs=x_reward_cfgs, y_reward_cfgs=y_reward_cfgs
         )
 
-        logger.info("Saving aggregated values")
-        with open(os.path.join(log_dir, "aggregated.pkl"), "wb") as f:
+        aggregated_path = os.path.join(log_dir, "aggregated.pkl")
+        logger.info(f"Saving aggregated values to {aggregated_path}")
+        with open(aggregated_path, "wb") as f:
             pickle.dump(aggregated, f)
 
         return aggregated

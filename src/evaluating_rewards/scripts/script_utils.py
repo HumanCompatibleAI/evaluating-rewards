@@ -44,7 +44,7 @@ def add_sacred_symlink(observer: observers.FileStorageObserver):
         if observer.dir is None:
             # In a command like print_config that produces no permanent output
             return
-        os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(log_dir)
         # Use relative paths so we can mount the output directory at different paths
         # (e.g. when copying across machines).
         symlink_path = os.path.join(log_dir, "sacred")

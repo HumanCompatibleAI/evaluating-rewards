@@ -230,7 +230,7 @@ def compute_vals(
         log_dir: directory to save data to.
 
     Returns:
-        A mapping of keywords to Series.
+        Nested dictionary of aggregated distance values.
     """
     del g  # we don't need the graph
 

@@ -29,8 +29,7 @@ import sacred
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis.dissimilarity_heatmaps import (
     cli_common,
-    plot_epic_heatmap,
-    plot_erc_heatmap,
+    plot_heatmap,
     plot_npec_heatmap,
 )
 from evaluating_rewards.scripts import script_utils
@@ -276,8 +275,7 @@ def table_combined(
     else:
         experiments = {
             "npec": plot_npec_heatmap.plot_npec_heatmap_ex,
-            "epic": plot_epic_heatmap.plot_epic_heatmap_ex,
-            "erc": plot_erc_heatmap.plot_erc_heatmap_ex,
+            "epic": plot_heatmap.plot_heatmap_ex,
         }
 
         # Merge named_configs. We have a faux top-level layer to workaround Sacred being unable to

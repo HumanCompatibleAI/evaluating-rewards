@@ -330,7 +330,7 @@ def compute_vals(
         log_dir: directory to save data to.
 
     Returns:
-        A mapping of keywords to Series.
+        Nested dictionary of aggregated distance values.
     """
     if computation_kind == "sample":
         computation_fn = sample_canon
