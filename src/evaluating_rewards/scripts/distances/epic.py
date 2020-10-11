@@ -128,18 +128,6 @@ def logging_config(
 
 
 @epic_distance_ex.named_config
-def paper():
-    """Figures suitable for inclusion in paper.
-
-    By convention we present them to the left, so turn off colorbar.
-    """
-    styles = ["paper", "heatmap", "heatmap-3col", "heatmap-3col-left", "tex"]
-    heatmap_kwargs = {"cbar": False, "vmin": 0.0, "vmax": 1.0}
-    _ = locals()
-    del _
-
-
-@epic_distance_ex.named_config
 def high_precision():
     """Compute tight confidence intervals for publication quality figures.
 

@@ -90,7 +90,7 @@ EXPERIMENTS = {
 
 
 def add_epic_experiments():
-    """Add testcases for `evaluating_rewards.analysis.distances.plot_epic_heatmap`."""
+    """Add testcases for `evaluating_rewards.distances.epic`."""
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
             EXPERIMENTS[f"epic_distance_{computation_kind}_{distance_kind}"] = (
