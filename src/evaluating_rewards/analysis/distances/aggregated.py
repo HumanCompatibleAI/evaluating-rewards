@@ -48,6 +48,11 @@ def select_subset(
     x_reward_cfgs: Iterable[common.RewardCfg],
     y_reward_cfgs: Iterable[common.RewardCfg],
 ) -> common.AggregatedDistanceReturn:
+    """Selects the subset of `vals` specified in `{x,y}_reward_cfgs`.
+
+    Raises:
+        KeyError if (x,y) not present in `vals` for any pair from `{x,y}_reward_cfgs`.
+    """
     return {
         k: {(x, y): v[(x, y)] for x in x_reward_cfgs for y in y_reward_cfgs}
         for k, v in vals.items()

@@ -157,11 +157,6 @@ def point_mass():
 def point_maze():
     """Heatmaps for imitation/PointMaze{Left,Right}-v0 environments."""
     locals().update(**common.COMMON_CONFIGS["point_maze"])
-    heatmap_kwargs = {
-        "masks": {"all": [reward_masks.always_true]},  # "all" is still only 2x2
-    }
-    _ = locals()
-    del _
 
 
 @plot_heatmap_ex.named_config
@@ -284,6 +279,8 @@ def plot_heatmap(
     y_reward_cfgs = [common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
     # TODO(adam): how to specify vals_path?
+    # Take `vals_path` relative to data_root, if `vals_path` not absolute
+    vals_path = os.path.join(data_root, vals_path)
     with open(vals_path, "rb") as f:
         raw = pickle.load(f)
     raw = aggregated.select_subset(raw, x_reward_cfgs, y_reward_cfgs)

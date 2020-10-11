@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Configurations for distances heatmaps.
-
-Shared between `evaluating_rewards.analysis.{plot_epic_heatmap,plot_canon_heatmap}`.
-"""
+"""Helper methods and common configurations for scripts to evaluate distances between rewards."""
 
 import functools
 import logging
