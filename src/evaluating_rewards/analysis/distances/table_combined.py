@@ -158,7 +158,10 @@ def test():
     }
     pretty_models = {
         "GT": ("evaluating_rewards/PointMassGroundTruth-v0", "dummy"),
-        "Sparse": ("evaluating_rewards/PointMassSparseWithCtrl-v0", "dummy"),
+        "SparseCtrl": ("evaluating_rewards/PointMassSparseWithCtrl-v0", "dummy"),
+        "SparseNoCtrl": ("evaluating_rewards/PointMassSparseNoCtrl-v0", "dummy"),
+        "DenseCtrl": ("evaluating_rewards/PointMassDenseWithCtrl-v0", "dummy"),
+        "DenseNoCtrl": ("evaluating_rewards/PointMassDenseNoCtrl-v0", "dummy"),
     }
     _ = locals()
     del _
