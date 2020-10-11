@@ -14,6 +14,7 @@
 
 """Smoke tests for CLI scripts."""
 
+import itertools
 import tempfile
 
 import pandas as pd
@@ -38,7 +39,8 @@ def _check_reward_cfg_type(o: object) -> None:
     assert isinstance(o[1], str)
 
 
-def _check_aggregated_type(run: sacred.experiment.Run) -> None:
+def _check_distance_return(run: sacred.experiment.Run) -> None:
+    """Sanity checks return type and keys present."""
     assert isinstance(run.result, dict)
     key = next(iter(run.result.keys()))
     assert isinstance(key, str)
@@ -52,17 +54,22 @@ def _check_aggregated_type(run: sacred.experiment.Run) -> None:
     inner_val = next(iter(val.values()))
     assert isinstance(inner_val, float)
 
+    x_reward_cfgs = [tuple(x) for x in run.config["x_reward_cfgs"]]
+    y_reward_cfgs = [tuple(y) for y in run.config["y_reward_cfgs"]]
+    expected_keys = set(itertools.product(x_reward_cfgs, y_reward_cfgs))
+    assert set(val.keys()) == expected_keys
+
 
 EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates, extra_check
-    "epic_distance": (epic.epic_distance_ex, dict, [], {}, _check_aggregated_type),
-    "erc_distance": (erc.erc_distance_ex, dict, [], {}, _check_aggregated_type),
+    "epic_distance": (epic.epic_distance_ex, dict, [], {}, _check_distance_return),
+    "erc_distance": (erc.erc_distance_ex, dict, [], {}, _check_distance_return),
     "erc_distance_spearman": (
         erc.erc_distance_ex,
         dict,
         [],
         {"corr_kind": "spearman"},
-        _check_aggregated_type,
+        _check_distance_return,
     ),
     "plot_gridworld_heatmap": (
         plot_gridworld_heatmap.plot_gridworld_heatmap_ex,
@@ -109,7 +116,7 @@ def add_epic_experiments():
                 dict,
                 [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
-                _check_aggregated_type,
+                _check_distance_return,
             )
     NAMED_CONFIGS = {
         "random_spaces": ["point_mass", "sample_from_env_spaces"],
@@ -125,7 +132,7 @@ def add_epic_experiments():
             dict,
             named_configs,
             {},
-            _check_aggregated_type,
+            _check_distance_return,
         )
 
 
