@@ -29,7 +29,7 @@ import xarray as xr
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis import stylesheets, visualize
-from evaluating_rewards.experiments import point_mass_analysis
+from evaluating_rewards.analysis.reward_figures import point_mass
 from evaluating_rewards.scripts import script_utils
 
 plot_pm_reward_ex = sacred.Experiment("plot_pm_reward")
@@ -160,7 +160,7 @@ def plot_pm_reward(
             for model_name, reward_type, reward_path in models:
                 reward_path = os.path.join(data_root, reward_path)
                 model = serialize.load_reward(reward_type, reward_path, venv, discount)
-                reward = point_mass_analysis.evaluate_reward_model(
+                reward = point_mass.evaluate_reward_model(
                     env,
                     model,
                     goal=goal,
@@ -179,7 +179,7 @@ def plot_pm_reward(
             reward = xr.Dataset(rewards).to_array("model")
             kwargs = {"row": "Model"}
 
-        fig = point_mass_analysis.plot_reward(reward, cbar_kwargs=cbar_kwargs, **kwargs)
+        fig = point_mass.plot_reward(reward, cbar_kwargs=cbar_kwargs, **kwargs)
         save_path = os.path.join(log_dir, "reward")
         visualize.save_fig(save_path, fig, fmt=fmt)
 

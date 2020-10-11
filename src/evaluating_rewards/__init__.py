@@ -23,7 +23,7 @@ def _register_policies():
     from imitation.policies import serialize  # pylint:disable=import-outside-toplevel
 
     serialize.policy_registry.register(
-        "mixture", indirect="evaluating_rewards.policies:load_mixture"
+        "mixture", indirect="evaluating_rewards.policies.mixture:load_mixture"
     )
 
 

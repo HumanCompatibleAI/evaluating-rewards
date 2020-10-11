@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to make table of EPIC, NPEC and ERC distance from a reward model."""
+"""CLI script to make table of EPIC, NPEC and ERC distances from a reward model."""
 
 import copy
 import functools
@@ -27,16 +27,13 @@ import pandas as pd
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis.dissimilarity_heatmaps import (
-    cli_common,
-    plot_epic_heatmap,
-    plot_erc_heatmap,
-    plot_npec_heatmap,
-)
+from evaluating_rewards.analysis.distances import aggregated
+from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
+from evaluating_rewards.scripts.distances import epic, erc
 
 table_combined_ex = sacred.Experiment("table_combined")
-logger = logging.getLogger("evaluating_rewards.analysis.dissimilarity_heatmaps.table_combined")
+logger = logging.getLogger("evaluating_rewards.analysis.distances.table_combined")
 
 
 @table_combined_ex.config
@@ -161,7 +158,10 @@ def test():
     }
     pretty_models = {
         "GT": ("evaluating_rewards/PointMassGroundTruth-v0", "dummy"),
-        "Sparse": ("evaluating_rewards/PointMassSparseWithCtrl-v0", "dummy"),
+        "SparseCtrl": ("evaluating_rewards/PointMassSparseWithCtrl-v0", "dummy"),
+        "SparseNoCtrl": ("evaluating_rewards/PointMassSparseNoCtrl-v0", "dummy"),
+        "DenseCtrl": ("evaluating_rewards/PointMassDenseWithCtrl-v0", "dummy"),
+        "DenseNoCtrl": ("evaluating_rewards/PointMassDenseNoCtrl-v0", "dummy"),
     }
     _ = locals()
     del _
@@ -180,7 +180,7 @@ def common_keys(vals: Iterable[Mapping[K, Any]]) -> Set[K]:
 def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
-    pretty_models: Mapping[str, cli_common.RewardCfg],
+    pretty_models: Mapping[str, common_config.RewardCfg],
     experiment_kinds: Tuple[str],
 ) -> str:
     """Generate LaTeX table.
@@ -191,7 +191,9 @@ def make_table(
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration is given the associated short label.
     """
-    distance_order = ("epic", "npec", "erc")
+    # TODO(adam): re-enable npec
+    # distance_order = ("epic", "npec", "erc")
+    distance_order = ("epic", "erc")
 
     y_reward_cfgs = common_keys(vals.values())
 
@@ -246,7 +248,7 @@ def table_combined(
     named_configs: Mapping[str, Mapping[str, Any]],
     target_reward_type: str,
     target_reward_path: str,
-    pretty_models: Mapping[str, cli_common.RewardCfg],
+    pretty_models: Mapping[str, common_config.RewardCfg],
 ) -> None:
     """Entry-point into CLI script.
 
@@ -275,9 +277,10 @@ def table_combined(
             vals = pickle.load(f)
     else:
         experiments = {
-            "npec": plot_npec_heatmap.plot_npec_heatmap_ex,
-            "epic": plot_epic_heatmap.plot_epic_heatmap_ex,
-            "erc": plot_erc_heatmap.plot_erc_heatmap_ex,
+            # TODO(adam): add npec once new version implemented
+            # "npec": plot_npec_heatmap.plot_npec_heatmap_ex,
+            "epic": epic.epic_distance_ex,
+            "erc": erc.erc_distance_ex,
         }
 
         # Merge named_configs. We have a faux top-level layer to workaround Sacred being unable to
@@ -298,7 +301,7 @@ def table_combined(
                 local_named += tuple(named_configs.get(ex_key, {}).get(kind, ()))
 
                 runs[(ex_key, kind)] = ex.run(
-                    "compute_vals", config_updates=local_update, named_configs=local_named
+                    config_updates=local_update, named_configs=local_named
                 )
         vals = {k: run.result for k, run in runs.items()}
 
@@ -310,6 +313,7 @@ def table_combined(
     vals_filtered = {}
     for model_key, outer_val in vals.items():
         for table_key, inner_val in outer_val.items():
+            inner_val = aggregated.oned_mapping_to_series(inner_val)
             vals_filtered.setdefault(table_key, {})[model_key] = inner_val.xs(
                 key=(target_reward_type, target_reward_path),
                 level=("target_reward_type", "target_reward_path"),

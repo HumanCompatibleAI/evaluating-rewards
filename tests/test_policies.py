@@ -21,7 +21,7 @@ from imitation.policies import base
 import numpy as np
 import pytest
 
-from evaluating_rewards import policies
+from evaluating_rewards.policies import mixture
 
 
 class FixedPolicy(base.HardCodedPolicy):  # pylint:disable=abstract-method
@@ -40,14 +40,14 @@ class FixedPolicy(base.HardCodedPolicy):  # pylint:disable=abstract-method
 def test_policy_mixture_validation():
     """Test input validation."""
     with pytest.raises(ValueError):
-        policies.PolicyMixture(pols=[])
+        mixture.PolicyMixture(pols=[])
 
     space1 = gym.spaces.Box(low=0, high=1, shape=(2,))
     space2 = gym.spaces.Box(low=0, high=1, shape=(3,))
     space3 = gym.spaces.Box(low=0, high=0.5, shape=(2,))
 
     with pytest.raises(ValueError):
-        policies.PolicyMixture(
+        mixture.PolicyMixture(
             pols=[
                 FixedPolicy(space1, space1, [0.5, 0.5]),
                 FixedPolicy(space2, space2, [0.5, 0.5, 0.5]),
@@ -55,7 +55,7 @@ def test_policy_mixture_validation():
         )
 
     with pytest.raises(ValueError):
-        policies.PolicyMixture(
+        mixture.PolicyMixture(
             pols=[FixedPolicy(space1, space1, [0.5, 0.5]), FixedPolicy(space2, space3, [0.5, 0.5])]
         )
 
@@ -66,12 +66,12 @@ def _test_policy_mixture(
     space = gym.spaces.Box(low=0, high=1, shape=(2,))
     fixed_vals = np.array([space.sample() for _ in range(n_policies)])
     pols = [FixedPolicy(space, space, fixed_val) for fixed_val in fixed_vals]
-    mixture = policies.PolicyMixture(pols=pols, transition_p=transition_p)
+    mix = mixture.PolicyMixture(pols=pols, transition_p=transition_p)
 
     actions = []
     for _ in range(n_steps):
         obs = np.array([space.sample() for _ in range(batch_size)])
-        action, _, _, _ = mixture.step(obs)
+        action, _, _, _ = mix.step(obs)
         assert action.shape[0] == batch_size
         action = np.unique(action, axis=0)
         assert action.shape[0] == 1

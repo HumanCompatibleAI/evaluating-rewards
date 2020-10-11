@@ -12,19 +12,112 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Sacred configs for transitions factories.
+"""Sacred configs for distances: transitions factories and per-environment reward configurations.
 
-Used in `plot_epic_heatmap` and `npec_comparison`.
+Used in `plot_heatmap`, `epic`, `npec` and `erc`.
 """
 
 import functools
+import os
+from typing import Any, Iterable, Mapping, Tuple
 
 import sacred
 
 from evaluating_rewards import datasets
 
+RewardCfg = Tuple[str, str]  # (type, path)
+AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
 
-def make_config(
+
+def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
+    cfgs = [(kind, "dummy") for kind in kinds]
+    res = dict(kwargs)
+    res.update({"x_reward_cfgs": cfgs, "y_reward_cfgs": cfgs})
+    return res
+
+
+POINT_MASS_KINDS = [
+    f"evaluating_rewards/PointMass{label}-v0"
+    for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
+]
+POINT_MAZE_KINDS = [
+    "imitation/PointMazeGroundTruthWithCtrl-v0",
+    "imitation/PointMazeGroundTruthNoCtrl-v0",
+]
+MUJOCO_STANDARD_ORDER = [
+    "ForwardNoCtrl",
+    "ForwardWithCtrl",
+    "BackwardNoCtrl",
+    "BackwardWithCtrl",
+]
+COMMON_CONFIGS = {
+    # evaluating_rewards/PointMass* environments.
+    "point_mass": _config_from_kinds(
+        POINT_MASS_KINDS, env_name="evaluating_rewards/PointMassLine-v0"
+    ),
+    # imitation/PointMaze{Left,Right}-v0 environments
+    "point_maze": _config_from_kinds(
+        POINT_MAZE_KINDS,
+        env_name="imitation/PointMazeLeft-v0",
+    ),
+    # Compare rewards learned in imitation/PointMaze* to the ground-truth reward
+    "point_maze_learned": {
+        "env_name": "imitation/PointMazeLeftVel-v0",
+        "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
+        "y_reward_cfgs": [
+            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
+            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
+            (
+                "imitation/RewardNet_unshaped-v0",
+                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
+            ),
+            (
+                "imitation/RewardNet_unshaped-v0",
+                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
+            ),
+        ],
+    },
+    # seals version of the canonical MuJoCo tasks
+    "half_cheetah": _config_from_kinds(
+        [
+            f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
+            for suffix in MUJOCO_STANDARD_ORDER
+        ],
+        env_name="seals/HalfCheetah-v0",
+    ),
+    "hopper": _config_from_kinds(
+        kinds=[
+            f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
+            for prefix in ["GroundTruth", "Backflip"]
+            for suffix in MUJOCO_STANDARD_ORDER
+        ],
+        env_name="seals/Hopper-v0",
+    ),
+}
+
+
+def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:
+    """Canonicalize path in reward configuration.
+
+    Specifically, join paths with the `data_root`, unless they are the special "dummy" path.
+    Also ensure the return value is actually of type RewardCfg: it is forgiving and will accept
+    any iterable pair as input `reward_cfg`. This is important since Sacred has the bad habit of
+    converting tuples to lists in configurations.
+
+    Args:
+        reward_cfg: Iterable of configurations to canonicailze.
+        data_root: The root to join paths to.
+
+    Returns:
+        Canonicalized RewardCfg.
+    """
+    kind, path = reward_cfg
+    if path != "dummy":
+        path = os.path.join(data_root, path)
+    return (kind, path)
+
+
+def make_transitions_configs(
     experiment: sacred.Experiment,
 ):  # pylint: disable=unused-variable
     """Add configs to experiment `ex` related to visitations transition factory."""
@@ -57,7 +150,7 @@ def make_config(
 
         WARNING: you *must* override the `sample_dist` *before* calling this,
         e.g. by using `sample_from_env_spaces`, since by default it is marginalized from
-        visitation factory, leading to an infinite recursion.
+        `visitations_factory`, leading to an infinite recursion.
         """
         visitations_factory = datasets.transitions_factory_iid_from_sample_dist_factory
         visitations_factory_kwargs = {

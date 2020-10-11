@@ -21,7 +21,7 @@ from typing import Any, Dict, Mapping, Type
 import sacred
 
 from evaluating_rewards import datasets, serialize
-from evaluating_rewards.distances import npec, transitions_datasets
+from evaluating_rewards.distances import common_config, npec
 from evaluating_rewards.rewards import comparisons
 from evaluating_rewards.scripts import regress_utils, script_utils
 
@@ -141,7 +141,7 @@ def test():
 
 
 script_utils.add_logging_config(npec_comparison_ex, "model_comparison")
-transitions_datasets.make_config(npec_comparison_ex)
+common_config.make_transitions_configs(npec_comparison_ex)
 
 
 @npec_comparison_ex.main

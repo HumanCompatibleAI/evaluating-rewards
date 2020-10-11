@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Custom policies and policy wrappers."""
+"""Mixture of policies."""
 
 import contextlib
 from typing import Iterable, Iterator

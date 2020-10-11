@@ -17,30 +17,30 @@
 import collections
 import logging
 import os
-from typing import Any, Dict, Iterable, Mapping, Tuple
+import pickle
+from typing import Any, Dict, Iterable, Mapping
 
 from imitation.data import rollout
 from imitation.util import util as imit_util
 import numpy as np
-import pandas as pd
 import sacred
 import tensorflow as tf
 
 from evaluating_rewards import datasets
 from evaluating_rewards.analysis import util
-from evaluating_rewards.analysis.dissimilarity_heatmaps import cli_common
-from evaluating_rewards.distances import tabular
+from evaluating_rewards.distances import common_config, tabular
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
+from evaluating_rewards.scripts.distances import common
 
-plot_erc_heatmap_ex = sacred.Experiment("plot_erc_heatmap")
-logger = logging.getLogger("evaluating_rewards.analysis.plot_erc_heatmap")
-
-
-cli_common.make_config(plot_erc_heatmap_ex)
+erc_distance_ex = sacred.Experiment("erc_distance")
+logger = logging.getLogger("evaluating_rewards.scripts.distances.erc")
 
 
-@plot_erc_heatmap_ex.config
+common.make_config(erc_distance_ex)
+
+
+@erc_distance_ex.config
 def default_config(env_name):
     """Default configuration values."""
     computation_kind = "sample"  # either "sample" or "mesh"
@@ -59,13 +59,11 @@ def default_config(env_name):
     }
     dataset_tag = "random"
 
-    # Figure parameters
-    heatmap_kwargs = {}
     _ = locals()
     del _
 
 
-@plot_erc_heatmap_ex.config
+@erc_distance_ex.config
 def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
@@ -79,7 +77,7 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
     )
 
 
-@plot_erc_heatmap_ex.named_config
+@erc_distance_ex.named_config
 def dataset_noise_rollouts(env_name):
     """Add noise to rollouts of serialized policy."""
     trajectory_factory = datasets.trajectory_factory_noise_wrapper
@@ -94,19 +92,7 @@ def dataset_noise_rollouts(env_name):
     del _
 
 
-@plot_erc_heatmap_ex.named_config
-def paper():
-    """Figures suitable for inclusion in paper.
-
-    By convention we present them to the right, so turn off y-axis labels.
-    """
-    styles = ["paper", "heatmap", "heatmap-3col", "heatmap-3col-right", "tex"]
-    heatmap_kwargs = {"yaxis": False, "vmin": 0.0, "vmax": 1.0}
-    _ = locals()
-    del _
-
-
-@plot_erc_heatmap_ex.named_config
+@erc_distance_ex.named_config
 def high_precision():
     """Compute tight confidence intervals for publication quality figures.
 
@@ -118,25 +104,63 @@ def high_precision():
     del _
 
 
-@plot_erc_heatmap_ex.named_config
+@erc_distance_ex.named_config
 def test():
     """Intended for debugging/unit test."""
     n_episodes = 64
-    # Do not include "tex" in styles here: this will break on CI.
-    styles = ["paper", "heatmap-1col"]
     _ = locals()
     del _
 
 
-@plot_erc_heatmap_ex.capture
+def batch_compute_returns(
+    trajectory_callable: datasets.TrajectoryCallable,
+    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    discount: float,
+    n_episodes: int,
+    batch_episodes: int = 256,
+) -> Mapping[common_config.RewardCfg, np.ndarray]:
+    """Compute returns under `models` of trajectories sampled from `trajectory_callable`.
+
+    Batches the trajectory sampling and computation to efficiently compute returns with a small
+    memory footprint.
+
+    Args:
+        trajectory_callable: a callable which generates trajectories.
+        models: a mapping from configurations to reward models.
+        discount: the discount rate for computing returns.
+        n_episodes: the total number of episodes to sample from `trajectory_callable`.
+        batch_episodes: the maximum number of episodes to sample at a time. This should be chosen
+            to be large enough to take advantage of parallel evaluation of the reward models and to
+            amortize the fixed costs inherent in trajectory sampling. However, it should be small
+            enough that a batch of trajectories does not take up too much memory. The default of
+            256 episodes works well in most environments, but might need to be decreased for
+            environments with very large trajectories (e.g. image observations, long episodes).
+    """
+    logger.info("Computing returns")
+    remainder = n_episodes
+    returns = collections.defaultdict(list)
+    while remainder > 0:
+        batch_size = min(batch_episodes, remainder)
+
+        logger.info(f"Computing returns for {batch_size} episodes: {remainder}/{n_episodes} left")
+        trajectories = trajectory_callable(rollout.min_episodes(batch_size))
+        rets = base.compute_return_of_models(models, trajectories, discount)
+        for k, v in rets.items():
+            returns[k].append(v)
+        remainder -= batch_size
+    returns = {k: np.concatenate(v) for k, v in returns.items()}
+    return returns
+
+
+@erc_distance_ex.capture
 def correlation_distance(
-    returns: Mapping[cli_common.RewardCfg, np.ndarray],
-    x_reward_cfgs: Iterable[cli_common.RewardCfg],
-    y_reward_cfgs: Iterable[cli_common.RewardCfg],
+    returns: Mapping[common_config.RewardCfg, np.ndarray],
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
     corr_kind: str,
     n_bootstrap: int,
     alpha: float = 0.95,
-) -> Mapping[Tuple[cli_common.RewardCfg, cli_common.RewardCfg], Mapping[str, float]]:
+) -> common_config.AggregatedDistanceReturn:
     """
     Computes correlation of episode returns.
 
@@ -173,100 +197,64 @@ def correlation_distance(
         }
 
     logger.info("Computing distance")
-    return util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
+    distance = util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
+
+    vals = {}
+    for k1, v1 in distance.items():
+        for k2, v2 in v1.items():
+            vals.setdefault(k2, {})[k1] = v2
+    return vals
 
 
-def batch_compute_returns(
-    trajectory_callable: datasets.TrajectoryCallable,
-    models: Mapping[cli_common.RewardCfg, base.RewardModel],
-    discount: float,
-    n_episodes: int,
-    batch_episodes: int = 256,
-) -> Mapping[cli_common.RewardCfg, np.ndarray]:
-    """Compute returns under `models` of trajectories sampled from `trajectory_callable`.
-
-    Batches the trajectory sampling and computation to efficiently compute returns with a small
-    memory footprint.
-
-    Args:
-        trajectory_callable: a callable which generates trajectories.
-        models: a mapping from configurations to reward models.
-        discount: the discount rate for computing returns.
-        n_episodes: the total number of episodes to sample from `trajectory_callable`.
-        batch_episodes: the maximum number of episodes to sample at a time. This should be chosen
-            to be large enough to take advantage of parallel evaluation of the reward models and to
-            amortize the fixed costs inherent in trajectory sampling. However, it should be small
-            enough that a batch of trajectories does not take up too much memory. The default of
-            256 episodes works well in most environments, but might need to be decreased for
-            environments with very large trajectories (e.g. image observations, long episodes).
-    """
-    logger.info("Computing returns")
-    remainder = n_episodes
-    returns = collections.defaultdict(list)
-    while remainder > 0:
-        batch_size = min(batch_episodes, remainder)
-
-        logger.info(f"Computing returns for {batch_size} episodes: {remainder}/{n_episodes} left")
-        trajectories = trajectory_callable(rollout.min_episodes(batch_size))
-        rets = base.compute_return_of_models(models, trajectories, discount)
-        for k, v in rets.items():
-            returns[k].append(v)
-        remainder -= batch_size
-    returns = {k: np.concatenate(v) for k, v in returns.items()}
-    return returns
-
-
-@plot_erc_heatmap_ex.command
+@erc_distance_ex.capture
 def compute_vals(
-    env_name: str,
+    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
+    g: tf.Graph,
+    sess: tf.Session,
     discount: float,
-    x_reward_cfgs: Iterable[cli_common.RewardCfg],
-    y_reward_cfgs: Iterable[cli_common.RewardCfg],
     trajectory_factory: datasets.TrajectoryFactory,
     trajectory_factory_kwargs: Dict[str, Any],
     n_episodes: int,
-    data_root: str,
-) -> Mapping[str, pd.Series]:
+    log_dir: str,
+) -> common_config.AggregatedDistanceReturn:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
-        env_name: the name of the environment to plot rewards for.
-        discount: the discount rate for shaping.
+        models: a mapping from reward configurations to loaded reward models.
+            An entry should be present for each value in `x_reward_cfgs` and `y_reward_cfgs`.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        g: TensorFlow graph `models` are loaded into.
+        sess: TensorFlow session `g` belongs to.
+        discount: the discount rate for shaping.
         trajectory_factory: factory to generate trajectories.
         trajectory_factory_kwargs: arguments to pass to the factory.
         n_episodes: the number of episodes to compute correlation over.
-        data_root: directory to load learned reward models from.
+        log_dir: directory to save data to.
 
     Returns:
-        A mapping of keywords to Series.
+        Nested dictionary of aggregated distance values.
     """
-    # Sacred turns our tuples into lists :(, undo
-    x_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
-    y_reward_cfgs = [cli_common.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
-
-    logger.info("Loading models")
-    g = tf.Graph()
-    with g.as_default():
-        sess = tf.Session()
-        with sess.as_default():
-            reward_cfgs = list(x_reward_cfgs) + list(y_reward_cfgs)
-            models = cli_common.load_models(env_name, reward_cfgs, discount)
+    del g  # we don't need the graph
 
     logger.info("Sampling trajectories")
     with trajectory_factory(**trajectory_factory_kwargs) as trajectory_callable:
         with sess.as_default():
             returns = batch_compute_returns(trajectory_callable, models, discount, n_episodes)
 
+    logger.info("Saving episode returns")
+    with open(os.path.join(log_dir, "returns.pkl"), "wb") as f:
+        pickle.dump(returns, f)
+
     aggregated = correlation_distance(  # pylint:disable=no-value-for-parameter
         returns, x_reward_cfgs, y_reward_cfgs
     )
-    return cli_common.twod_mapping_to_multi_series(aggregated)
+    return aggregated
 
 
-cli_common.make_main(plot_erc_heatmap_ex, compute_vals)
-
+common.make_main(erc_distance_ex, compute_vals)
 
 if __name__ == "__main__":
-    script_utils.experiment_main(plot_erc_heatmap_ex, "plot_erc_heatmap")
+    script_utils.experiment_main(erc_distance_ex, "erc_distance")

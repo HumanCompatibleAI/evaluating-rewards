@@ -14,63 +14,109 @@
 
 """Smoke tests for CLI scripts."""
 
+import itertools
 import tempfile
 
 import pandas as pd
+import sacred
 import xarray as xr
 
-from evaluating_rewards.analysis.dissimilarity_heatmaps import (
-    plot_epic_heatmap,
-    plot_erc_heatmap,
+from evaluating_rewards.analysis.distances import (
     plot_gridworld_heatmap,
-    plot_npec_heatmap,
+    plot_heatmap,
     table_combined,
 )
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
 from evaluating_rewards.scripts import npec_comparison, train_preferences, train_regress
+from evaluating_rewards.scripts.distances import epic, erc
 from tests import common
 
+
+def _check_reward_cfg_type(o: object) -> None:
+    assert isinstance(o, tuple)
+    assert len(o) == 2
+    assert isinstance(o[0], str)
+    assert isinstance(o[1], str)
+
+
+def _check_distance_return(run: sacred.experiment.Run) -> None:
+    """Sanity checks return type and keys present."""
+    assert isinstance(run.result, dict)
+    key = next(iter(run.result.keys()))
+    assert isinstance(key, str)
+    val = next(iter(run.result.values()))
+    assert isinstance(val, dict)
+    inner_key = next(iter(val.keys()))
+    assert isinstance(inner_key, tuple)
+    assert len(inner_key) == 2
+    _check_reward_cfg_type(inner_key[0])
+    _check_reward_cfg_type(inner_key[1])
+    inner_val = next(iter(val.values()))
+    assert isinstance(inner_val, float)
+
+    x_reward_cfgs = [tuple(x) for x in run.config["x_reward_cfgs"]]
+    y_reward_cfgs = [tuple(y) for y in run.config["y_reward_cfgs"]]
+    expected_keys = set(itertools.product(x_reward_cfgs, y_reward_cfgs))
+    assert set(val.keys()) == expected_keys
+
+
 EXPERIMENTS = {
-    # experiment, expected_type, extra_named_configs, config_updates
-    "plot_epic_heatmap": (plot_epic_heatmap.plot_epic_heatmap_ex, type(None), [], {}),
-    "plot_npec_heatmap": (plot_npec_heatmap.plot_npec_heatmap_ex, type(None), [], {}),
-    "plot_erc_heatmap": (plot_erc_heatmap.plot_erc_heatmap_ex, type(None), [], {}),
-    "plot_erc_heatmap_spearman": (
-        plot_erc_heatmap.plot_erc_heatmap_ex,
-        type(None),
+    # experiment, expected_type, extra_named_configs, config_updates, extra_check
+    "epic_distance": (epic.epic_distance_ex, dict, [], {}, _check_distance_return),
+    "erc_distance": (erc.erc_distance_ex, dict, [], {}, _check_distance_return),
+    "erc_distance_spearman": (
+        erc.erc_distance_ex,
+        dict,
         [],
         {"corr_kind": "spearman"},
+        _check_distance_return,
     ),
     "plot_gridworld_heatmap": (
         plot_gridworld_heatmap.plot_gridworld_heatmap_ex,
         type(None),
         [],
         {},
+        None,
     ),
-    "plot_gridworld_reward": (plot_gridworld_reward.plot_gridworld_reward_ex, type(None), [], {}),
-    "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}),
-    "table_combined": (table_combined.table_combined_ex, type(None), [], {}),
-    "comparison": (npec_comparison.npec_comparison_ex, dict, [], {}),
+    "plot_gridworld_reward": (
+        plot_gridworld_reward.plot_gridworld_reward_ex,
+        type(None),
+        [],
+        {},
+        None,
+    ),
+    "plot_heatmap": (
+        plot_heatmap.plot_heatmap_ex,
+        type(None),
+        [],
+        {},
+        None,
+    ),
+    "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}, None),
+    "table_combined": (table_combined.table_combined_ex, type(None), [], {}, None),
+    "comparison": (npec_comparison.npec_comparison_ex, dict, [], {}, None),
     "comparison_alternating": (
         npec_comparison.npec_comparison_ex,
         dict,
         ["alternating_maximization"],
         {"fit_kwargs": {"epoch_timesteps": 4096}},
+        None,
     ),
-    "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}),
-    "regress": (train_regress.train_regress_ex, dict, [], {}),
+    "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}, None),
+    "regress": (train_regress.train_regress_ex, dict, [], {}, None),
 }
 
 
 def add_epic_experiments():
-    """Add testcases for `evaluating_rewards.analysis.dissimilarity_heatmaps.plot_epic_heatmap`."""
+    """Add testcases for `evaluating_rewards.distances.epic`."""
     for computation_kind in ["sample", "mesh"]:
         for distance_kind in ["direct", "pearson"]:
-            EXPERIMENTS[f"plot_epic_heatmap_{computation_kind}_{distance_kind}"] = (
-                plot_epic_heatmap.plot_epic_heatmap_ex,
-                type(None),
+            EXPERIMENTS[f"epic_distance_{computation_kind}_{distance_kind}"] = (
+                epic.epic_distance_ex,
+                dict,
                 [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
+                _check_distance_return,
             )
     NAMED_CONFIGS = {
         "random_spaces": ["point_mass", "sample_from_env_spaces"],
@@ -81,11 +127,12 @@ def add_epic_experiments():
         ],
     }
     for name, named_configs in NAMED_CONFIGS.items():
-        EXPERIMENTS[f"plot_canon_heatmap_{name}"] = (
-            plot_epic_heatmap.plot_epic_heatmap_ex,
-            type(None),
+        EXPERIMENTS[f"epic_distance_{name}"] = (
+            epic.epic_distance_ex,
+            dict,
             named_configs,
             {},
+            _check_distance_return,
         )
 
 
@@ -105,6 +152,7 @@ def add_gridworld_experiments():
             type(None),
             [],
             {"kind": kind},
+            None,
         )
 
 
@@ -112,11 +160,16 @@ add_epic_experiments()
 add_gridworld_experiments()
 
 
-@common.mark_parametrize_dict("experiment,expected_type,named_configs,config_updates", EXPERIMENTS)
-def test_experiment(experiment, expected_type, named_configs, config_updates):
+@common.mark_parametrize_dict(
+    "experiment,expected_type,named_configs,config_updates,extra_check", EXPERIMENTS
+)
+def test_experiment(experiment, expected_type, named_configs, config_updates, extra_check):
+    """Run Sacred experiment and sanity check run, including type of result."""
     named_configs = ["test"] + named_configs
     with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
         config_updates["log_root"] = tmpdir
         run = experiment.run(named_configs=named_configs, config_updates=config_updates)
     assert run.status == "COMPLETED"
     assert isinstance(run.result, expected_type)
+    if extra_check is not None:
+        extra_check(run)
