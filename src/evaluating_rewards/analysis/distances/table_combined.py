@@ -28,8 +28,9 @@ import sacred
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis.distances import aggregated
+from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.distances import common, epic, erc
+from evaluating_rewards.scripts.distances import epic, erc
 
 table_combined_ex = sacred.Experiment("table_combined")
 logger = logging.getLogger("evaluating_rewards.analysis.distances.table_combined")
@@ -176,7 +177,7 @@ def common_keys(vals: Iterable[Mapping[K, Any]]) -> Set[K]:
 def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
-    pretty_models: Mapping[str, common.RewardCfg],
+    pretty_models: Mapping[str, common_config.RewardCfg],
     experiment_kinds: Tuple[str],
 ) -> str:
     """Generate LaTeX table.
@@ -244,7 +245,7 @@ def table_combined(
     named_configs: Mapping[str, Mapping[str, Any]],
     target_reward_type: str,
     target_reward_path: str,
-    pretty_models: Mapping[str, common.RewardCfg],
+    pretty_models: Mapping[str, common_config.RewardCfg],
 ) -> None:
     """Entry-point into CLI script.
 

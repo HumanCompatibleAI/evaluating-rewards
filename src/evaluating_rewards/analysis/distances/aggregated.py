@@ -18,11 +18,17 @@ from typing import Iterable, Mapping, Tuple
 
 import pandas as pd
 
-from evaluating_rewards.scripts.distances import common
+from evaluating_rewards.distances import common_config
 
 
 def oned_mapping_to_series(
-    vals: Mapping[Tuple[common.RewardCfg, common.RewardCfg], float]
+    vals: Mapping[
+        Tuple[
+            common_config.RewardCfg,
+            common_config.RewardCfg,
+        ],
+        float,
+    ]
 ) -> pd.Series:
     """Converts mapping to a series.
 
@@ -44,10 +50,10 @@ def oned_mapping_to_series(
 
 
 def select_subset(
-    vals: common.AggregatedDistanceReturn,
-    x_reward_cfgs: Iterable[common.RewardCfg],
-    y_reward_cfgs: Iterable[common.RewardCfg],
-) -> common.AggregatedDistanceReturn:
+    vals: common_config.AggregatedDistanceReturn,
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
+) -> common_config.AggregatedDistanceReturn:
     """Selects the subset of `vals` specified in `{x,y}_reward_cfgs`.
 
     Raises:

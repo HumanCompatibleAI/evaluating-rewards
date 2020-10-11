@@ -18,7 +18,7 @@ import functools
 import logging
 import os
 import pickle
-from typing import Any, Callable, Iterable, Mapping, Sequence, Tuple
+from typing import Callable, Iterable, Mapping, Sequence
 
 import gym
 import numpy as np
@@ -29,109 +29,19 @@ import tensorflow as tf
 
 from evaluating_rewards import serialize
 from evaluating_rewards.analysis import util
+from evaluating_rewards.distances import common_config
 from evaluating_rewards.rewards import base
 
 AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
-RewardCfg = Tuple[str, str]  # (type, path)
-AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
 
 logger = logging.getLogger("evaluating_rewards.scripts.distances.common")
 
 
-def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
-    cfgs = [(kind, "dummy") for kind in kinds]
-    res = dict(kwargs)
-    res.update({"x_reward_cfgs": cfgs, "y_reward_cfgs": cfgs})
-    return res
-
-
-POINT_MASS_KINDS = [
-    f"evaluating_rewards/PointMass{label}-v0"
-    for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
-]
-POINT_MAZE_KINDS = [
-    "imitation/PointMazeGroundTruthWithCtrl-v0",
-    "imitation/PointMazeGroundTruthNoCtrl-v0",
-]
-MUJOCO_STANDARD_ORDER = [
-    "ForwardNoCtrl",
-    "ForwardWithCtrl",
-    "BackwardNoCtrl",
-    "BackwardWithCtrl",
-]
-
-COMMON_CONFIGS = {
-    # evaluating_rewards/PointMass* environments.
-    "point_mass": _config_from_kinds(
-        POINT_MASS_KINDS, env_name="evaluating_rewards/PointMassLine-v0"
-    ),
-    # imitation/PointMaze{Left,Right}-v0 environments
-    "point_maze": _config_from_kinds(
-        POINT_MAZE_KINDS,
-        env_name="imitation/PointMazeLeft-v0",
-    ),
-    # Compare rewards learned in imitation/PointMaze* to the ground-truth reward
-    "point_maze_learned": {
-        "env_name": "imitation/PointMazeLeftVel-v0",
-        "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
-        "y_reward_cfgs": [
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
-            ),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
-            ),
-        ],
-    },
-    # seals version of the canonical MuJoCo tasks
-    "half_cheetah": _config_from_kinds(
-        [
-            f"evaluating_rewards/HalfCheetahGroundTruth{suffix}-v0"
-            for suffix in MUJOCO_STANDARD_ORDER
-        ],
-        env_name="seals/HalfCheetah-v0",
-    ),
-    "hopper": _config_from_kinds(
-        kinds=[
-            f"evaluating_rewards/Hopper{prefix}{suffix}-v0"
-            for prefix in ["GroundTruth", "Backflip"]
-            for suffix in MUJOCO_STANDARD_ORDER
-        ],
-        env_name="seals/Hopper-v0",
-    ),
-}
-
-
-def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:
-    """Canonicalize path in reward configuration.
-
-    Specifically, join paths with the `data_root`, unless they are the special "dummy" path.
-    Also ensure the return value is actually of type RewardCfg: it is forgiving and will accept
-    any iterable pair as input `reward_cfg`. This is important since Sacred has the bad habit of
-    converting tuples to lists in configurations.
-
-    Args:
-        reward_cfg: Iterable of configurations to canonicailze.
-        data_root: The root to join paths to.
-
-    Returns:
-        Canonicalized RewardCfg.
-    """
-    kind, path = reward_cfg
-    if path != "dummy":
-        path = os.path.join(data_root, path)
-    return (kind, path)
-
-
 def load_models(
     env_name: str,
-    reward_cfgs: Iterable[RewardCfg],
+    reward_cfgs: Iterable[common_config.RewardCfg],
     discount: float,
-) -> Mapping[RewardCfg, base.RewardModel]:
+) -> Mapping[common_config.RewardCfg, base.RewardModel]:
     """Load models specified by the `reward_cfgs`.
 
     Args:
@@ -205,8 +115,10 @@ def make_config(
     The standard config parameters it defines are:
         - vals_path (Optional[str]): path to precomputed values to plot.
         - env_name (str): The environment name in the Gym registry of the rewards to compare.
-        - x_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for x-axis.
-        - y_reward_cfgs (Iterable[RewardCfg]): tuples of reward_type and reward_path for y-axis.
+        - x_reward_cfgs (Iterable[common_config.RewardCfg]): tuples of reward_type and reward_path
+            for x-axis.
+        - y_reward_cfgs (Iterable[common_config.RewardCfg]): tuples of reward_type and reward_path
+            for y-axis.
         - log_root (str): the root directory to log; subdirectory path automatically constructed.
         - n_bootstrap (int): the number of bootstrap samples to take.
         - alpha (float): percentile confidence interval
@@ -233,7 +145,7 @@ def make_config(
     @experiment.config
     def point_mass_as_default():
         """Default to PointMass as environment so scripts work out-of-the-box."""
-        locals().update(**COMMON_CONFIGS["point_mass"])
+        locals().update(**common_config.COMMON_CONFIGS["point_mass"])
 
     @experiment.config
     def aggregate_fns(aggregate_kinds, n_bootstrap, alpha):
@@ -252,12 +164,13 @@ def make_config(
         if "sample" in aggregate_kinds:
             aggregate_fns["sample"] = sample_mean_sd
 
-    for name, cfg in COMMON_CONFIGS.items():
+    for name, cfg in common_config.COMMON_CONFIGS.items():
         experiment.add_named_config(name, cfg)
 
 
 def make_main(
-    experiment: sacred.Experiment, compute_vals: Callable[..., AggregatedDistanceReturn]
+    experiment: sacred.Experiment,
+    compute_vals: Callable[..., common_config.AggregatedDistanceReturn],
 ):  # pylint: disable=unused-variable
     """Helper to make main function for distance scripts.
 
@@ -281,11 +194,11 @@ def make_main(
     def main(
         env_name: str,
         discount: float,
-        x_reward_cfgs: Iterable[RewardCfg],
-        y_reward_cfgs: Iterable[RewardCfg],
+        x_reward_cfgs: Iterable[common_config.RewardCfg],
+        y_reward_cfgs: Iterable[common_config.RewardCfg],
         data_root: str,
         log_dir: str,
-    ) -> AggregatedDistanceReturn:
+    ) -> common_config.AggregatedDistanceReturn:
         """Wrapper around `compute_vals` performing common setup and saving logic.
 
         Args:
@@ -301,8 +214,12 @@ def make_main(
         os.makedirs(log_dir, exist_ok=True)  # fail fast if log directory cannot be created
 
         # Sacred turns our tuples into lists :(, undo
-        x_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
-        y_reward_cfgs = [canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
+        x_reward_cfgs = [
+            common_config.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs
+        ]
+        y_reward_cfgs = [
+            common_config.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs
+        ]
 
         logger.info("Loading models")
         g = tf.Graph()

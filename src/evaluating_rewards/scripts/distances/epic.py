@@ -27,7 +27,7 @@ import tensorflow as tf
 
 from evaluating_rewards import datasets
 from evaluating_rewards.analysis import util
-from evaluating_rewards.distances import epic_sample, tabular, transitions_datasets
+from evaluating_rewards.distances import common_config, epic_sample, tabular
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
 from evaluating_rewards.scripts.distances import common
@@ -37,7 +37,7 @@ logger = logging.getLogger("evaluating_rewards.scripts.distances.epic")
 
 
 common.make_config(epic_distance_ex)
-transitions_datasets.make_config(epic_distance_ex)
+common_config.make_transitions_configs(epic_distance_ex)
 
 
 @epic_distance_ex.config
@@ -170,15 +170,15 @@ def mesh_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[common.RewardCfg, base.RewardModel],
-    x_reward_cfgs: Iterable[common.RewardCfg],
-    y_reward_cfgs: Iterable[common.RewardCfg],
+    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
     distance_kind: str,
     discount: float,
     n_obs: int,
     n_act: int,
     direct_p: int,
-) -> Mapping[Tuple[common.RewardCfg, common.RewardCfg], float]:
+) -> Mapping[Tuple[common_config.RewardCfg, common_config.RewardCfg], float]:
     """
     Computes approximation of canon distance by discretizing and then using a tabular method.
 
@@ -236,9 +236,9 @@ def sample_canon(
     sess: tf.Session,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
-    models: Mapping[common.RewardCfg, base.RewardModel],
-    x_reward_cfgs: Iterable[common.RewardCfg],
-    y_reward_cfgs: Iterable[common.RewardCfg],
+    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
     distance_kind: str,
     discount: float,
     visitations_factory: datasets.TransitionsFactory,
@@ -246,7 +246,7 @@ def sample_canon(
     n_samples: int,
     n_mean_samples: int,
     direct_p: int,
-) -> Mapping[Tuple[common.RewardCfg, common.RewardCfg], float]:
+) -> Mapping[Tuple[common_config.RewardCfg, common_config.RewardCfg], float]:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -299,9 +299,9 @@ def sample_canon(
 
 @epic_distance_ex.capture
 def compute_vals(
-    models: Mapping[common.RewardCfg, base.RewardModel],
-    x_reward_cfgs: Iterable[common.RewardCfg],
-    y_reward_cfgs: Iterable[common.RewardCfg],
+    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
     g: tf.Graph,
     sess: tf.Session,
     obs_sample_dist_factory: datasets.SampleDistFactory,
@@ -311,7 +311,7 @@ def compute_vals(
     aggregate_fns: Mapping[str, common.AggregateFn],
     computation_kind: str,
     log_dir: str,
-) -> common.AggregatedDistanceReturn:
+) -> common_config.AggregatedDistanceReturn:
     """Computes values for dissimilarity heatmaps.
 
     Args:

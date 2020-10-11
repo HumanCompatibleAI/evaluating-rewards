@@ -28,7 +28,7 @@ import tensorflow as tf
 
 from evaluating_rewards import datasets
 from evaluating_rewards.analysis import util
-from evaluating_rewards.distances import tabular
+from evaluating_rewards.distances import common_config, tabular
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
 from evaluating_rewards.scripts.distances import common
@@ -114,11 +114,11 @@ def test():
 
 def batch_compute_returns(
     trajectory_callable: datasets.TrajectoryCallable,
-    models: Mapping[common.RewardCfg, base.RewardModel],
+    models: Mapping[common_config.RewardCfg, base.RewardModel],
     discount: float,
     n_episodes: int,
     batch_episodes: int = 256,
-) -> Mapping[common.RewardCfg, np.ndarray]:
+) -> Mapping[common_config.RewardCfg, np.ndarray]:
     """Compute returns under `models` of trajectories sampled from `trajectory_callable`.
 
     Batches the trajectory sampling and computation to efficiently compute returns with a small
@@ -154,13 +154,13 @@ def batch_compute_returns(
 
 @erc_distance_ex.capture
 def correlation_distance(
-    returns: Mapping[common.RewardCfg, np.ndarray],
-    x_reward_cfgs: Iterable[common.RewardCfg],
-    y_reward_cfgs: Iterable[common.RewardCfg],
+    returns: Mapping[common_config.RewardCfg, np.ndarray],
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
     corr_kind: str,
     n_bootstrap: int,
     alpha: float = 0.95,
-) -> common.AggregatedDistanceReturn:
+) -> common_config.AggregatedDistanceReturn:
     """
     Computes correlation of episode returns.
 
@@ -203,9 +203,9 @@ def correlation_distance(
 
 @erc_distance_ex.capture
 def compute_vals(
-    models: Mapping[common.RewardCfg, base.RewardModel],
-    x_reward_cfgs: Iterable[common.RewardCfg],
-    y_reward_cfgs: Iterable[common.RewardCfg],
+    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
     g: tf.Graph,
     sess: tf.Session,
     discount: float,
@@ -213,7 +213,7 @@ def compute_vals(
     trajectory_factory_kwargs: Dict[str, Any],
     n_episodes: int,
     log_dir: str,
-) -> common.AggregatedDistanceReturn:
+) -> common_config.AggregatedDistanceReturn:
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
