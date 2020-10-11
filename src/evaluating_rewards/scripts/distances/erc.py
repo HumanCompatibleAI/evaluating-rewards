@@ -198,7 +198,12 @@ def correlation_distance(
 
     logger.info("Computing distance")
     distance = util.cross_distance(x_rets, y_rets, ci_fn, parallelism=1)
-    return {k2: {k1: v2} for k1, v1 in distance.items() for k2, v2 in v1.items()}
+
+    vals = {}
+    for k1, v1 in distance.items():
+        for k2, v2 in v1.items():
+            vals.setdefault(k2, {})[k1] = v2
+    return vals
 
 
 @erc_distance_ex.capture
