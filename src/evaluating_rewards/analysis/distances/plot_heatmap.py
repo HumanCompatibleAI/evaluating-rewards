@@ -116,6 +116,9 @@ def paper():
 @plot_heatmap_ex.named_config
 def test():
     """Intended for debugging/unit test."""
+    locals().update(**common_config.COMMON_CONFIGS["point_mass"])
+    data_root = os.path.join("tests/data")
+    vals_path = "aggregated/aggregated.pkl"
     # Do not include "tex" in styles here: this will break on CI.
     styles = ["paper", "heatmap-1col"]
     _ = locals()
