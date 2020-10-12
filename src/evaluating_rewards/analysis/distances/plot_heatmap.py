@@ -35,8 +35,6 @@ plot_heatmap_ex = sacred.Experiment("plot_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_heatmap")
 
 
-common_config.make_transitions_configs(plot_heatmap_ex)
-
 # Default configs (always applied.)
 
 

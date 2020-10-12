@@ -15,6 +15,7 @@
 """CLI script to plot heatmaps based on episode return of reward models."""
 
 import collections
+import itertools
 import logging
 import os
 import pickle
@@ -24,7 +25,6 @@ from imitation.data import rollout
 from imitation.util import util as imit_util
 import numpy as np
 import sacred
-import tensorflow as tf
 
 from evaluating_rewards import datasets
 from evaluating_rewards.analysis import util
@@ -208,12 +208,10 @@ def correlation_distance(
 
 @erc_distance_ex.capture
 def compute_vals(
-    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    env_name: str,
+    discount: float,
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
-    g: tf.Graph,
-    sess: tf.Session,
-    discount: float,
     trajectory_factory: datasets.TrajectoryFactory,
     trajectory_factory_kwargs: Dict[str, Any],
     n_episodes: int,
@@ -222,8 +220,8 @@ def compute_vals(
     """Entry-point into script to produce divergence heatmaps.
 
     Args:
-        models: a mapping from reward configurations to loaded reward models.
-            An entry should be present for each value in `x_reward_cfgs` and `y_reward_cfgs`.
+        env_name: the name of the environment to compare rewards for.
+        discount: discount to use for reward models (mostly for shaping).
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
         g: TensorFlow graph `models` are loaded into.
@@ -237,7 +235,9 @@ def compute_vals(
     Returns:
         Nested dictionary of aggregated distance values.
     """
-    del g  # we don't need the graph
+    models, _, sess = common.load_models_create_sess(
+        env_name, discount, itertools.chain(x_reward_cfgs, y_reward_cfgs)
+    )
 
     logger.info("Sampling trajectories")
     with trajectory_factory(**trajectory_factory_kwargs) as trajectory_callable:
