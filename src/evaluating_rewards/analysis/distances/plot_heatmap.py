@@ -18,7 +18,7 @@ import functools
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, MutableMapping, Optional
 
 from imitation.util import util as imit_util
 from matplotlib import pyplot as plt
@@ -26,7 +26,7 @@ import pandas as pd
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import stylesheets, visualize
+from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.distances import aggregated, heatmaps, reward_masks
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
@@ -43,7 +43,8 @@ def default_config():
     """Default configuration values."""
     data_root = serialize.get_output_dir()  # where values are read from
     log_root = serialize.get_output_dir()  # where results are written to
-    vals_path = None
+    vals_path = None  # aggregated data values
+    npec_stats_path = None  # optional, path to NPEC stats for debugging plots
 
     # Reward configurations: models to compare
     x_reward_cfgs = None
@@ -222,7 +223,9 @@ def pretty_label_fstr(name: str) -> str:
         return _usual_label_fstr("D")
 
 
-def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
+def multi_heatmaps(
+    dissimilarities: Mapping[str, pd.Series], **kwargs
+) -> MutableMapping[str, plt.Figure]:
     """Plot heatmap for each dissimilarity series in `dissimilarities`.
 
     Args:
@@ -246,9 +249,40 @@ def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mappin
     return figs
 
 
+def _multi_heatmap(
+    data: Iterable[pd.Series], labels: Iterable[pd.Series], kwargs: Iterable[Mapping[str, Any]]
+) -> plt.Figure:
+    data = tuple(data)
+    labels = tuple(labels)
+    kwargs = tuple(kwargs)
+    ncols = len(data)
+    assert ncols == len(labels)
+    assert ncols == len(kwargs)
+
+    width, height = plt.rcParams.get("figure.figsize")
+    fig, axs = plt.subplots(ncols, 1, figsize=(ncols * width, height), squeeze=True)
+
+    for series, lab, kw, ax in zip(data, labels, kwargs, axs):
+        heatmaps.comparison_heatmap(series, ax=ax, **kw)
+        ax.set_title(lab)
+
+    return fig
+
+
+def loss_heatmap(loss: pd.Series, unwrapped_loss: pd.Series) -> plt.Figure:
+    return _multi_heatmap([loss, unwrapped_loss], ["Loss", "Unwrapped Loss"], [{}, {}])
+
+
+def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
+    return _multi_heatmap(
+        [scales, constants], ["Scale", "Constant"], [dict(robust=True), dict(log=False, center=0.0)]
+    )
+
+
 @plot_heatmap_ex.main
 def plot_heatmap(
     vals_path: str,
+    npec_stats_path: Optional[str],
     data_root: str,
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
@@ -286,6 +320,16 @@ def plot_heatmap(
     raw = aggregated.select_subset(raw, x_reward_cfgs, y_reward_cfgs)
     vals = {k: aggregated.oned_mapping_to_series(v) for k, v in raw.items()}
 
+    # TODO(adam): separate command instead?
+    npec_res = None
+    if npec_stats_path is not None:
+        with open(npec_stats_path, "rb") as f:
+            npec_stats = pickle.load(f)
+        npec_stats = {
+            k + (i,): inner_v for k, v in npec_stats.items() for i, inner_v in enumerate(v)
+        }
+        npec_res = results.pipeline(npec_stats)
+
     logging.info("Plotting figures")
     vals_dir = os.path.dirname(vals_path)
     plots_sym_dir = os.path.join(vals_dir, "plots")
@@ -297,6 +341,13 @@ def plot_heatmap(
     with stylesheets.setup_styles(styles):
         try:
             figs = multi_heatmaps(vals, **heatmap_kwargs)
+            if npec_res is not None:
+                figs["loss"] = loss_heatmap(
+                    npec_res["loss"]["loss"], npec_res["loss"]["unwrapped_loss"]
+                )
+                figs["affine"] = affine_heatmap(
+                    npec_res["affine"]["scales"], npec_res["affine"]["constants"]
+                )
             visualize.save_figs(log_dir, figs.items(), **save_kwargs)
         finally:
             for fig in figs:

@@ -14,11 +14,9 @@
 
 """Helper methods to load and analyse results from experiments."""
 
-import collections
 import json
 import os
-import pickle
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Mapping, Tuple
 
 import gym
 from imitation.util import networks
@@ -31,133 +29,13 @@ from evaluating_rewards import serialize
 Config = Tuple[Any, ...]
 Stats = Mapping[str, Any]
 ConfigStatsMapping = Mapping[Config, Stats]
-DirStatsMapping = Mapping[str, Stats]
-DirConfigMapping = Mapping[str, Config]
 FilterFn = Callable[[Iterable[str]], bool]
 PreprocessFn = Callable[[pd.Series], pd.Series]
 
 
-def find_sacred_results(root_dir: str) -> DirStatsMapping:
-    """Find result directories in root_dir, loading the associated config.
-
-    Finds all directories in `root_dir` that contains a subdirectory "sacred".
-    For each such directory, the config in "sacred/config.json" is loaded.
-
-    Args:
-        root_dir: A path to recursively search in.
-
-    Returns:
-        A dictionary of directory paths to Sacred configs.
-
-    Raises:
-        ValueError: if a results directory contains another results directory.
-        FileNotFoundError: if no results directories found.
-    """
-    results = set()
-    for root, dirs, _ in os.walk(root_dir):
-        if "sacred" in dirs:
-            results.add(root)
-
-    if not results:
-        raise FileNotFoundError(f"No Sacred results directories in '{root_dir}'.")
-
-    # Sanity check: not expecting nested experiments
-    for result in results:
-        components = os.path.split(result)
-        for i in range(1, len(components)):
-            prefix = os.path.join(*components[0:i])
-            if prefix in results:
-                raise ValueError(f"Parent {prefix} to {result} also a result directory")
-
-    configs = {}
-    for result in results:
-        config_path = os.path.join(result, "sacred", "config.json")
-        with open(config_path, "r") as f:
-            config = json.load(f)
-        configs[result] = config
-
-    return configs
-
-
-def dict_to_tuple(d, keys: Optional[Iterable[str]] = None):
-    """Recursively convert dict's to namedtuple's, leaving other values intact."""
-    if isinstance(d, dict):
-        if keys is None:
-            keys = sorted(d.keys())
-        key_tuple_cls = collections.namedtuple("KeyTuple", keys)
-        return key_tuple_cls(**{k: dict_to_tuple(d[k]) for k in keys})
-    else:
-        return d
-
-
-def subset_keys(configs: DirStatsMapping, keys: Iterable[str]) -> DirConfigMapping:
-    """Extracts the subset of `keys` from each config in `configs`.
-
-    Args:
-        configs: Paths mapping to full Sacred configs, as returned by
-                `find_sacred_results`.
-        keys: The subset of keys to retain from the config.
-
-    Returns:
-        A mapping from paths to tuples of the keys.
-
-    Raises:
-        ValueError: If any of the config subsets are duplicates of each other.
-    """
-    res = {}
-    configs_seen = set()
-
-    for path, config in configs.items():
-        subset = dict_to_tuple(config, keys)  # type: Tuple[Any, ...]
-        if subset in configs_seen:
-            raise ValueError(f"Duplicate config '{subset}'")
-        configs_seen.add(subset)
-        res[path] = subset
-    return res
-
-
-def load_stats(dirname: str) -> Stats:
-    """Load training statistics.
-
-    Works on output from train_preferences, train_regress and model_comparison;
-    return format may differ between them though.
-
-    Args:
-        dirname: The results directory to load the statistics from.
-
-    Returns:
-        The statistics.
-    """
-    path = os.path.join(dirname, "stats.pkl")
-    with open(path, "rb") as f:
-        return pickle.load(f)
-
-
-def load_multiple_stats(
-    root_dir: str,
-    keys: Iterable[str],
-    cfg_filter: Callable[[Mapping[str, Any]], bool] = lambda cfg: True,
-) -> ConfigStatsMapping:
-    """Load all training statistics in root_dir."""
-    configs = find_sacred_results(root_dir)
-    configs = {path: _canonicalize_cfg_path(cfg) for path, cfg in configs.items()}
-    subset = {path: cfg for path, cfg in configs.items() if cfg_filter(cfg)}
-    subset = subset_keys(subset, keys)
-
-    stats = {}
-    for dirname, cfg in subset.items():
-        try:
-            stats[cfg] = load_stats(dirname)
-        except FileNotFoundError:
-            print(f"Skipping {cfg}, no stats in '{dirname}'")
-
-    return stats
-
-
-def to_series(x: pd.Series) -> pd.Series:
+def to_series(x) -> pd.Series:
     s = pd.Series(x)
-    some_key = next(iter(x.keys()))
-    s.index.names = some_key._fields
+    s.index.names = ("Source", "Target", "Seed")
     return s
 
 
@@ -225,9 +103,6 @@ def affine_pipeline(
 
 def pipeline(stats: ConfigStatsMapping, **kwargs):
     """Run loss and affine pipeline on stats."""
-    if not stats:
-        raise ValueError("'stats' is empty.")
-
     return {"loss": loss_pipeline(stats, **kwargs), "affine": affine_pipeline(stats, **kwargs)}
 
 

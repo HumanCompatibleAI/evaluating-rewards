@@ -310,4 +310,4 @@ common.make_main(npec_distance_ex, compute_vals)
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(npec_distance_ex, "model_comparison")
+    script_utils.experiment_main(npec_distance_ex, "npec_distance")
