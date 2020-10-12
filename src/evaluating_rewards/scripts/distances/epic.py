@@ -317,15 +317,7 @@ def compute_vals(
     with open(os.path.join(log_dir, "dissimilarities.pkl"), "wb") as f:
         pickle.dump(dissimilarities, f)
 
-    vals = {}
-    for name, aggregate_fn in aggregate_fns.items():
-        logger.info(f"Aggregating {name}")
-        for k, v in dissimilarities.items():
-            for k2, v2 in aggregate_fn(v).items():
-                outer_key = f"{name}_{k2}"
-                vals.setdefault(outer_key, {})[k] = v2
-
-    return vals
+    return common.aggregate_seeds(aggregate_fns, dissimilarities)
 
 
 common.make_main(epic_distance_ex, compute_vals)

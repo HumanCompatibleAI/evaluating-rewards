@@ -259,6 +259,35 @@ def _visitation_config(env_name, visitations_factory_kwargs):
     return locals()
 
 
+def aggregate_seeds(
+    aggregate_fns: Mapping[str, AggregateFn],
+    dissimilarities: Mapping[
+        Tuple[common_config.RewardCfg, common_config.RewardCfg], Sequence[float]
+    ],
+) -> common_config.AggregatedDistanceReturn:
+    """Use `aggregate_fns` to aggregate sequences of data in `dissimilarities`.
+
+    Args:
+        aggregate_fns: Mapping from string names to aggregate functions.
+        dissimilarities: Mapping from pairs of reward configurations to sequences
+            of floats -- numerical dissimilarities from different seeds.
+
+    Returns:
+        The different seeds aggregated using `aggregate_fns`. The mapping has keys
+        comprised of `{name}_{k}` where `name` is from a key in `aggregate_fns`
+        and `k` is a key from the return value of the aggregation function.
+    """
+    vals = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        for k, v in dissimilarities.items():
+            for k2, v2 in aggregate_fn(v).items():
+                outer_key = f"{name}_{k2}"
+                vals.setdefault(outer_key, {})[k] = v2
+
+    return vals
+
+
 def make_transitions_configs(
     experiment: sacred.Experiment,
 ):  # pylint: disable=unused-variable
