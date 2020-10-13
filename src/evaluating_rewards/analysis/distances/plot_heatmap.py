@@ -18,7 +18,7 @@ import functools
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping, MutableMapping, Optional
+from typing import Any, Callable, Iterable, Mapping, MutableMapping
 
 from imitation.util import util as imit_util
 from matplotlib import pyplot as plt
@@ -279,19 +279,81 @@ def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
     )
 
 
-@plot_heatmap_ex.main
-def plot_heatmap(
+@plot_heatmap_ex.capture
+def _plot_heatmap(
+    fn: Callable[[], Mapping[str, plt.Figure]],
     vals_path: str,
-    npec_stats_path: Optional[str],
-    data_root: str,
-    x_reward_cfgs: Iterable[common_config.RewardCfg],
-    y_reward_cfgs: Iterable[common_config.RewardCfg],
     styles: Iterable[str],
     styles_for_env: Iterable[str],
     log_dir: str,
     timestamp: str,
-    heatmap_kwargs: Mapping[str, Any],
     save_kwargs: Mapping[str, Any],
+) -> None:
+    """Plots a figure for each entry loaded from `vals_path`.
+
+    Args:
+        vals_path: path to pickle file containing aggregated values.
+            Produced by `evaluating_rewards.scripts.distances.*`.
+        data_root: the root with respect to canonicalize reward configurations.
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
+        styles_for_env: extra styles to apply, concatenated with above.
+        log_dir: directory to save data to.
+        timestamp: timestamp + unique identifier, usually a component of `log_dir`.
+        heatmap_kwargs: passed through to `heatmaps.compact_heatmaps`.
+        save_kwargs: passed through to `analysis.save_figs`.
+    """
+    # Sacred turns our tuples into lists :(, undo
+    logging.info("Plotting figures")
+    vals_dir = os.path.dirname(vals_path)
+    plots_sym_dir = os.path.join(vals_dir, "plots")
+    os.makedirs(plots_sym_dir, exist_ok=True)
+    plots_sym_path = os.path.join(plots_sym_dir, timestamp)
+    os.symlink(log_dir, plots_sym_path)
+
+    styles = list(styles) + list(styles_for_env)
+    with stylesheets.setup_styles(styles):
+        try:
+            figs = fn()
+            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        finally:
+            for fig in figs:
+                plt.close(fig)
+
+
+@plot_heatmap_ex.command
+def plot_npec_stats(
+    vals_path: str,
+) -> None:
+    """Plot NPEC-specific statistics, such as affine transformation parameters.
+
+    Args:
+        vals_path: Path to NPEC statistics pickle file.
+    """
+    with open(vals_path, "rb") as f:
+        npec_stats = pickle.load(f)
+    npec_stats = {k + (i,): inner_v for k, v in npec_stats.items() for i, inner_v in enumerate(v)}
+    npec_res = results.pipeline(npec_stats)
+
+    def fn():
+        figs = {}
+        figs["loss"] = loss_heatmap(npec_res["loss"]["loss"], npec_res["loss"]["unwrapped_loss"])
+        figs["affine"] = affine_heatmap(
+            npec_res["affine"]["scales"], npec_res["affine"]["constants"]
+        )
+        return figs
+
+    _plot_heatmap(fn)  # pylint:disable=no-value-for-parameter
+
+
+@plot_heatmap_ex.main
+def plot_distances(
+    vals_path: str,
+    data_root: str,
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
+    heatmap_kwargs: Mapping[str, Any],
 ) -> None:
     """Plots a figure for each entry loaded from `vals_path`.
 
@@ -320,38 +382,9 @@ def plot_heatmap(
     raw = aggregated.select_subset(raw, x_reward_cfgs, y_reward_cfgs)
     vals = {k: aggregated.oned_mapping_to_series(v) for k, v in raw.items()}
 
-    # TODO(adam): separate command instead?
-    npec_res = None
-    if npec_stats_path is not None:
-        with open(npec_stats_path, "rb") as f:
-            npec_stats = pickle.load(f)
-        npec_stats = {
-            k + (i,): inner_v for k, v in npec_stats.items() for i, inner_v in enumerate(v)
-        }
-        npec_res = results.pipeline(npec_stats)
-
-    logging.info("Plotting figures")
-    vals_dir = os.path.dirname(vals_path)
-    plots_sym_dir = os.path.join(vals_dir, "plots")
-    os.makedirs(plots_sym_dir, exist_ok=True)
-    plots_sym_path = os.path.join(plots_sym_dir, timestamp)
-    os.symlink(log_dir, plots_sym_path)
-
-    styles = list(styles) + list(styles_for_env)
-    with stylesheets.setup_styles(styles):
-        try:
-            figs = multi_heatmaps(vals, **heatmap_kwargs)
-            if npec_res is not None:
-                figs["loss"] = loss_heatmap(
-                    npec_res["loss"]["loss"], npec_res["loss"]["unwrapped_loss"]
-                )
-                figs["affine"] = affine_heatmap(
-                    npec_res["affine"]["scales"], npec_res["affine"]["constants"]
-                )
-            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-        finally:
-            for fig in figs:
-                plt.close(fig)
+    _plot_heatmap(  # pylint:disable=no-value-for-parameter
+        lambda: multi_heatmaps(vals, **heatmap_kwargs)
+    )
 
 
 if __name__ == "__main__":
