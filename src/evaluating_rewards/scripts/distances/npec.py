@@ -60,8 +60,6 @@ def default_config():
         "affine_size": 16386,  # number of timesteps to use in pretraining; set to None to disable
     }
 
-    # Logging
-    log_root = os.path.join("output", "train_regress")  # output directory
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
@@ -186,6 +184,9 @@ def npec_worker(
         batch_size: the number of timesteps in each training batch.
         fit_kwargs: extra arguments to pass to the `fit` method of `comparison_class`.
         log_dir: directory to save data to.
+
+    Returns:
+        Statistics for training, including the final loss aka estimated NPEC distance.
     """
     if "env_name" in visitations_factory_kwargs:
         if visitations_factory_kwargs["env_name"] != env_name:

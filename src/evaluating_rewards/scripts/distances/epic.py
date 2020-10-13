@@ -278,8 +278,6 @@ def compute_vals(
         discount: discount to use for reward models (mostly for shaping).
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
-        g: TensorFlow graph `models` are loaded into.
-        sess: TensorFlow session `g` belongs to.
         obs_sample_dist_factory: factory to generate sample distribution for observations.
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.

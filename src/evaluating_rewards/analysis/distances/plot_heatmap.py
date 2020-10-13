@@ -44,7 +44,6 @@ def default_config():
     data_root = serialize.get_output_dir()  # where values are read from
     log_root = serialize.get_output_dir()  # where results are written to
     vals_path = None  # aggregated data values
-    npec_stats_path = None  # optional, path to NPEC stats for debugging plots
 
     # Reward configurations: models to compare
     x_reward_cfgs = None
@@ -249,9 +248,10 @@ def multi_heatmaps(
     return figs
 
 
-def _multi_heatmap(
+def _subplot_heatmap(
     data: Iterable[pd.Series], labels: Iterable[pd.Series], kwargs: Iterable[Mapping[str, Any]]
 ) -> plt.Figure:
+    """Heatmap each of the Series in `data` on a separate subplot."""
     data = tuple(data)
     labels = tuple(labels)
     kwargs = tuple(kwargs)
@@ -270,11 +270,11 @@ def _multi_heatmap(
 
 
 def loss_heatmap(loss: pd.Series, unwrapped_loss: pd.Series) -> plt.Figure:
-    return _multi_heatmap([loss, unwrapped_loss], ["Loss", "Unwrapped Loss"], [{}, {}])
+    return _subplot_heatmap([loss, unwrapped_loss], ["Loss", "Unwrapped Loss"], [{}, {}])
 
 
 def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
-    return _multi_heatmap(
+    return _subplot_heatmap(
         [scales, constants], ["Scale", "Constant"], [dict(robust=True), dict(log=False, center=0.0)]
     )
 
@@ -304,7 +304,6 @@ def _plot_heatmap(
         heatmap_kwargs: passed through to `heatmaps.compact_heatmaps`.
         save_kwargs: passed through to `analysis.save_figs`.
     """
-    # Sacred turns our tuples into lists :(, undo
     logging.info("Plotting figures")
     vals_dir = os.path.dirname(vals_path)
     plots_sym_dir = os.path.join(vals_dir, "plots")
@@ -374,7 +373,6 @@ def plot_distances(
     x_reward_cfgs = [common_config.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
     y_reward_cfgs = [common_config.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
-    # TODO(adam): how to specify vals_path?
     # Take `vals_path` relative to data_root, if `vals_path` not absolute
     vals_path = os.path.join(data_root, vals_path)
     with open(vals_path, "rb") as f:

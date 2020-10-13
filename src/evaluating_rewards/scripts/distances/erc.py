@@ -224,8 +224,6 @@ def compute_vals(
         discount: discount to use for reward models (mostly for shaping).
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
-        g: TensorFlow graph `models` are loaded into.
-        sess: TensorFlow session `g` belongs to.
         discount: the discount rate for shaping.
         trajectory_factory: factory to generate trajectories.
         trajectory_factory_kwargs: arguments to pass to the factory.
