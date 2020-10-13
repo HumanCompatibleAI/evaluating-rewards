@@ -222,6 +222,15 @@ def compute_divergence(reward_cfg: Dict[str, Any], discount: float, kind: str) -
     return divergence
 
 
+def normalize_dissimilarity(s: pd.Series) -> pd.Series:
+    """Divides by distance from Zero reward, an upper bound on the distance."""
+    df = s.unstack(level=["source_reward_type", "source_reward_path"])
+    zero_col_name = (serialize.ZERO_REWARD, "dummy")
+    zero_dissimilarity = df.pop(zero_col_name)
+    df = df.apply(lambda x: x / zero_dissimilarity)
+    return df.unstack(level=df.index.names)
+
+
 @plot_gridworld_heatmap_ex.main
 def plot_gridworld_heatmap(
     normalize: bool,
@@ -250,7 +259,7 @@ def plot_gridworld_heatmap(
             divergence = compute_divergence(rewards, discount, kind)
 
         if normalize:
-            divergence = heatmaps.normalize_dissimilarity(divergence)
+            divergence = normalize_dissimilarity(divergence)
 
         figs = heatmaps.compact_heatmaps(dissimilarity=divergence, **heatmap_kwargs)
         try:

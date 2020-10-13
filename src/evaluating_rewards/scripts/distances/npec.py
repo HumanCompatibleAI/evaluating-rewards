@@ -19,8 +19,9 @@ import functools
 import logging
 import os
 import pickle
-from typing import Any, Dict, Iterable, Mapping, Optional, Type
+from typing import Any, Dict, Iterable, Mapping, Type
 
+import numpy as np
 import ray
 import sacred
 
@@ -36,16 +37,18 @@ logger = logging.getLogger("evaluating_rewards.scripts.distances.npec")
 common.make_config(npec_distance_ex)
 common.make_transitions_configs(npec_distance_ex)
 
+ZERO_CFG = (serialize.ZERO_REWARD, "dummy")
+
 
 @npec_distance_ex.config
 def default_config():
     """Default configuration values."""
     # Parallelization
-    ray_server = None  # if None, start new server
-    num_cpus = None  # number of CPUs (default auto-detect) if starting new server
+    ray_kwargs = {}
 
     # Aggregation
     n_seeds = 3
+    normalize = True  # divide by distance from Zero reward, an upper bound on the distance
 
     # Model to train and hyperparameters
     model_reward_type = base.MLPRewardModel
@@ -273,15 +276,19 @@ def compute_npec(  # pylint:disable=unused-argument
 
 @npec_distance_ex.capture
 def compute_vals(
-    ray_server: Optional[str],
+    ray_kwargs: Mapping[str, Any],
     n_seeds: int,
     aggregate_fns: Mapping[str, common.AggregateFn],
     log_dir: str,
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
+    normalize: bool,
 ) -> common_config.AggregatedDistanceReturn:
     """Entry-point into script to regress source onto target reward model."""
-    ray.init(address=ray_server)
+    ray.init(**ray_kwargs)
+
+    if normalize:
+        y_reward_cfgs = list(y_reward_cfgs) + [ZERO_CFG]
 
     try:
         keys = []
@@ -305,6 +312,17 @@ def compute_vals(
             pickle.dump(stats, f)
 
         dissimilarities = {k: [v["loss"][-1]["singleton"] for v in s] for k, s in stats.items()}
+        if normalize:
+            mean = {k: np.mean(v) for k, v in dissimilarities.items()}
+            normalized = {}
+            for k, v in dissimilarities.items():
+                source, target = k
+                if source == ZERO_CFG:
+                    continue
+                zero_mean = mean[(ZERO_CFG, target)]
+                normalized[k] = [x / zero_mean for x in v]
+            dissimilarities = normalized
+
         return common.aggregate_seeds(aggregate_fns, dissimilarities)
     finally:
         ray.shutdown()

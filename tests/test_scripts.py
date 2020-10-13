@@ -69,7 +69,7 @@ EXPERIMENTS = {
         dict,
         [],
         {
-            "num_cpus": 2,  # CI build only has 2 cores
+            "ray_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
         },
         _check_distance_return,
     ),
@@ -79,7 +79,7 @@ EXPERIMENTS = {
         ["alternating_maximization"],
         {
             "fit_kwargs": {"epoch_timesteps": 512},
-            "num_cpus": 2,  # CI build only has 2 cores
+            "ray_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
         },
         _check_distance_return,
     ),
