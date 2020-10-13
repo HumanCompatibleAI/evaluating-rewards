@@ -18,7 +18,7 @@ import functools
 import logging
 import os
 import pickle
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping, Sequence, Tuple
 
 import gym
 import numpy as np
@@ -27,7 +27,7 @@ import scipy.stats
 from stable_baselines.common import vec_env
 import tensorflow as tf
 
-from evaluating_rewards import serialize
+from evaluating_rewards import datasets, serialize
 from evaluating_rewards.analysis import util
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.rewards import base
@@ -57,6 +57,21 @@ def load_models(
         (kind, path): serialize.load_reward(kind, path, venv, discount)
         for kind, path in reward_cfgs
     }
+
+
+def load_models_create_sess(
+    env_name: str,
+    discount: float,
+    reward_cfgs: Iterable[common_config.RewardCfg],
+) -> Tuple[Mapping[Tuple[str, str], base.RewardModel], tf.Graph, tf.Session]:
+    """Load models specified by `reward_cfgs`, in a fresh session."""
+    logger.info("Loading models")
+    g = tf.Graph()
+    with g.as_default():
+        sess = tf.Session()
+        with sess.as_default():
+            models = load_models(env_name, reward_cfgs, discount)
+    return models, g, sess
 
 
 def relative_error(
@@ -192,8 +207,6 @@ def make_main(
 
     @experiment.main
     def main(
-        env_name: str,
-        discount: float,
         x_reward_cfgs: Iterable[common_config.RewardCfg],
         y_reward_cfgs: Iterable[common_config.RewardCfg],
         data_root: str,
@@ -221,18 +234,8 @@ def make_main(
             common_config.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs
         ]
 
-        logger.info("Loading models")
-        g = tf.Graph()
-        with g.as_default():
-            sess = tf.Session()
-            with sess.as_default():
-                reward_cfgs = x_reward_cfgs + y_reward_cfgs
-                models = load_models(env_name, reward_cfgs, discount)
-
         # If `compute_vals` is a capture function, then Sacred will fill in other parameters
-        aggregated = compute_vals(
-            g=g, sess=sess, models=models, x_reward_cfgs=x_reward_cfgs, y_reward_cfgs=y_reward_cfgs
-        )
+        aggregated = compute_vals(x_reward_cfgs=x_reward_cfgs, y_reward_cfgs=y_reward_cfgs)
 
         aggregated_path = os.path.join(log_dir, "aggregated.pkl")
         logger.info(f"Saving aggregated values to {aggregated_path}")
@@ -240,3 +243,144 @@ def make_main(
             pickle.dump(aggregated, f)
 
         return aggregated
+
+
+def _visitation_config(env_name, visitations_factory_kwargs):
+    """Default visitation distribution config: rollouts from random policy."""
+    # visitations_factory only has an effect when computation_kind == "sample"
+    visitations_factory = datasets.transitions_factory_from_serialized_policy
+    if visitations_factory_kwargs is None:
+        visitations_factory_kwargs = {
+            "env_name": env_name,
+            "policy_type": "random",
+            "policy_path": "dummy",
+        }
+    dataset_tag = "random_policy"
+    return locals()
+
+
+def aggregate_seeds(
+    aggregate_fns: Mapping[str, AggregateFn],
+    dissimilarities: Mapping[
+        Tuple[common_config.RewardCfg, common_config.RewardCfg], Sequence[float]
+    ],
+) -> common_config.AggregatedDistanceReturn:
+    """Use `aggregate_fns` to aggregate sequences of data in `dissimilarities`.
+
+    Args:
+        aggregate_fns: Mapping from string names to aggregate functions.
+        dissimilarities: Mapping from pairs of reward configurations to sequences
+            of floats -- numerical dissimilarities from different seeds.
+
+    Returns:
+        The different seeds aggregated using `aggregate_fns`. The mapping has keys
+        comprised of `{name}_{k}` where `name` is from a key in `aggregate_fns`
+        and `k` is a key from the return value of the aggregation function.
+    """
+    vals = {}
+    for name, aggregate_fn in aggregate_fns.items():
+        logger.info(f"Aggregating {name}")
+        for k, v in dissimilarities.items():
+            for k2, v2 in aggregate_fn(v).items():
+                outer_key = f"{name}_{k2}"
+                vals.setdefault(outer_key, {})[k] = v2
+
+    return vals
+
+
+def make_transitions_configs(
+    experiment: sacred.Experiment,
+):  # pylint: disable=unused-variable
+    """Add configs to experiment `ex` related to visitations transition factory."""
+
+    @experiment.config
+    def _visitation_dummy_config():
+        visitations_factory_kwargs = None  # noqa: F841
+
+    @experiment.config
+    def _visitation_default_config(env_name, visitations_factory_kwargs):
+        locals().update(**_visitation_config(env_name, visitations_factory_kwargs))
+
+    @experiment.named_config
+    def visitation_config(env_name):
+        """Named config that sets default visitation factory.
+
+        This is needed for other named configs that manipulate visitation factories, but can
+        otherwise be omitted since `_visitation_default_config`  will do the same update."""
+        locals().update(**_visitation_config(env_name, None))
+
+    @experiment.named_config
+    def sample_from_env_spaces(env_name):
+        """Randomly sample from Gym spaces."""
+        obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
+        act_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=False)
+        sample_dist_factory_kwargs = {"env_name": env_name}
+        obs_sample_dist_factory_kwargs = {}
+        act_sample_dist_factory_kwargs = {}
+        sample_dist_tag = "random_space"  # only used for logging
+        _ = locals()
+        del _
+
+    @experiment.named_config
+    def dataset_iid(
+        env_name,
+        obs_sample_dist_factory,
+        act_sample_dist_factory,
+        obs_sample_dist_factory_kwargs,
+        act_sample_dist_factory_kwargs,
+        sample_dist_factory_kwargs,
+        sample_dist_tag,
+    ):
+        """Visitation distribution is i.i.d. samples from sample distributions.
+
+        Set this to make `computation_kind` "sample" consistent with "mesh".
+
+        WARNING: you *must* override the `sample_dist` *before* calling this,
+        e.g. by using `sample_from_env_spaces`, since by default it is marginalized from
+        `visitations_factory`, leading to an infinite recursion.
+        """
+        visitations_factory = datasets.transitions_factory_iid_from_sample_dist_factory
+        visitations_factory_kwargs = {
+            "obs_dist_factory": obs_sample_dist_factory,
+            "act_dist_factory": act_sample_dist_factory,
+            "obs_kwargs": obs_sample_dist_factory_kwargs,
+            "act_kwargs": act_sample_dist_factory_kwargs,
+            "env_name": env_name,
+        }
+        visitations_factory_kwargs.update(**sample_dist_factory_kwargs)
+        dataset_tag = "iid_" + sample_dist_tag
+        _ = locals()
+        del _
+
+    @experiment.named_config
+    def dataset_from_random_transitions(env_name):
+        visitations_factory = datasets.transitions_factory_from_random_model
+        visitations_factory_kwargs = {"env_name": env_name}
+        dataset_tag = "random_transitions"
+        _ = locals()
+        del _
+
+    @experiment.named_config
+    def dataset_permute(visitations_factory, visitations_factory_kwargs, dataset_tag):
+        """Permute transitions of factory specified in *previous* named configs on the CLI."""
+        visitations_factory_kwargs["factory"] = visitations_factory
+        visitations_factory = datasets.transitions_factory_permute_wrapper
+        dataset_tag = "permuted_" + dataset_tag
+        _ = locals()
+        del _
+
+    @experiment.named_config
+    def dataset_noise_rollouts(env_name):
+        """Add noise to rollouts of serialized policy."""
+        visitations_factory_kwargs = {
+            "trajectory_factory": datasets.trajectory_factory_noise_wrapper,
+            "factory": datasets.trajectory_factory_from_serialized_policy,
+            "policy_type": "random",
+            "policy_path": "dummy",
+            "noise_env_name": env_name,
+            "env_name": env_name,
+        }
+        visitations_factory = datasets.transitions_factory_from_trajectory_factory
+        dataset_tag = "noised_random_policy"
+        _ = locals()
+        del _

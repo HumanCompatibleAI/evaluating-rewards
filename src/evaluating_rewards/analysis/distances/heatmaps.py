@@ -44,15 +44,6 @@ def horizontal_ticks() -> None:
     plt.yticks(rotation="horizontal")
 
 
-def normalize_dissimilarity(s: pd.Series) -> pd.Series:
-    """Divides by distance from Zero reward, an upper bound on the distance."""
-    df = s.unstack(level=["source_reward_type", "source_reward_path"])
-    zero_col_name = (serialize.ZERO_REWARD, "dummy")
-    zero_dissimilarity = df.pop(zero_col_name)
-    df = df.apply(lambda x: x / zero_dissimilarity)
-    return df.unstack(level=df.index.names)
-
-
 def comparison_heatmap(
     vals: pd.Series,
     ax: plt.Axes,

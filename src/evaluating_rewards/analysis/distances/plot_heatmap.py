@@ -18,7 +18,7 @@ import functools
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping, MutableMapping
 
 from imitation.util import util as imit_util
 from matplotlib import pyplot as plt
@@ -26,7 +26,7 @@ import pandas as pd
 import sacred
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import stylesheets, visualize
+from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.distances import aggregated, heatmaps, reward_masks
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
@@ -34,8 +34,6 @@ from evaluating_rewards.scripts import script_utils
 plot_heatmap_ex = sacred.Experiment("plot_heatmap")
 logger = logging.getLogger("evaluating_rewards.analysis.plot_heatmap")
 
-
-common_config.make_transitions_configs(plot_heatmap_ex)
 
 # Default configs (always applied.)
 
@@ -45,7 +43,7 @@ def default_config():
     """Default configuration values."""
     data_root = serialize.get_output_dir()  # where values are read from
     log_root = serialize.get_output_dir()  # where results are written to
-    vals_path = None
+    vals_path = None  # aggregated data values
 
     # Reward configurations: models to compare
     x_reward_cfgs = None
@@ -224,7 +222,9 @@ def pretty_label_fstr(name: str) -> str:
         return _usual_label_fstr("D")
 
 
-def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mapping[str, plt.Figure]:
+def multi_heatmaps(
+    dissimilarities: Mapping[str, pd.Series], **kwargs
+) -> MutableMapping[str, plt.Figure]:
     """Plot heatmap for each dissimilarity series in `dissimilarities`.
 
     Args:
@@ -248,18 +248,111 @@ def multi_heatmaps(dissimilarities: Mapping[str, pd.Series], **kwargs) -> Mappin
     return figs
 
 
-@plot_heatmap_ex.main
-def plot_heatmap(
+def _subplot_heatmap(
+    data: Iterable[pd.Series], labels: Iterable[pd.Series], kwargs: Iterable[Mapping[str, Any]]
+) -> plt.Figure:
+    """Heatmap each of the Series in `data` on a separate subplot."""
+    data = tuple(data)
+    labels = tuple(labels)
+    kwargs = tuple(kwargs)
+    ncols = len(data)
+    assert ncols == len(labels)
+    assert ncols == len(kwargs)
+
+    width, height = plt.rcParams.get("figure.figsize")
+    fig, axs = plt.subplots(ncols, 1, figsize=(ncols * width, height), squeeze=True)
+
+    for series, lab, kw, ax in zip(data, labels, kwargs, axs):
+        heatmaps.comparison_heatmap(series, ax=ax, **kw)
+        ax.set_title(lab)
+
+    return fig
+
+
+def loss_heatmap(loss: pd.Series, unwrapped_loss: pd.Series) -> plt.Figure:
+    return _subplot_heatmap([loss, unwrapped_loss], ["Loss", "Unwrapped Loss"], [{}, {}])
+
+
+def affine_heatmap(scales: pd.Series, constants: pd.Series) -> plt.Figure:
+    return _subplot_heatmap(
+        [scales, constants], ["Scale", "Constant"], [dict(robust=True), dict(log=False, center=0.0)]
+    )
+
+
+@plot_heatmap_ex.capture
+def _plot_heatmap(
+    fn: Callable[[], Mapping[str, plt.Figure]],
     vals_path: str,
-    data_root: str,
-    x_reward_cfgs: Iterable[common_config.RewardCfg],
-    y_reward_cfgs: Iterable[common_config.RewardCfg],
     styles: Iterable[str],
     styles_for_env: Iterable[str],
     log_dir: str,
     timestamp: str,
-    heatmap_kwargs: Mapping[str, Any],
     save_kwargs: Mapping[str, Any],
+) -> None:
+    """Plots a figure for each entry loaded from `vals_path`.
+
+    Args:
+        vals_path: path to pickle file containing aggregated values.
+            Produced by `evaluating_rewards.scripts.distances.*`.
+        data_root: the root with respect to canonicalize reward configurations.
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        styles: styles to apply from `evaluating_rewards.analysis.stylesheets`.
+        styles_for_env: extra styles to apply, concatenated with above.
+        log_dir: directory to save data to.
+        timestamp: timestamp + unique identifier, usually a component of `log_dir`.
+        heatmap_kwargs: passed through to `heatmaps.compact_heatmaps`.
+        save_kwargs: passed through to `analysis.save_figs`.
+    """
+    logging.info("Plotting figures")
+    vals_dir = os.path.dirname(vals_path)
+    plots_sym_dir = os.path.join(vals_dir, "plots")
+    os.makedirs(plots_sym_dir, exist_ok=True)
+    plots_sym_path = os.path.join(plots_sym_dir, timestamp)
+    os.symlink(log_dir, plots_sym_path)
+
+    styles = list(styles) + list(styles_for_env)
+    with stylesheets.setup_styles(styles):
+        try:
+            figs = fn()
+            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
+        finally:
+            for fig in figs:
+                plt.close(fig)
+
+
+@plot_heatmap_ex.command
+def plot_npec_stats(
+    vals_path: str,
+) -> None:
+    """Plot NPEC-specific statistics, such as affine transformation parameters.
+
+    Args:
+        vals_path: Path to NPEC statistics pickle file.
+    """
+    with open(vals_path, "rb") as f:
+        npec_stats = pickle.load(f)
+    npec_stats = {k + (i,): inner_v for k, v in npec_stats.items() for i, inner_v in enumerate(v)}
+    npec_res = results.pipeline(npec_stats)
+
+    def fn():
+        figs = {}
+        figs["loss"] = loss_heatmap(npec_res["loss"]["loss"], npec_res["loss"]["unwrapped_loss"])
+        figs["affine"] = affine_heatmap(
+            npec_res["affine"]["scales"], npec_res["affine"]["constants"]
+        )
+        return figs
+
+    _plot_heatmap(fn)  # pylint:disable=no-value-for-parameter
+
+
+@plot_heatmap_ex.main
+def plot_distances(
+    vals_path: str,
+    data_root: str,
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
+    heatmap_kwargs: Mapping[str, Any],
 ) -> None:
     """Plots a figure for each entry loaded from `vals_path`.
 
@@ -280,7 +373,6 @@ def plot_heatmap(
     x_reward_cfgs = [common_config.canonicalize_reward_cfg(cfg, data_root) for cfg in x_reward_cfgs]
     y_reward_cfgs = [common_config.canonicalize_reward_cfg(cfg, data_root) for cfg in y_reward_cfgs]
 
-    # TODO(adam): how to specify vals_path?
     # Take `vals_path` relative to data_root, if `vals_path` not absolute
     vals_path = os.path.join(data_root, vals_path)
     with open(vals_path, "rb") as f:
@@ -288,21 +380,9 @@ def plot_heatmap(
     raw = aggregated.select_subset(raw, x_reward_cfgs, y_reward_cfgs)
     vals = {k: aggregated.oned_mapping_to_series(v) for k, v in raw.items()}
 
-    logging.info("Plotting figures")
-    vals_dir = os.path.dirname(vals_path)
-    plots_sym_dir = os.path.join(vals_dir, "plots")
-    os.makedirs(plots_sym_dir, exist_ok=True)
-    plots_sym_path = os.path.join(plots_sym_dir, timestamp)
-    os.symlink(log_dir, plots_sym_path)
-
-    styles = list(styles) + list(styles_for_env)
-    with stylesheets.setup_styles(styles):
-        try:
-            figs = multi_heatmaps(vals, **heatmap_kwargs)
-            visualize.save_figs(log_dir, figs.items(), **save_kwargs)
-        finally:
-            for fig in figs:
-                plt.close(fig)
+    _plot_heatmap(  # pylint:disable=no-value-for-parameter
+        lambda: multi_heatmaps(vals, **heatmap_kwargs)
+    )
 
 
 if __name__ == "__main__":

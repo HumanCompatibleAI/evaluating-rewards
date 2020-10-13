@@ -15,6 +15,7 @@
 """CLI script to compute EPIC distance between pairs of reward models."""
 
 import functools
+import itertools
 import logging
 import os
 import pickle
@@ -37,7 +38,7 @@ logger = logging.getLogger("evaluating_rewards.scripts.distances.epic")
 
 
 common.make_config(epic_distance_ex)
-common_config.make_transitions_configs(epic_distance_ex)
+common.make_transitions_configs(epic_distance_ex)
 
 
 @epic_distance_ex.config
@@ -52,7 +53,6 @@ def default_config():
     # n_samples and n_mean_samples only applicable for sample approach
     n_samples = 4096  # number of samples in dataset
     n_mean_samples = 4096  # number of samples to estimate mean
-    visitations_factory_kwargs = None
     sample_dist_factory_kwargs = {}
     # n_obs and n_act only applicable for mesh approach
     n_obs = 256
@@ -60,34 +60,6 @@ def default_config():
 
     _ = locals()
     del _
-
-
-def _visitation_config(env_name, visitations_factory_kwargs):
-    """Default visitation distribution config: rollouts from random policy."""
-    # visitations_factory only has an effect when computation_kind == "sample"
-    visitations_factory = datasets.transitions_factory_from_serialized_policy
-    if visitations_factory_kwargs is None:
-        visitations_factory_kwargs = {
-            "env_name": env_name,
-            "policy_type": "random",
-            "policy_path": "dummy",
-        }
-    dataset_tag = "random_policy"
-    return locals()
-
-
-@epic_distance_ex.config
-def _visitation_default_config(env_name, visitations_factory_kwargs):
-    locals().update(**_visitation_config(env_name, visitations_factory_kwargs))
-
-
-@epic_distance_ex.named_config
-def visitation_config(env_name):
-    """Named config that sets default visitation factory.
-
-    This is needed for other named configs that manipulate visitation factories, but can otherwise
-    be omitted since `_visitation_default_config`  will do the same update."""
-    locals().update(**_visitation_config(env_name, None))
 
 
 @epic_distance_ex.config
@@ -287,11 +259,10 @@ def sample_canon(
 
 @epic_distance_ex.capture
 def compute_vals(
-    models: Mapping[common_config.RewardCfg, base.RewardModel],
+    env_name: str,
+    discount: float,
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
-    g: tf.Graph,
-    sess: tf.Session,
     obs_sample_dist_factory: datasets.SampleDistFactory,
     act_sample_dist_factory: datasets.SampleDistFactory,
     sample_dist_factory_kwargs: Dict[str, Any],
@@ -303,12 +274,10 @@ def compute_vals(
     """Computes values for dissimilarity heatmaps.
 
     Args:
-        models: a mapping from reward configurations to loaded reward models.
-            An entry should be present for each value in `x_reward_cfgs` and `y_reward_cfgs`.
+        env_name: the name of the environment to compare rewards for.
+        discount: discount to use for reward models (mostly for shaping).
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
-        g: TensorFlow graph `models` are loaded into.
-        sess: TensorFlow session `g` belongs to.
         obs_sample_dist_factory: factory to generate sample distribution for observations.
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
@@ -320,6 +289,10 @@ def compute_vals(
     Returns:
         Nested dictionary of aggregated distance values.
     """
+    models, g, sess = common.load_models_create_sess(
+        env_name, discount, itertools.chain(x_reward_cfgs, y_reward_cfgs)
+    )
+
     if computation_kind == "sample":
         computation_fn = sample_canon
     elif computation_kind == "mesh":
@@ -342,15 +315,7 @@ def compute_vals(
     with open(os.path.join(log_dir, "dissimilarities.pkl"), "wb") as f:
         pickle.dump(dissimilarities, f)
 
-    vals = {}
-    for name, aggregate_fn in aggregate_fns.items():
-        logger.info(f"Aggregating {name}")
-        for k, v in dissimilarities.items():
-            for k2, v2 in aggregate_fn(v).items():
-                outer_key = f"{name}_{k2}"
-                vals.setdefault(outer_key, {})[k] = v2
-
-    return vals
+    return common.aggregate_seeds(aggregate_fns, dissimilarities)
 
 
 common.make_main(epic_distance_ex, compute_vals)

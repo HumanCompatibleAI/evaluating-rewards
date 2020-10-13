@@ -17,13 +17,8 @@
 Used in `plot_heatmap`, `epic`, `npec` and `erc`.
 """
 
-import functools
 import os
 from typing import Any, Iterable, Mapping, Tuple
-
-import sacred
-
-from evaluating_rewards import datasets
 
 RewardCfg = Tuple[str, str]  # (type, path)
 AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
@@ -115,85 +110,3 @@ def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:
     if path != "dummy":
         path = os.path.join(data_root, path)
     return (kind, path)
-
-
-def make_transitions_configs(
-    experiment: sacred.Experiment,
-):  # pylint: disable=unused-variable
-    """Add configs to experiment `ex` related to visitations transition factory."""
-
-    @experiment.named_config
-    def sample_from_env_spaces(env_name):
-        """Randomly sample from Gym spaces."""
-        obs_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=True)
-        act_sample_dist_factory = functools.partial(datasets.sample_dist_from_env_name, obs=False)
-        sample_dist_factory_kwargs = {"env_name": env_name}
-        obs_sample_dist_factory_kwargs = {}
-        act_sample_dist_factory_kwargs = {}
-        sample_dist_tag = "random_space"  # only used for logging
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def dataset_iid(
-        env_name,
-        obs_sample_dist_factory,
-        act_sample_dist_factory,
-        obs_sample_dist_factory_kwargs,
-        act_sample_dist_factory_kwargs,
-        sample_dist_factory_kwargs,
-        sample_dist_tag,
-    ):
-        """Visitation distribution is i.i.d. samples from sample distributions.
-
-        Set this to make `computation_kind` "sample" consistent with "mesh".
-
-        WARNING: you *must* override the `sample_dist` *before* calling this,
-        e.g. by using `sample_from_env_spaces`, since by default it is marginalized from
-        `visitations_factory`, leading to an infinite recursion.
-        """
-        visitations_factory = datasets.transitions_factory_iid_from_sample_dist_factory
-        visitations_factory_kwargs = {
-            "obs_dist_factory": obs_sample_dist_factory,
-            "act_dist_factory": act_sample_dist_factory,
-            "obs_kwargs": obs_sample_dist_factory_kwargs,
-            "act_kwargs": act_sample_dist_factory_kwargs,
-            "env_name": env_name,
-        }
-        visitations_factory_kwargs.update(**sample_dist_factory_kwargs)
-        dataset_tag = "iid_" + sample_dist_tag
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def dataset_from_random_transitions(env_name):
-        visitations_factory = datasets.transitions_factory_from_random_model
-        visitations_factory_kwargs = {"env_name": env_name}
-        dataset_tag = "random_transitions"
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def dataset_permute(visitations_factory, visitations_factory_kwargs, dataset_tag):
-        """Permute transitions of factory specified in *previous* named configs on the CLI."""
-        visitations_factory_kwargs["factory"] = visitations_factory
-        visitations_factory = datasets.transitions_factory_permute_wrapper
-        dataset_tag = "permuted_" + dataset_tag
-        _ = locals()
-        del _
-
-    @experiment.named_config
-    def dataset_noise_rollouts(env_name):
-        """Add noise to rollouts of serialized policy."""
-        visitations_factory_kwargs = {
-            "trajectory_factory": datasets.trajectory_factory_noise_wrapper,
-            "factory": datasets.trajectory_factory_from_serialized_policy,
-            "policy_type": "random",
-            "policy_path": "dummy",
-            "noise_env_name": env_name,
-            "env_name": env_name,
-        }
-        visitations_factory = datasets.transitions_factory_from_trajectory_factory
-        dataset_tag = "noised_random_policy"
-        _ = locals()
-        del _
