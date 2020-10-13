@@ -282,28 +282,31 @@ def compute_vals(
     """Entry-point into script to regress source onto target reward model."""
     ray.init(address=ray_server)
 
-    keys = []
-    refs = []
-    for source in y_reward_cfgs:
-        for target in x_reward_cfgs:
-            for seed in range(n_seeds):
-                obj_ref = compute_npec(  # pylint:disable=no-value-for-parameter
-                    seed=seed, source_reward_cfg=source, target_reward_cfg=target
-                )
-                keys.append((source, target))
-                refs.append(obj_ref)
-    values = ray.get(refs)
+    try:
+        keys = []
+        refs = []
+        for source in y_reward_cfgs:
+            for target in x_reward_cfgs:
+                for seed in range(n_seeds):
+                    obj_ref = compute_npec(  # pylint:disable=no-value-for-parameter
+                        seed=seed, source_reward_cfg=source, target_reward_cfg=target
+                    )
+                    keys.append((source, target))
+                    refs.append(obj_ref)
+        values = ray.get(refs)
 
-    stats = {}
-    for k, v in zip(keys, values):
-        stats.setdefault(k, []).append(v)
+        stats = {}
+        for k, v in zip(keys, values):
+            stats.setdefault(k, []).append(v)
 
-    logger.info("Saving raw statistics")
-    with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
-        pickle.dump(stats, f)
+        logger.info("Saving raw statistics")
+        with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
+            pickle.dump(stats, f)
 
-    dissimilarities = {k: [v["loss"][-1]["singleton"] for v in s] for k, s in stats.items()}
-    return common.aggregate_seeds(aggregate_fns, dissimilarities)
+        dissimilarities = {k: [v["loss"][-1]["singleton"] for v in s] for k, s in stats.items()}
+        return common.aggregate_seeds(aggregate_fns, dissimilarities)
+    finally:
+        ray.shutdown()
 
 
 common.make_main(npec_distance_ex, compute_vals)

@@ -73,6 +73,16 @@ EXPERIMENTS = {
         },
         _check_distance_return,
     ),
+    "npec_distance_alternating": (
+        npec.npec_distance_ex,
+        dict,
+        ["alternating_maximization"],
+        {
+            "fit_kwargs": {"epoch_timesteps": 512},
+            "num_cpus": 2,  # CI build only has 2 cores
+        },
+        _check_distance_return,
+    ),
     "erc_distance_spearman": (
         erc.erc_distance_ex,
         dict,
@@ -103,14 +113,6 @@ EXPERIMENTS = {
     ),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}, None),
     "table_combined": (table_combined.table_combined_ex, type(None), [], {}, None),
-    "comparison": (npec.npec_distance_ex, dict, [], {}, None),
-    "comparison_alternating": (
-        npec.npec_distance_ex,
-        dict,
-        ["alternating_maximization"],
-        {"fit_kwargs": {"epoch_timesteps": 4096}},
-        None,
-    ),
     "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}, None),
     "regress": (train_regress.train_regress_ex, dict, [], {}, None),
 }
