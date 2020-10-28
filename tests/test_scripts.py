@@ -27,8 +27,8 @@ from evaluating_rewards.analysis.distances import (
     table_combined,
 )
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
-from evaluating_rewards.scripts import train_preferences, train_regress
 from evaluating_rewards.scripts.distances import epic, erc, npec
+from evaluating_rewards.scripts.rewards import train_preferences, train_regress
 from tests import common
 
 
