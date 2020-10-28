@@ -68,19 +68,14 @@ EXPERIMENTS = {
         npec.npec_distance_ex,
         dict,
         [],
-        {
-            "ray_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
-        },
+        {},
         _check_distance_return,
     ),
     "npec_distance_alternating": (
         npec.npec_distance_ex,
         dict,
         ["alternating_maximization"],
-        {
-            "fit_kwargs": {"epoch_timesteps": 512},
-            "ray_kwargs": {"num_cpus": 2},  # CI build only has 2 cores
-        },
+        {"fit_kwargs": {"epoch_timesteps": 512}},
         _check_distance_return,
     ),
     "erc_distance_spearman": (

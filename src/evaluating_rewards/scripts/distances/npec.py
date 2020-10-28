@@ -143,6 +143,7 @@ def test():
     # Disable studentt_ci and sample_mean_sd since they need >1 seed (this test is already slow)
     aggregate_kinds = ("bootstrap",)
     fit_kwargs = {"affine_size": 512}
+    ray_kwargs = {"num_cpus": 2}  # CI build only has 2 cores
     batch_size = 512
     total_timesteps = 2048
     _ = locals()  # quieten flake8 unused variable warning
