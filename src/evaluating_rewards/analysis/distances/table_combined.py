@@ -30,7 +30,7 @@ from evaluating_rewards import serialize
 from evaluating_rewards.analysis.distances import aggregated
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.distances import epic, erc
+from evaluating_rewards.scripts.distances import epic, erc, npec
 
 table_combined_ex = sacred.Experiment("table_combined")
 logger = logging.getLogger("evaluating_rewards.analysis.distances.table_combined")
@@ -103,14 +103,14 @@ def point_maze_learned():
                 "sample_dist_factory_kwargs": expert_policy_cfg,
             },
         },
-        "npec": {
-            kind: {"data_subdir": os.path.join("transfer_point_maze", f"comparison_{kind}")}
-            for kind in ("random", "expert", "mixture")
-        },
         "erc": {
             "mixture": {"trajectory_factory_kwargs": mixed_policy_cfg},
             "random": {},
             "expert": {"trajectory_factory_kwargs": expert_policy_cfg},
+        },
+        "npec": {
+            kind: {"data_subdir": os.path.join("transfer_point_maze", f"comparison_{kind}")}
+            for kind in ("random", "expert", "mixture")
         },
     }
     del mixed_policy_cfg
@@ -277,8 +277,7 @@ def table_combined(
             vals = pickle.load(f)
     else:
         experiments = {
-            # TODO(adam): add npec once new version implemented
-            # "npec": plot_npec_heatmap.plot_npec_heatmap_ex,
+            "npec": npec.npec_distance_ex,
             "epic": epic.epic_distance_ex,
             "erc": erc.erc_distance_ex,
         }
