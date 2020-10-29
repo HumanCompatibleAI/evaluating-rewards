@@ -70,14 +70,21 @@ def logging_config(log_root, run_tag):
     del _
 
 
+def _make_ground_truth_configs():
+    """Ground truth configs.
+
+    Separate function to avoid polluting Sacred ConfigScope with local variables."""
+    configs = {}
+    for env, gt_reward in env_rewards.GROUND_TRUTH_REWARDS_BY_ENV.items():
+        configs.setdefault(env, {})[gt_reward] = CONFIG_BY_ENV.get(env, {})
+    return configs
+
+
 # TODO: set long enough eval_sample_until
 @experts_ex.named_config
 def ground_truth():
     """Train RL expert on all configured environments with the ground-truth reward."""
-    configs = {}
-    for env, gt_reward in env_rewards.GROUND_TRUTH_REWARDS_BY_ENV.items():
-        configs.setdefault(env, {})[gt_reward] = CONFIG_BY_ENV.get(env, {})
-    del env, gt_reward
+    configs = _make_ground_truth_configs()
     run_tag = "ground_truth"
     _ = locals()
     del _
