@@ -77,6 +77,7 @@ def ground_truth():
     configs = {}
     for env, gt_reward in env_rewards.GROUND_TRUTH_REWARDS_BY_ENV.items():
         configs.setdefault(env, {})[gt_reward] = CONFIG_BY_ENV.get(env, {})
+    del env, gt_reward
     run_tag = "ground_truth"
     _ = locals()
     del _
