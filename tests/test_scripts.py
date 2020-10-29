@@ -28,6 +28,7 @@ from evaluating_rewards.analysis.distances import (
 )
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
 from evaluating_rewards.scripts.distances import epic, erc, npec
+from evaluating_rewards.scripts.pipeline import train_experts
 from evaluating_rewards.scripts.rewards import train_preferences, train_regress
 from tests import common
 
@@ -110,6 +111,7 @@ EXPERIMENTS = {
     "table_combined": (table_combined.table_combined_ex, type(None), [], {}, None),
     "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}, None),
     "regress": (train_regress.train_regress_ex, dict, [], {}, None),
+    "train_experts": (train_experts.experts_ex, dict, [], {}, None),
 }
 
 
