@@ -30,6 +30,14 @@ GENERIC_REWARDS = ["evaluating_rewards/Zero-v0"]
 for env_name in REWARDS_BY_ENV:
     REWARDS_BY_ENV[env_name] += GENERIC_REWARDS
 
+GROUND_TRUTH_REWARDS_BY_ENV = {
+    "seals/HalfCheetah-v0": "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
+    "seals/Hopper-v0": "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
+    "evaluating_rewards/PointMassLine-v0": "evaluating_rewards/PointMassGroundTruth-v0",
+    "imitation/PointMazeLeftVel-v0": "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
+    "imitation/PointMazeRightVel-v0": "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
+}
+
 
 def _matched(pattern: str, strings: Iterable[str]) -> Set[str]:
     pattern = re.compile(pattern)

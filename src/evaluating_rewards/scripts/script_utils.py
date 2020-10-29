@@ -15,6 +15,7 @@
 """Utility functions to aid in constructing Sacred experiments."""
 
 import os
+from typing import Any
 
 from imitation.util import util
 import sacred
@@ -34,6 +35,11 @@ def logging_config(log_root, env_name):
 def add_logging_config(experiment, name):
     experiment.add_config({"log_root": os.path.join(serialize.get_output_dir(), name)})
     experiment.config(logging_config)
+
+
+def sanitize_path(x: Any) -> str:
+    """Converts `x` to string and replaces any occurrence of "/" with "_"."""
+    return str(x).replace("/", "_")
 
 
 def add_sacred_symlink(observer: observers.FileStorageObserver):
