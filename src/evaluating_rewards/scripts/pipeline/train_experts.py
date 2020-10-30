@@ -38,7 +38,15 @@ experts_ex = sacred.Experiment("train_experts")
 
 # Optional parameters passed to sacred.Experiment.run, such as config_updates
 # or named_configs, specified on a per-environment basis.
-CONFIG_BY_ENV = {}
+CONFIG_BY_ENV = {
+    # Performance in PointMaze is very variable, so use a large # of seeds
+    "imitation/PointMazeLeftVel-v0": {
+        "n_seeds": 9,
+    },
+    "imitation/PointMazeRightVel-v0": {
+        "n_seeds": 9,
+    },
+}
 
 
 @experts_ex.config
@@ -46,15 +54,15 @@ def default_config():
     """Default configuration."""
     ray_kwargs = {}
     log_root = os.path.join(serialize.get_output_dir(), "train_experts")
-    n_seeds = 3
-    global_updates = {
+    global_configs = {
+        "n_seeds": 3,
         "config_updates": {
             # Increase from default since we need reliable evaluation to pick the best seed
             "n_episodes_eval": 100,
             # Save a very large rollout so IRL algorithms will have plenty of data.
             # (We can always truncate later if we want to consider data-limited setting.)
             "rollout_save_n_timesteps": 100000,
-        }
+        },
     }
     configs = {
         "evaluating_rewards/PointMassLine-v0": {"evaluating_rewards/PointMassGroundTruth-v0": {}},
@@ -95,12 +103,12 @@ def ground_truth():
 def test():
     """Intended for tests / debugging: small # of seeds and CPU cores, single env-reward pair."""
     ray_kwargs = {"num_cpus": 2}  # CI build only has 2 cores
-    n_seeds = 2
-    global_updates = {
+    global_configs = {
+        "n_seeds": 2,
         "config_updates": {
             "n_episodes_eval": 1,
             "rollout_save_n_timesteps": 100,
-        }
+        },
     }
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
@@ -141,7 +149,8 @@ def rl_worker(
         script_utils.sanitize_path(reward_type),
         str(seed),
     )
-    updates.setdefault("config_updates", {}).update(
+    updates["config_updates"] = dict(updates.get("config_updates", {}))
+    updates["config_updates"].update(
         {
             "env_name": env_name,
             "seed": seed,
@@ -186,16 +195,14 @@ def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
 
 
 def parallel_training(
-    n_seeds: int,
-    global_updates: Mapping[str, Any],
+    global_configs: Mapping[str, Any],
     configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
     log_dir: str,
 ) -> Stats:
     """Train experts in parallel.
 
     Args:
-        n_seeds: the number of seeds per config.
-        global_updates: configuration to apply to all environment-reward pairs.
+        global_configs: configuration to apply to all environment-reward pairs.
         configs: configuration for each environment and reward type pair.
         log_dir: the root directory to log experiments to.
 
@@ -206,9 +213,10 @@ def parallel_training(
     keys = []
     refs = []
     for env_name, inner_configs in configs.items():
-        for reward_type, updates in inner_configs.items():
-            updates = dict(updates)
-            updates.update(global_updates)
+        for reward_type, cfg in inner_configs.items():
+            updates = dict(global_configs)
+            updates.update(cfg)
+            n_seeds = updates.pop("n_seeds", 1)
             for seed in range(n_seeds):
                 obj_ref = rl_worker.remote(
                     env_name=env_name,
@@ -260,8 +268,7 @@ def select_best(stats: Stats, log_dir: str) -> None:
 @experts_ex.main
 def train_experts(
     ray_kwargs: Mapping[str, Any],
-    n_seeds: int,
-    global_updates: Mapping[str, Any],
+    global_configs: Mapping[str, Any],
     configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
     log_dir: str,
 ) -> Stats:
@@ -269,8 +276,7 @@ def train_experts(
 
     Args:
         ray_kwargs: arguments passed to `ray.init`.
-        n_seeds: the number of seeds per config.
-        global_updates: configuration to apply to all environment-reward pairs.
+        global_configs: configuration to apply to all environment-reward pairs.
         configs: configuration for each environment-reward pair.
         log_dir: the root directory to log experiments to.
 
@@ -281,7 +287,7 @@ def train_experts(
     ray.init(**ray_kwargs)
 
     try:
-        stats = parallel_training(n_seeds, global_updates, configs, log_dir)
+        stats = parallel_training(global_configs, configs, log_dir)
         select_best(stats, log_dir)
     finally:
         ray.shutdown()
