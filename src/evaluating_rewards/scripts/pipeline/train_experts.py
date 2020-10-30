@@ -46,6 +46,12 @@ CONFIG_BY_ENV = {
     "imitation/PointMazeRightVel-v0": {
         "n_seeds": 9,
     },
+    "seals/HalfCheetah-v0": {
+        "config_updates": {
+            # HalfCheetah does OK after 1e6 but keeps on improving
+            "total_timesteps": int(5e6),
+        }
+    },
 }
 
 
