@@ -207,7 +207,8 @@ def parallel_training(
     refs = []
     for env_name, inner_configs in configs.items():
         for reward_type, updates in inner_configs.items():
-            updates = dict(updates).update(global_updates)
+            updates = dict(updates)
+            updates.update(global_updates)
             for seed in range(n_seeds):
                 obj_ref = rl_worker.remote(
                     env_name=env_name,
