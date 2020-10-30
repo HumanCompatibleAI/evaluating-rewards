@@ -58,7 +58,7 @@ def default_config():
         "n_seeds": 3,
         "config_updates": {
             # Increase from default since we need reliable evaluation to pick the best seed
-            "n_episodes_eval": 100,
+            "n_episodes_eval": 200,
             # Save a very large rollout so IRL algorithms will have plenty of data.
             # (We can always truncate later if we want to consider data-limited setting.)
             "rollout_save_n_timesteps": 100000,
@@ -250,6 +250,8 @@ def select_best(stats: Stats, log_dir: str) -> None:
     """
     for key, single_stats in stats.items():
         env_name, reward_type = key
+        threshold = env_rewards.THRESHOLDS.get(key, -np.inf)
+
         returns = [x["monitor_return_mean"] for x in single_stats]
         best_seed = np.argmax(returns)
         base_dir = os.path.join(
@@ -261,8 +263,15 @@ def select_best(stats: Stats, log_dir: str) -> None:
         os.symlink(str(best_seed), os.path.join(base_dir, "best"))
 
         for v in single_stats:
+            v["pass"] = v["monitor_return_mean"] > threshold
             v["best"] = False
+
         single_stats[best_seed]["best"] = True
+        if not single_stats[best_seed]["pass"]:
+            print(
+                f"WARNING: ({env_name}, {reward_type}) did not meet threshold: "
+                f"{single_stats[best_seed]['monitor_return_mean']} < {threshold}"
+            )
 
 
 @experts_ex.main

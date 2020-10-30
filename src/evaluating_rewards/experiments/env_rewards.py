@@ -38,6 +38,20 @@ GROUND_TRUTH_REWARDS_BY_ENV = {
     "imitation/PointMazeRightVel-v0": "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
 }
 
+# Minimum return we expect to receive from an expert policy.
+THRESHOLDS = {
+    ("seals/HalfCheetah-v0", "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0"): 1800,
+    # We've reached 2082
+    ("seals/Hopper-v0", "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0"): 2000,
+    # We've reached -48 with RL; rendering this looked close to optimal,
+    # it went directly to the goal and stayed there with little oscillation.
+    # PointMassPolicy (hardcoded) gets around -160.
+    ("evaluating_rewards/PointMassLine-v0", "evaluating_rewards/PointMassGroundTruth-v0"): -55,
+    # We've reached -5 in PointMaze*, but it's very variable across seed
+    ("imitation/PointMazeLeftVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -6.5,
+    ("imitation/PointMazeRightVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -6.5,
+}
+
 
 def _matched(pattern: str, strings: Iterable[str]) -> Set[str]:
     pattern = re.compile(pattern)
