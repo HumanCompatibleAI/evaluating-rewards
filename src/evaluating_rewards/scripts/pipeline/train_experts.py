@@ -187,6 +187,7 @@ def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
 
 def parallel_training(
     n_seeds: int,
+    global_updates: Mapping[str, Any],
     configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
     log_dir: str,
 ) -> Stats:
@@ -194,6 +195,7 @@ def parallel_training(
 
     Args:
         n_seeds: the number of seeds per config.
+        global_updates: configuration to apply to all environment-reward pairs.
         configs: configuration for each environment and reward type pair.
         log_dir: the root directory to log experiments to.
 
@@ -205,6 +207,7 @@ def parallel_training(
     refs = []
     for env_name, inner_configs in configs.items():
         for reward_type, updates in inner_configs.items():
+            updates = dict(updates).update(global_updates)
             for seed in range(n_seeds):
                 obj_ref = rl_worker.remote(
                     env_name=env_name,
@@ -257,6 +260,7 @@ def select_best(stats: Stats, log_dir: str) -> None:
 def train_experts(
     ray_kwargs: Mapping[str, Any],
     n_seeds: int,
+    global_updates: Mapping[str, Any],
     configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
     log_dir: str,
 ) -> Stats:
@@ -265,7 +269,8 @@ def train_experts(
     Args:
         ray_kwargs: arguments passed to `ray.init`.
         n_seeds: the number of seeds per config.
-        configs: configuration for each environment and reward type pair.
+        global_updates: configuration to apply to all environment-reward pairs.
+        configs: configuration for each environment-reward pair.
         log_dir: the root directory to log experiments to.
 
     Returns:
@@ -275,7 +280,7 @@ def train_experts(
     ray.init(**ray_kwargs)
 
     try:
-        stats = parallel_training(n_seeds, configs, log_dir)
+        stats = parallel_training(n_seeds, global_updates, configs, log_dir)
         select_best(stats, log_dir)
     finally:
         ray.shutdown()
