@@ -18,7 +18,7 @@ Picks best seed of train_rl for each (environment, reward) pair specified.
 """
 
 import os
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, MutableMapping, Optional, Sequence
 
 from imitation.scripts import expert_demos
 from imitation.util import util
@@ -31,6 +31,8 @@ import tabulate
 from evaluating_rewards import serialize
 from evaluating_rewards.experiments import env_rewards
 from evaluating_rewards.scripts import script_utils
+
+Stats = Mapping[str, Sequence[MutableMapping[str, Any]]]
 
 experts_ex = sacred.Experiment("train_experts")
 
@@ -80,7 +82,6 @@ def _make_ground_truth_configs():
     return configs
 
 
-# TODO: set long enough eval_sample_until
 @experts_ex.named_config
 def ground_truth():
     """Train RL expert on all configured environments with the ground-truth reward."""
@@ -184,53 +185,98 @@ def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
     return tabulate.tabulate(res, headers="keys")
 
 
+def parallel_training(
+    n_seeds: int,
+    configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
+    log_dir: str,
+) -> Stats:
+    """Train experts in parallel.
+
+    Args:
+        n_seeds: the number of seeds per config.
+        configs: configuration for each environment and reward type pair.
+        log_dir: the root directory to log experiments to.
+
+    Returns:
+        Statistics `stats` for all policies, where `stats[(env_name, reward_type)][i]` are
+        the statistics for seed `i` of the given environment and reward pair.
+    """
+    keys = []
+    refs = []
+    for env_name, inner_configs in configs.items():
+        for reward_type, updates in inner_configs.items():
+            for seed in range(n_seeds):
+                obj_ref = rl_worker.remote(
+                    env_name=env_name,
+                    reward_type=reward_type,
+                    seed=seed,
+                    log_root=log_dir,
+                    updates=updates,
+                )
+                keys.append((env_name, reward_type))
+                refs.append(obj_ref)
+    raw_values = ray.get(refs)
+
+    stats = {}
+    for k, v in zip(keys, raw_values):
+        stats.setdefault(k, []).append(v)
+
+    return stats
+
+
+def select_best(stats: Stats, log_dir: str) -> None:
+    """Pick the best seed for each environment-reward pair in `stats`.
+
+    Concretely, chooses the seed with highest `monitor_return_mean`, and:
+      - Adds a symlink `best` in the same directory as the seeds;
+      - Adds a key "best" that is `True` for the winning seed and `False` otherwise.
+        Note this modifies `stats` in-place.
+
+    Args:
+        stats: The statistics to select the best seed from. Note this is modified in-place.
+        log_dir: The log directory for this experiment.
+    """
+    for key, single_stats in stats.items():
+        env_name, reward_type = key
+        returns = [x["monitor_return_mean"] for x in single_stats]
+        best_seed = np.argmax(returns)
+        base_dir = os.path.join(
+            log_dir,
+            script_utils.sanitize_path(env_name),
+            script_utils.sanitize_path(reward_type),
+        )
+        # make symlink relative so it'll work even if directory structure is copied/moved
+        os.symlink(str(best_seed), os.path.join(base_dir, "best"))
+
+        for v in single_stats:
+            v["best"] = False
+        single_stats[best_seed]["best"] = True
+
+
 @experts_ex.main
 def train_experts(
     ray_kwargs: Mapping[str, Any],
     n_seeds: int,
-    log_dir: str,
     configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
-) -> Mapping[str, Any]:
-    """Entry-point into script to train expert policies specified by config."""
+    log_dir: str,
+) -> Stats:
+    """Entry-point into script to train expert policies specified by config.
+
+    Args:
+        ray_kwargs: arguments passed to `ray.init`.
+        n_seeds: the number of seeds per config.
+        configs: configuration for each environment and reward type pair.
+        log_dir: the root directory to log experiments to.
+
+    Returns:
+        Statistics `stats` for all policies, where `stats[(env_name, reward_type)][i]` are
+        the statistics for seed `i` of the given environment and reward pair.
+    """
     ray.init(**ray_kwargs)
 
     try:
-        # Train policies
-        keys = []
-        refs = []
-        for env_name, inner_configs in configs.items():
-            for reward_type, updates in inner_configs.items():
-                for seed in range(n_seeds):
-                    obj_ref = rl_worker.remote(
-                        env_name=env_name,
-                        reward_type=reward_type,
-                        seed=seed,
-                        log_root=log_dir,
-                        updates=updates,
-                    )
-                    keys.append((env_name, reward_type))
-                    refs.append(obj_ref)
-        raw_values = ray.get(refs)
-
-        stats = {}
-        for k, v in zip(keys, raw_values):
-            stats.setdefault(k, []).append(v)
-
-        for key, single_stats in stats.items():
-            env_name, reward_type = key
-            returns = [x["monitor_return_mean"] for x in single_stats]
-            best_seed = np.argmax(returns)
-            base_dir = os.path.join(
-                log_dir,
-                script_utils.sanitize_path(env_name),
-                script_utils.sanitize_path(reward_type),
-            )
-            # make symlink relative so it'll work even if directory structure is copied/moved
-            os.symlink(str(best_seed), os.path.join(base_dir, "best"))
-
-            for v in single_stats:
-                v["best"] = False
-            single_stats[best_seed]["best"] = True
+        stats = parallel_training(n_seeds, configs, log_dir)
+        select_best(stats, log_dir)
     finally:
         ray.shutdown()
 
