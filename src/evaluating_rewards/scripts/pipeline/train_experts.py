@@ -218,7 +218,7 @@ def train_experts(
 
         for key, single_stats in stats.items():
             env_name, reward_type = key
-            returns = [x["return_mean"] for x in single_stats]
+            returns = [x["monitor_return_mean"] for x in single_stats]
             best_seed = np.argmax(returns)
             base_dir = os.path.join(
                 log_dir,
