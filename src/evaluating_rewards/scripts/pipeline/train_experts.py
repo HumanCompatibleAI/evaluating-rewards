@@ -62,47 +62,25 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
     return func
 
 
+POINT_MASS_CONFIGS = {
+    "n_seeds": 9,  # Performance tends to be variable so use large # of seeds
+    "config_updates": {
+        "init_rl_kwargs": {
+            "n_steps": 512,
+        },
+        "total_timesteps": int(2e5),  # normally converges after 50k timesteps
+    },
+}
+
 # TODO(adam): reduce config duplication once you've figured out what hyperparams you actually want
 # Optional parameters passed to sacred.Experiment.run, such as config_updates
 # or named_configs, specified on a per-environment basis.
 CONFIG_BY_ENV = {
-    "evaluating_rewards/PointMassLine-v0": {
-        "config_updates": {
-            "init_rl_kwargs": {
-                "n_steps": 512,
-                "learning_rate": linear_schedule(3e-4),
-            },
-            "total_timesteps": int(2e5),
-        }
-    },
-    # Performance in PointMaze is very variable, so use a large # of seeds
-    "imitation/PointMazeLeftVel-v0": {
-        "n_seeds": 9,
-        "config_updates": {
-            "init_rl_kwargs": {
-                "n_steps": 512,
-                "learning_rate": linear_schedule(3e-4),
-            },
-            "total_timesteps": int(2e5),  # normally converges after 50k timesteps
-        },
-    },
-    "imitation/PointMazeRightVel-v0": {
-        "n_seeds": 9,
-        "config_updates": {
-            "init_rl_kwargs": {
-                "n_steps": 512,
-                "learning_rate": linear_schedule(3e-4),
-            },
-            "total_timesteps": int(2e5),  # normally converges after 50k timesteps
-        },
-    },
+    "evaluating_rewards/PointMassLine-v0": POINT_MASS_CONFIGS,
+    "imitation/PointMazeLeftVel-v0": POINT_MASS_CONFIGS,
+    "imitation/PointMazeRightVel-v0": POINT_MASS_CONFIGS,
     "seals/HalfCheetah-v0": {
         "config_updates": {
-            "init_rl_kwargs": {
-                "n_steps": 256,  # multiplied by num_vec=8 for a batch size of 2048
-                "cliprange_vf": -1,
-                "learning_rate": linear_schedule(3e-4),
-            },
             # HalfCheetah does OK after 1e6 but keeps on improving
             "total_timesteps": int(5e6),
         }
@@ -124,6 +102,13 @@ def default_config():
             # Save a very large rollout so IRL algorithms will have plenty of data.
             # (We can always truncate later if we want to consider data-limited setting.)
             "rollout_save_n_timesteps": 100000,
+            # Set some reasonable default hyperparameters for continuous control tasks.
+            "num_vec": 8,
+            "init_rl_kwargs": {
+                "n_steps": 256,  # batch size = n_steps * num_vec
+                "learning_rate": linear_schedule(3e-4),
+                "cliprange_vf": -1,  # matches original PPO algorithm
+            },
         },
     }
     configs = {
@@ -286,7 +271,7 @@ def parallel_training(
             if reward_type == "None":  # Sacred config doesn't support literal None
                 reward_type = None
             updates = copy.deepcopy(dict(global_configs))
-            script_utils.recursive_dict_merge(updates, cfg, allow_conflict=True)
+            script_utils.recursive_dict_merge(updates, cfg, overwrite=True)
             n_seeds = updates.pop("n_seeds", 1)
             for seed in range(n_seeds):
                 obj_ref = rl_worker.remote(
