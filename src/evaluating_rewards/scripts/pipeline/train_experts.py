@@ -71,8 +71,8 @@ CONFIG_BY_ENV = {
             "init_rl_kwargs": {
                 "n_steps": 512,
                 "learning_rate": linear_schedule(3e-4),
-                "total_timesteps": int(2e5),
             },
+            "total_timesteps": int(2e5),
         }
     },
     # Performance in PointMaze is very variable, so use a large # of seeds
@@ -81,8 +81,8 @@ CONFIG_BY_ENV = {
         "config_updates": {
             "init_rl_kwargs": {
                 "n_steps": 512,
+                "learning_rate": linear_schedule(3e-4),
             },
-            "learning_rate": linear_schedule(3e-4),
             "total_timesteps": int(2e5),  # normally converges after 50k timesteps
         },
     },
@@ -91,24 +91,24 @@ CONFIG_BY_ENV = {
         "config_updates": {
             "init_rl_kwargs": {
                 "n_steps": 512,
+                "learning_rate": linear_schedule(3e-4),
             },
-            "learning_rate": linear_schedule(3e-4),
             "total_timesteps": int(2e5),  # normally converges after 50k timesteps
         },
     },
     "seals/HalfCheetah-v0": {
         "config_updates": {
-            # HalfCheetah does OK after 1e6 but keeps on improving
-            "total_timesteps": int(5e6),
             "init_rl_kwargs": {
                 "n_steps": 256,  # multiplied by num_vec=8 for a batch size of 2048
+                "cliprange_vf": -1,
+                "learning_rate": linear_schedule(3e-4),
             },
-            "cliprange_vf": -1,
-            "learning_rate": linear_schedule(3e-4),
+            # HalfCheetah does OK after 1e6 but keeps on improving
+            "total_timesteps": int(5e6),
         }
     },
 }
-CONFIG_BY_ENV["HalfCheetah-v3"] = CONFIG_BY_ENV["seals/HalfCheetah-v0"]
+CONFIG_BY_ENV["HalfCheetah-v3"] = dict(CONFIG_BY_ENV["seals/HalfCheetah-v0"])
 
 
 @experts_ex.config
@@ -148,7 +148,7 @@ def _make_ground_truth_configs():
     Separate function to avoid polluting Sacred ConfigScope with local variables."""
     configs = {}
     for env, gt_reward in env_rewards.GROUND_TRUTH_REWARDS_BY_ENV.items():
-        configs.setdefault(env, {})[gt_reward] = CONFIG_BY_ENV.get(env, {})
+        configs.setdefault(env, {})[str(gt_reward)] = CONFIG_BY_ENV.get(env, {})
     return configs
 
 
@@ -283,7 +283,9 @@ def parallel_training(
     refs = []
     for env_name, inner_configs in configs.items():
         for reward_type, cfg in inner_configs.items():
-            updates = copy.deepcopy(global_configs)
+            if reward_type == "None":  # Sacred config doesn't support literal None
+                reward_type = None
+            updates = copy.deepcopy(dict(global_configs))
             script_utils.recursive_dict_merge(updates, cfg, allow_conflict=True)
             n_seeds = updates.pop("n_seeds", 1)
             for seed in range(n_seeds):
