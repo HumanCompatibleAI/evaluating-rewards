@@ -144,9 +144,8 @@ def test():
     aggregate_kinds = ("bootstrap",)
     fit_kwargs = {"affine_size": 512}
     ray_kwargs = {
-        # CI build only has 2 cores, so don't start too many workers or run too much in parallel
-        "num_cpus": 2,
-        "num_workers": 2,
+        # CI build only has 1 core per test
+        "num_cpus": 1,
     }
     batch_size = 512
     total_timesteps = 2048
