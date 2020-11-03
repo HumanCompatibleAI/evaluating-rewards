@@ -23,13 +23,14 @@ executors:
         auth:
                 username: $DOCKERHUB_USERNAME
                 password: $DOCKERHUB_PASSWORD
-    resource_class: medium+
+    resource_class: xlarge 
     working_directory: /evaluating-rewards
     environment:
       # If you change these, also change scripts/code_checks.sh
       SRC_FILES: src/ tests/ setup.py
       TYPECHECK_FILES: src/  # tests often do weird things with types, exclude
-      NUM_CPUS: 2  # more CPUs visible but we're throttled to 2, which breaks auto-detect
+      # Don't use auto-detect since it sees all CPUs available, but container is throttled.
+      NUM_CPUS: 8
 
 commands:
   dependencies:
@@ -95,7 +96,6 @@ jobs:
 
   unit-test:
     executor: my-executor
-    parallelism: 4
     steps:
       - dependencies
 
@@ -116,7 +116,6 @@ jobs:
           command: |
             pytest --cov=/venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
-                   --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
                    --nb-test-files -n ${NUM_CPUS} -vv tests/ examples/
             mv .coverage .coverage.eval
             coverage combine  # rewrite paths from virtualenv to src/
