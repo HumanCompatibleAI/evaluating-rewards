@@ -63,7 +63,7 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
 
 
 POINT_MASS_CONFIGS = {
-    "n_seeds": 9,  # Performance tends to be variable so use large # of seeds
+    "n_seeds": 18,
     "config_updates": {
         "init_rl_kwargs": {
             "n_steps": 512,
@@ -86,7 +86,6 @@ CONFIG_BY_ENV = {
         }
     },
 }
-CONFIG_BY_ENV["HalfCheetah-v3"] = dict(CONFIG_BY_ENV["seals/HalfCheetah-v0"])
 
 
 @experts_ex.config
@@ -95,7 +94,7 @@ def default_config():
     ray_kwargs = {}
     log_root = os.path.join(serialize.get_output_dir(), "train_experts")
     global_configs = {
-        "n_seeds": 3,
+        "n_seeds": 9,
         "config_updates": {
             # Increase from default since we need reliable evaluation to pick the best seed
             "n_episodes_eval": 200,
