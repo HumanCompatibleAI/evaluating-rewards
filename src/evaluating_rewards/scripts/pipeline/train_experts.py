@@ -66,28 +66,34 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
 # or named_configs, specified on a per-environment basis.
 CONFIG_BY_ENV = {
     "evaluating_rewards/PointMassLine-v0": {
-        "init_rl_kwargs": {
-            "n_steps": 512,
-        },
-        "learning_rate": linear_schedule(3e-4),
-        "total_timesteps": int(2e5),
+        "config_updates": {
+            "init_rl_kwargs": {
+                "n_steps": 512,
+                "learning_rate": linear_schedule(3e-4),
+                "total_timesteps": int(2e5),
+            },
+        }
     },
     # Performance in PointMaze is very variable, so use a large # of seeds
     "imitation/PointMazeLeftVel-v0": {
         "n_seeds": 9,
-        "init_rl_kwargs": {
-            "n_steps": 512,
+        "config_updates": {
+            "init_rl_kwargs": {
+                "n_steps": 512,
+            },
+            "learning_rate": linear_schedule(3e-4),
+            "total_timesteps": int(2e5),  # normally converges after 50k timesteps
         },
-        "learning_rate": linear_schedule(3e-4),
-        "total_timesteps": int(2e5),  # normally converges after 50k timesteps
     },
     "imitation/PointMazeRightVel-v0": {
         "n_seeds": 9,
-        "init_rl_kwargs": {
-            "n_steps": 512,
+        "config_updates": {
+            "init_rl_kwargs": {
+                "n_steps": 512,
+            },
+            "learning_rate": linear_schedule(3e-4),
+            "total_timesteps": int(2e5),  # normally converges after 50k timesteps
         },
-        "learning_rate": linear_schedule(3e-4),
-        "total_timesteps": int(2e5),  # normally converges after 50k timesteps
     },
     "seals/HalfCheetah-v0": {
         "config_updates": {
