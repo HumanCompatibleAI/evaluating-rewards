@@ -99,6 +99,18 @@ jobs:
       - dependencies
 
       - run:
+          name: Memory Monitor
+          command: |
+            mkdir /tmp/resource-usage
+            export FILE=/tmp/resource-usage/memory.txt
+            while true; do
+              ps -u root eo pid,%cpu,%mem,args,uname --sort=-%mem >> $FILE
+              echo "----------" >> $FILE
+              sleep 1
+            done
+          background: true
+
+      - run:
           name: run tests
           command: |
             pytest --cov=/venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
