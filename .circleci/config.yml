@@ -23,23 +23,27 @@ defaults: &defaults
         username: $DOCKERHUB_USERNAME
         password: $DOCKERHUB_PASSWORD
   working_directory: /evaluating-rewards
-  environment:
-    # If you change these, also change scripts/code_checks.sh
-    SRC_FILES: src/ tests/ setup.py
-    TYPECHECK_FILES: src/  # tests often do weird things with types, exclude
-    # Don't use auto-detect since it sees all CPUs available, but container is throttled.
+
+
+environment_defaults: &environment_defaults
+  # If you change these, also change scripts/code_checks.sh
+  SRC_FILES: src/ tests/ setup.py
+  TYPECHECK_FILES: src/  # tests often do weird things with types, exclude
+  # Don't use auto-detect since it sees all CPUs available, but container is throttled.
 
 executors:
   unit-test:
     <<: *defaults
     resource_class: xlarge
     environment:
+      <<: *environment_defaults
       # Don't use auto-detect since it sees all CPUs available, but container is throttled.
       NUM_CPUS: 8
   lintandtype:
     <<: *defaults
     resource_class: medium
     environment:
+      <<: *environment_defaults
       # Don't use auto-detect since it sees all CPUs available, but container is throttled.
       NUM_CPUS: 2
 
