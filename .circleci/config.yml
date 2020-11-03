@@ -23,6 +23,7 @@ executors:
         auth:
                 username: $DOCKERHUB_USERNAME
                 password: $DOCKERHUB_PASSWORD
+    resource_class: medium+
     working_directory: /evaluating-rewards
     environment:
       # If you change these, also change scripts/code_checks.sh
