@@ -32,10 +32,10 @@ defaults: &defaults
 executors:
   unit-test:
     <<: *defaults
-    resource_class: 2xlarge+
+    resource_class: xlarge
     environment:
       # Don't use auto-detect since it sees all CPUs available, but container is throttled.
-      NUM_CPUS: 20
+      NUM_CPUS: 8
   lintandtype:
     <<: *defaults
     resource_class: medium
@@ -107,6 +107,7 @@ jobs:
 
   unit-test:
     executor: unit-test
+    parallelism: 4
     steps:
       - dependencies
 
@@ -127,6 +128,7 @@ jobs:
           command: |
             pytest --cov=/venv/lib/python3.7/site-packages/evaluating_rewards --cov=tests \
                    --junitxml=/tmp/test-reports/junit.xml --no-success-flaky-report \
+                   --shard-id=${CIRCLE_NODE_INDEX} --num-shards=${CIRCLE_NODE_TOTAL} \
                    --nb-test-files -n ${NUM_CPUS} -vv tests/ examples/
             mv .coverage .coverage.eval
             coverage combine  # rewrite paths from virtualenv to src/
