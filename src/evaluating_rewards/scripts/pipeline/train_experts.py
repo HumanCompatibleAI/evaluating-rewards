@@ -18,7 +18,7 @@ Picks best seed of train_rl for each (environment, reward) pair specified.
 """
 
 import os
-from typing import Any, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence
 
 from imitation.scripts import expert_demos
 from imitation.util import util
@@ -36,6 +36,31 @@ Stats = Mapping[str, Sequence[MutableMapping[str, Any]]]
 
 experts_ex = sacred.Experiment("train_experts")
 
+
+def linear_schedule(initial_value: float) -> Callable[[float], float]:
+    """Linear schedule, e.g. for learning rate.
+
+    Args:
+        initial_value: the initial value.
+
+    Returns:
+        A function computing the current output.
+    """
+
+    def func(progress: float) -> float:
+        """Computes current rate.
+
+        Args:
+            progress: between 1 (beginning) and 0 (end).
+
+        Returns:
+            The current rate.
+        """
+        return progress * initial_value
+
+    return func
+
+
 # Optional parameters passed to sacred.Experiment.run, such as config_updates
 # or named_configs, specified on a per-environment basis.
 CONFIG_BY_ENV = {
@@ -50,9 +75,15 @@ CONFIG_BY_ENV = {
         "config_updates": {
             # HalfCheetah does OK after 1e6 but keeps on improving
             "total_timesteps": int(5e6),
+            "init_rl_kwargs": {
+                "n_steps": 256,  # multiplied by num_vec=8 for a batch size of 2048
+            },
+            "cliprange_vf": -1,
+            "learning_rate": linear_schedule(3e-4),
         }
     },
 }
+CONFIG_BY_ENV["HalfCheetah-v3"] = CONFIG_BY_ENV["seals/HalfCheetah-v0"]
 
 
 @experts_ex.config
@@ -129,7 +160,7 @@ def test():
 @ray.remote
 def rl_worker(
     env_name: str,
-    reward_type: str,
+    reward_type: Optional[str],
     seed: int,
     log_root: str,
     updates: Mapping[str, Any],
@@ -138,7 +169,8 @@ def rl_worker(
 
     Args:
         env_name: the name of the environment to train a policy in.
-        reward_type: the reward type to load and train a policy on.
+        reward_type: the reward type to load and train a policy on;
+                     if None, use original environment reward.
         seed: seed for RL algorithm.
         log_root: the root logging directory for this experiment.
             Each RL policy will have a subdirectory created:

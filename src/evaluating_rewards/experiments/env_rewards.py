@@ -31,6 +31,7 @@ for env_name in REWARDS_BY_ENV:
     REWARDS_BY_ENV[env_name] += GENERIC_REWARDS
 
 GROUND_TRUTH_REWARDS_BY_ENV = {
+    "HalfCheetah-v3": None,
     "seals/HalfCheetah-v0": "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
     "seals/Hopper-v0": "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
     "evaluating_rewards/PointMassLine-v0": "evaluating_rewards/PointMassGroundTruth-v0",
