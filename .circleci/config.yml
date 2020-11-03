@@ -107,7 +107,7 @@ jobs:
 
   unit-test:
     executor: unit-test
-    parallelism: 4
+    parallelism: 2
     steps:
       - dependencies
 
