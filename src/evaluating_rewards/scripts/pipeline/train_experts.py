@@ -17,6 +17,7 @@
 Picks best seed of train_rl for each (environment, reward) pair specified.
 """
 
+import copy
 import os
 from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence
 
@@ -282,8 +283,8 @@ def parallel_training(
     refs = []
     for env_name, inner_configs in configs.items():
         for reward_type, cfg in inner_configs.items():
-            updates = dict(global_configs)
-            script_utils.recursive_dict_merge(updates, cfg)
+            updates = copy.deepcopy(global_configs)
+            script_utils.recursive_dict_merge(updates, cfg, allow_conflict=True)
             n_seeds = updates.pop("n_seeds", 1)
             for seed in range(n_seeds):
                 obj_ref = rl_worker.remote(

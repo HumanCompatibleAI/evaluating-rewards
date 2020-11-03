@@ -65,7 +65,10 @@ V = TypeVar("V")
 
 
 def recursive_dict_merge(
-    dest: MutableMapping[K, V], update_by: Mapping[K, V], path: Optional[Iterable[str]] = None
+    dest: MutableMapping[K, V],
+    update_by: Mapping[K, V],
+    path: Optional[Iterable[str]] = None,
+    allow_conflict: bool = False,
 ) -> MutableMapping[K, V]:
     """Merges update_by into dest recursively."""
     if path is None:
@@ -78,7 +81,7 @@ def recursive_dict_merge(
                 dest[key] = tuple(set(dest[key]).union(update_by[key]))
             elif dest[key] == update_by[key]:
                 pass  # same leaf value
-            else:
+            elif not allow_conflict:
                 raise Exception("Conflict at {}".format(".".join(path + [str(key)])))
         else:
             dest[key] = update_by[key]
