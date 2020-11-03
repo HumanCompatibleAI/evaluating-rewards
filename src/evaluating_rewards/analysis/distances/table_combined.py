@@ -220,25 +220,6 @@ def make_table(
     return " \\\\\n".join(rows)
 
 
-def recursive_dict_merge(dest: dict, update_by: dict, path: Optional[Iterable[str]] = None) -> dict:
-    """Merges update_by into dest recursively."""
-    if path is None:
-        path = []
-    for key in update_by:
-        if key in dest:
-            if isinstance(dest[key], dict) and isinstance(update_by[key], dict):
-                recursive_dict_merge(dest[key], update_by[key], path + [str(key)])
-            elif isinstance(dest[key], (tuple, list)) and isinstance(update_by[key], (tuple, list)):
-                dest[key] = tuple(set(dest[key]).union(update_by[key]))
-            elif dest[key] == update_by[key]:
-                pass  # same leaf value
-            else:
-                raise Exception("Conflict at {}".format(".".join(path + [str(key)])))
-        else:
-            dest[key] = update_by[key]
-    return dest
-
-
 @table_combined_ex.main
 def table_combined(
     vals_path: Optional[str],
@@ -285,7 +266,7 @@ def table_combined(
         # Merge named_configs. We have a faux top-level layer to workaround Sacred being unable to
         # have named configs build on top of each others definitions in a particular order.
         named_configs = [copy.deepcopy(cfg) for cfg in named_configs.values()]
-        named_configs = functools.reduce(recursive_dict_merge, named_configs)
+        named_configs = functools.reduce(script_utils.recursive_dict_merge, named_configs)
 
         runs = {}
         for ex_key, ex in experiments.items():
