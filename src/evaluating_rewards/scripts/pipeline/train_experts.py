@@ -163,17 +163,24 @@ def ground_truth():
 @experts_ex.named_config
 def test():
     """Intended for tests / debugging: small # of seeds and CPU cores, single env-reward pair."""
-    ray_kwargs = {"num_cpus": 2}  # CI build only has 2 cores
+    ray_kwargs = {
+        # CI build only has 2 cores, so don't start too many workers or run too much in parallel
+        "num_cpus": 2,
+        "num_workers": 2,
+    }
     global_configs = {
         "n_seeds": 2,
         "config_updates": {
+            "num_vec": 1,  # avoid taking up too many resources on CI
             "n_episodes_eval": 1,
             "rollout_save_n_timesteps": 100,
         },
     }
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
-            "evaluating_rewards/PointMassGroundTruth-v0": {"named_configs": ["fast"]},
+            "evaluating_rewards/PointMassGroundTruth-v0": {
+                "named_configs": ["fast"],
+            },
         }
     }
     run_tag = "test"
