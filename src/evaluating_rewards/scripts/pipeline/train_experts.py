@@ -273,7 +273,14 @@ def parallel_training(
             script_utils.recursive_dict_merge(updates, cfg, overwrite=True)
             n_seeds = updates.pop("n_seeds", 1)
             for seed in range(n_seeds):
-                obj_ref = rl_worker.remote(
+                # Infer the number of parallel environments being run and reserve that many CPUs
+                config_updates = updates.get("config_updates", {})
+                num_vec = config_updates.get("num_vec", 8)  # 8 is default in expert_demos
+                parallel = config_updates.get("parallel", True)
+                num_cpus = num_vec if parallel else 1
+                rl_worker_tagged = rl_worker.options(num_cpus=num_cpus)
+                # Now execute RL training
+                obj_ref = rl_worker_tagged.remote(
                     env_name=env_name,
                     reward_type=reward_type,
                     seed=seed,
