@@ -76,7 +76,9 @@ def recursive_dict_merge(
     for key in update_by:
         if key in dest:
             if isinstance(dest[key], dict) and isinstance(update_by[key], dict):
-                recursive_dict_merge(dest[key], update_by[key], path + [str(key)])
+                recursive_dict_merge(
+                    dest[key], update_by[key], path + [str(key)], overwrite=overwrite
+                )
             elif isinstance(dest[key], (tuple, list)) and isinstance(update_by[key], (tuple, list)):
                 dest[key] = tuple(set(dest[key]).union(update_by[key]))
             elif dest[key] == update_by[key]:
