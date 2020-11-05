@@ -92,6 +92,7 @@ CONFIG_BY_ENV = {
 def default_config():
     """Default configuration."""
     ray_kwargs = {}
+    num_cpus_fudge_factor = 0.5  # we can usually run 2 environments per CPU for MuJoCo
     log_root = os.path.join(serialize.get_output_dir(), "train_experts")
     global_configs = {
         "n_seeds": 9,
@@ -253,6 +254,7 @@ def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
 def parallel_training(
     global_configs: Mapping[str, Any],
     configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
+    num_cpus_fudge_factor: float,
     log_dir: str,
 ) -> Stats:
     """Train experts in parallel.
@@ -260,6 +262,7 @@ def parallel_training(
     Args:
         global_configs: configuration to apply to all environment-reward pairs.
         configs: configuration for each environment and reward type pair.
+        num_cpus_fudge_factor: factor by which to scale `num_vec` to compute CPU requirements.
         log_dir: the root directory to log experiments to.
 
     Returns:
@@ -280,7 +283,7 @@ def parallel_training(
                 config_updates = updates.get("config_updates", {})
                 num_vec = config_updates.get("num_vec", 8)  # 8 is default in expert_demos
                 parallel = config_updates.get("parallel", True)
-                num_cpus = num_vec if parallel else 1
+                num_cpus = math.ceil(num_vec * num_cpus_fudge_factor) if parallel else 1
                 rl_worker_tagged = rl_worker.options(num_cpus=num_cpus)
                 # Now execute RL training
                 obj_ref = rl_worker_tagged.remote(
@@ -342,6 +345,7 @@ def select_best(stats: Stats, log_dir: str) -> None:
 @experts_ex.main
 def train_experts(
     ray_kwargs: Mapping[str, Any],
+    num_cpus_fudge_factor: float,
     global_configs: Mapping[str, Any],
     configs: Mapping[str, Mapping[str, Mapping[str, Any]]],
     log_dir: str,
@@ -350,6 +354,7 @@ def train_experts(
 
     Args:
         ray_kwargs: arguments passed to `ray.init`.
+        num_cpus_fudge_factor: factor by which to scale `num_vec` to compute CPU requirements.
         global_configs: configuration to apply to all environment-reward pairs.
         configs: configuration for each environment-reward pair.
         log_dir: the root directory to log experiments to.
@@ -361,7 +366,7 @@ def train_experts(
     ray.init(**ray_kwargs)
 
     try:
-        stats = parallel_training(global_configs, configs, log_dir)
+        stats = parallel_training(global_configs, configs, num_cpus_fudge_factor, log_dir)
         select_best(stats, log_dir)
     finally:
         ray.shutdown()
