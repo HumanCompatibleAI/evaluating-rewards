@@ -16,9 +16,9 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${DIR}/common.sh
 
-GREEDY_REWARD_MODELS="PointMassGroundTruth-v0:None \
-                      PointMassSparse-v0:None \
-                      PointMassDense-v0:None"
+GREEDY_REWARD_MODELS="evaluating_rewards/PointMassGroundTruth-v0:None:0.99 \
+                      evaluating_rewards/PointMassSparseWithCtrl-v0:None:0.99 \
+                      evaluating_rewards/PointMassDenseWithCtrl-v0:None:0.99"
 
 parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/greedy_pm_hardcoded \
          ${EVAL_POLICY_CMD} policy_type=evaluating_rewards/MCGreedy-v0 \

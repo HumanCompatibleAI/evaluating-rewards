@@ -25,6 +25,10 @@ def _register_policies():
     serialize.policy_registry.register(
         "mixture", indirect="evaluating_rewards.policies.mixture:load_mixture"
     )
+    serialize.policy_registry.register(
+        key="evaluating_rewards/MCGreedy-v0",
+        indirect="evaluating_rewards.policies.monte_carlo:load_monte_carlo_greedy",
+    )
 
 
 _register_policies()
