@@ -31,7 +31,6 @@ for env_name in REWARDS_BY_ENV:
     REWARDS_BY_ENV[env_name] += GENERIC_REWARDS
 
 GROUND_TRUTH_REWARDS_BY_ENV = {
-    "HalfCheetah-v3": None,
     "seals/HalfCheetah-v0": "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
     "seals/Hopper-v0": "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
     "evaluating_rewards/PointMassLine-v0": "evaluating_rewards/PointMassGroundTruth-v0",
@@ -45,14 +44,15 @@ THRESHOLDS = {
     ("seals/HalfCheetah-v0", "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0"): 1800,
     # We've reached 2082; varies between seeds.
     ("seals/Hopper-v0", "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0"): 2000,
-    # We've reached -48 with RL; rendering this looked close to optimal,
-    # it went directly to the goal and stayed there with little oscillation.
-    # PointMassPolicy (hardcoded) gets around -160.
-    ("evaluating_rewards/PointMassLine-v0", "evaluating_rewards/PointMassGroundTruth-v0"): -55,
-    # We've reached -5 in PointMazeLeft, but it's very variable across seed
-    ("imitation/PointMazeLeftVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -6.5,
-    # PointMazeRight seems to get lower reward on average
-    ("imitation/PointMazeRightVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -8,
+    # Performance is very variable. Can usually get below -80 with RL, have got as low as -48.
+    # Random policies get around -550. PointMassPolicy (hardcoded) gets around -160.
+    # Things above -80 look reasonably good but suboptimal, sometimes stop before touching the goal.
+    # The -48 policy seemed close to optimal.
+    ("evaluating_rewards/PointMassLine-v0", "evaluating_rewards/PointMassGroundTruth-v0"): -80,
+    # Typically get reward between -8 and -10, some seed should get >-9
+    ("imitation/PointMazeLeftVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -9,
+    # PointMazeRight is similar.
+    ("imitation/PointMazeRightVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -9,
 }
 
 

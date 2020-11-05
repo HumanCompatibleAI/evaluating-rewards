@@ -63,12 +63,11 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
 
 
 POINT_MASS_CONFIGS = {
-    "n_seeds": 18,
+    "n_seeds": 9,
     "config_updates": {
         "init_rl_kwargs": {
             "n_steps": 512,
         },
-        "total_timesteps": int(2e5),  # normally converges after 50k timesteps
     },
 }
 
