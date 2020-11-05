@@ -64,7 +64,6 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
 
 
 POINT_MASS_CONFIGS = {
-    "n_seeds": 9,
     "config_updates": {
         "init_rl_kwargs": {
             "n_steps": 512,
@@ -72,7 +71,6 @@ POINT_MASS_CONFIGS = {
     },
 }
 
-# TODO(adam): reduce config duplication once you've figured out what hyperparams you actually want
 # Optional parameters passed to sacred.Experiment.run, such as config_updates
 # or named_configs, specified on a per-environment basis.
 CONFIG_BY_ENV = {
