@@ -18,6 +18,7 @@ Picks best seed of train_rl for each (environment, reward) pair specified.
 """
 
 import copy
+import math
 import os
 from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence
 
@@ -238,6 +239,9 @@ def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
 
             filtered_row = {}
             for k, v in row.items():
+                if k.endswith("_std"):
+                    k = k[:-4] + "_se"
+                    v = v / math.sqrt(row["n_traj"])
                 new_k = _filter_key(k)
                 if new_k is not None:
                     filtered_row[new_k] = v
