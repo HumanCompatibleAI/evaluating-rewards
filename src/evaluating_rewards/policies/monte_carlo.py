@@ -17,7 +17,6 @@
 import warnings
 
 from imitation.data import types
-from imitation.policies import serialize as policy_serialize
 from imitation.util import registry
 import numpy as np
 from stable_baselines.common import policies, vec_env
@@ -125,8 +124,3 @@ def load_monte_carlo_greedy(path: str, env: vec_env.VecEnv) -> MonteCarloGreedyP
     reward_type, reward_path, discount = path.split(":")
     reward_model = serialize.load_reward(reward_type, reward_path, env, float(discount))
     return MonteCarloGreedyPolicy(env, reward_model=reward_model)
-
-
-policy_serialize.policy_registry.register(
-    key="evaluating_rewards/MCGreedy-v0", value=load_monte_carlo_greedy
-)
