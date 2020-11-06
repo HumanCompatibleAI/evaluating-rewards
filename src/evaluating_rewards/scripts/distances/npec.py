@@ -143,7 +143,10 @@ def test():
     # Disable studentt_ci and sample_mean_sd since they need >1 seed (this test is already slow)
     aggregate_kinds = ("bootstrap",)
     fit_kwargs = {"affine_size": 512}
-    ray_kwargs = {"num_cpus": 2}  # CI build only has 2 cores
+    ray_kwargs = {
+        # CI build only has 1 core per test
+        "num_cpus": 1,
+    }
     batch_size = 512
     total_timesteps = 2048
     _ = locals()  # quieten flake8 unused variable warning
@@ -233,11 +236,6 @@ def npec_worker(
         )
 
 
-def sanitize_path(x: Any) -> str:
-    """Converts `x` to string and replaces any occurrence of "/" with "_"."""
-    return str(x).replace("/", "_")
-
-
 @npec_distance_ex.capture
 def compute_npec(  # pylint:disable=unused-argument
     seed: int,
@@ -270,7 +268,10 @@ def compute_npec(  # pylint:disable=unused-argument
     comparison_kwargs = copy.deepcopy(comparison_kwargs)
     fit_kwargs = copy.deepcopy(fit_kwargs)
     log_dir = os.path.join(
-        log_dir, sanitize_path(source_reward_cfg), sanitize_path(target_reward_cfg), str(seed)
+        log_dir,
+        script_utils.sanitize_path(source_reward_cfg),
+        script_utils.sanitize_path(target_reward_cfg),
+        str(seed),
     )
     return npec_worker.remote(**locals())
 
@@ -286,10 +287,10 @@ def compute_vals(
     normalize: bool,
 ) -> common_config.AggregatedDistanceReturn:
     """Entry-point into script to regress source onto target reward model."""
-    ray.init(**ray_kwargs)
-
     if normalize:
         y_reward_cfgs = list(y_reward_cfgs) + [ZERO_CFG]
+
+    ray.init(**ray_kwargs)
 
     try:
         keys = []

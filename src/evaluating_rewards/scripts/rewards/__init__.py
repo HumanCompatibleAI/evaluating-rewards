@@ -1,4 +1,4 @@
-# Copyright 2019 DeepMind Technologies Limited
+# Copyright 2020 Adam Gleave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Thin wrapper around imitation.scripts.expert_demos."""
-
-from imitation.scripts import expert_demos
-
-from evaluating_rewards.scripts import script_utils
-
-if __name__ == "__main__":
-    script_utils.add_logging_config(expert_demos.expert_demos_ex, "expert_demos")
-    script_utils.experiment_main(expert_demos.expert_demos_ex, "expert_demos", sacred_symlink=False)
+"""Command-line scripts to train reward models."""

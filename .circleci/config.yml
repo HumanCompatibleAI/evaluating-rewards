@@ -16,19 +16,36 @@ version: 2.1
 orbs:
   codecov: codecov/codecov@1.1.0
 
+defaults: &defaults
+  docker:
+    - image: humancompatibleai/evaluating_rewards:base
+      auth:
+        username: $DOCKERHUB_USERNAME
+        password: $DOCKERHUB_PASSWORD
+  working_directory: /evaluating-rewards
+
+
+environment_defaults: &environment_defaults
+  # If you change these, also change scripts/code_checks.sh
+  SRC_FILES: src/ tests/ setup.py
+  TYPECHECK_FILES: src/  # tests often do weird things with types, exclude
+  # Don't use auto-detect since it sees all CPUs available, but container is throttled.
+
 executors:
-  my-executor:
-    docker:
-      - image: humancompatibleai/evaluating_rewards:base
-        auth:
-                username: $DOCKERHUB_USERNAME
-                password: $DOCKERHUB_PASSWORD
-    working_directory: /evaluating-rewards
+  unit-test:
+    <<: *defaults
+    resource_class: xlarge
     environment:
-      # If you change these, also change scripts/code_checks.sh
-      SRC_FILES: src/ tests/ setup.py
-      TYPECHECK_FILES: src/  # tests often do weird things with types, exclude
-      NUM_CPUS: 2  # more CPUs visible but we're throttled to 2, which breaks auto-detect
+      <<: *environment_defaults
+      # Don't use auto-detect since it sees all CPUs available, but container is throttled.
+      NUM_CPUS: 8
+  lintandtype:
+    <<: *defaults
+    resource_class: medium
+    environment:
+      <<: *environment_defaults
+      # Don't use auto-detect since it sees all CPUs available, but container is throttled.
+      NUM_CPUS: 2
 
 commands:
   dependencies:
@@ -68,7 +85,7 @@ commands:
 
 jobs:
   lintandtype:
-    executor: my-executor
+    executor: lintandtype
 
     steps:
       - dependencies
@@ -93,10 +110,22 @@ jobs:
           command: pytype -j ${NUM_CPUS} ${TYPECHECK_FILES}
 
   unit-test:
-    executor: my-executor
-    parallelism: 4
+    executor: unit-test
+    parallelism: 2
     steps:
       - dependencies
+
+      - run:
+          name: Memory Monitor
+          command: |
+            mkdir /tmp/resource-usage
+            export FILE=/tmp/resource-usage/memory.txt
+            while true; do
+              ps -u root eo pid,%cpu,%mem,args,uname --sort=-%mem >> $FILE
+              echo "----------" >> $FILE
+              sleep 1
+            done
+          background: true
 
       - run:
           name: run tests
@@ -112,6 +141,9 @@ jobs:
       - store_artifacts:
           path: /tmp/test-reports
           destination: test-reports
+      - store_artifacts:
+          path: /tmp/resource-usage
+          destination: resource-usage
       - store_test_results:
           path: /tmp/test-reports
           unit-test:

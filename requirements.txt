@@ -1,13 +1,17 @@
 seals @ git+https://github.com/HumanCompatibleAI/seals.git@a425714
-imitation==0.1.1
+imitation @ git+https://github.com/HumanCompatibleAI/imitation.git@tf-master
 stable-baselines @ git+https://github.com/hill-a/stable-baselines.git
-sacred @ git+https://github.com/IDSIA/sacred.git@c13ab8
+sacred @ git+https://github.com/IDSIA/sacred.git@7dde5f
 gym[mujoco]
+tabulate
 # Avoid https://github.com/matplotlib/matplotlib/issues/18407
 matplotlib!=3.3.1,!=3.3.0
 numpy
 pandas
 pymdptoolbox
+# Ray uses pickle5 internally, which causes cloudpickle running inside Ray workers to
+# also use version 5. Install it more generally so we can deserialize these outputs.
+pickle5
 ray>=1.0.0
 seaborn
 setuptools

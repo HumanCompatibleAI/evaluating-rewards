@@ -15,6 +15,7 @@
 """Utility functions to aid in constructing Sacred experiments."""
 
 import os
+from typing import Any, Iterable, Mapping, MutableMapping, Optional, TypeVar
 
 from imitation.util import util
 import sacred
@@ -36,6 +37,11 @@ def add_logging_config(experiment, name):
     experiment.config(logging_config)
 
 
+def sanitize_path(x: Any) -> str:
+    """Converts `x` to string and replaces any occurrence of "/" with "_"."""
+    return str(x).replace("/", "_")
+
+
 def add_sacred_symlink(observer: observers.FileStorageObserver):
     """Adds a symbolic link to the output directory of `observer`."""
 
@@ -52,6 +58,38 @@ def add_sacred_symlink(observer: observers.FileStorageObserver):
         os.symlink(target_path, symlink_path, target_is_directory=True)
 
     return f
+
+
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+def recursive_dict_merge(
+    dest: MutableMapping[K, V],
+    update_by: Mapping[K, V],
+    path: Optional[Iterable[str]] = None,
+    overwrite: bool = False,
+) -> MutableMapping[K, V]:
+    """Merges update_by into dest recursively."""
+    if path is None:
+        path = []
+    for key in update_by:
+        if key in dest:
+            if isinstance(dest[key], dict) and isinstance(update_by[key], dict):
+                recursive_dict_merge(
+                    dest[key], update_by[key], path + [str(key)], overwrite=overwrite
+                )
+            elif isinstance(dest[key], (tuple, list)) and isinstance(update_by[key], (tuple, list)):
+                dest[key] = tuple(set(dest[key]).union(update_by[key]))
+            elif dest[key] == update_by[key]:
+                pass  # same leaf value
+            elif overwrite:
+                dest[key] = update_by[key]
+            else:
+                raise Exception("Conflict at {}".format(".".join(path + [str(key)])))
+        else:
+            dest[key] = update_by[key]
+    return dest
 
 
 def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):

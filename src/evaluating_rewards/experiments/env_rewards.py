@@ -30,6 +30,31 @@ GENERIC_REWARDS = ["evaluating_rewards/Zero-v0"]
 for env_name in REWARDS_BY_ENV:
     REWARDS_BY_ENV[env_name] += GENERIC_REWARDS
 
+GROUND_TRUTH_REWARDS_BY_ENV = {
+    "seals/HalfCheetah-v0": "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0",
+    "seals/Hopper-v0": "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0",
+    "evaluating_rewards/PointMassLine-v0": "evaluating_rewards/PointMassGroundTruth-v0",
+    "imitation/PointMazeLeftVel-v0": "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
+    "imitation/PointMazeRightVel-v0": "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
+}
+
+# Minimum return we expect to receive from an expert policy.
+THRESHOLDS = {
+    # PPO paper reports ~2000; SAC reports ~15,000; we've reached over 3000
+    ("seals/HalfCheetah-v0", "evaluating_rewards/HalfCheetahGroundTruthForwardWithCtrl-v0"): 1800,
+    # We've reached 2082; varies between seeds.
+    ("seals/Hopper-v0", "evaluating_rewards/HopperGroundTruthForwardWithCtrl-v0"): 2000,
+    # Performance is very variable. Can usually get below -80 with RL, have got as low as -48.
+    # Random policies get around -550. PointMassPolicy (hardcoded) gets around -160.
+    # Things above -80 look reasonably good but suboptimal, sometimes stop before touching the goal.
+    # The -48 policy seemed close to optimal.
+    ("evaluating_rewards/PointMassLine-v0", "evaluating_rewards/PointMassGroundTruth-v0"): -80,
+    # Typically get reward between -8 and -10, some seed should get >-9
+    ("imitation/PointMazeLeftVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -9,
+    # PointMazeRight is similar.
+    ("imitation/PointMazeRightVel-v0", "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0"): -9,
+}
+
 
 def _matched(pattern: str, strings: Iterable[str]) -> Set[str]:
     pattern = re.compile(pattern)

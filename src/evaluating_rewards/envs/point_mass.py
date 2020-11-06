@@ -331,7 +331,7 @@ class PointMassPolicy(policies.BasePolicy):
 # Register custom policies with imitation
 policy_serialize.policy_registry.register(
     key="evaluating_rewards/PointMassHardcoded-v0",
-    value=registry.build_loader_fn_require_space(PointMassPolicy),
+    value=registry.build_loader_fn_require_space(registry.dummy_context(PointMassPolicy)),
 )
 
 # Register custom rewards with evaluating_rewards
