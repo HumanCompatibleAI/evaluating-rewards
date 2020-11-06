@@ -109,9 +109,9 @@ class PointMassEnv(resettable_env.ResettableEnv):
 
     def state_from_obs(self, obs):
         return {
-            "pos": obs[0 : self.ndim],
-            "vel": obs[self.ndim : 2 * self.ndim],
-            "goal": obs[2 * self.ndim : 3 * self.ndim],
+            "pos": obs[..., 0 : self.ndim],
+            "vel": obs[..., self.ndim : 2 * self.ndim],
+            "goal": obs[..., 2 * self.ndim : 3 * self.ndim],
         }
 
     def render(self, mode="human"):
