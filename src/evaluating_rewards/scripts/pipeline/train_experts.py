@@ -109,12 +109,20 @@ def default_config():
             },
         },
     }
-    configs = {
-        "evaluating_rewards/PointMassLine-v0": {"evaluating_rewards/PointMassGroundTruth-v0": {}},
-    }
+    configs = {}
     run_tag = "default"
     _ = locals()
     del _
+
+
+@experts_ex.config
+def fill_in_blank(configs):
+    if not configs:
+        configs = {  # noqa: F401
+            "evaluating_rewards/PointMassLine-v0": {
+                "evaluating_rewards/PointMassGroundTruth-v0": {}
+            },
+        }
 
 
 @experts_ex.config
