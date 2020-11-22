@@ -120,6 +120,7 @@ def test():
     n_mean_samples = 64
     n_obs = 16
     n_act = 16
+    n_seeds = 2
     _ = locals()
     del _
 
