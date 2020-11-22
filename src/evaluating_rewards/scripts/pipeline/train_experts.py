@@ -256,7 +256,9 @@ def _filter_key(k: str) -> Optional[str]:
     elif k.endswith("_max") or k.endswith("_min"):
         return None
     else:
-        return k.replace("monitor_return", "mr")
+        k = k.replace("monitor_return", "mr")
+        k = k.replace("wrapped_return", "wr")
+        return k
 
 
 def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
