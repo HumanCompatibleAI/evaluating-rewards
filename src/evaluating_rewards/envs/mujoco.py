@@ -356,16 +356,12 @@ class PointMazeSparseBonusReward(PointMazeReward):  # pylint:disable=too-many-an
             sparse_coef=sparse_coef,
             **kwargs,
         )
-        self.sparse_target = sparse_target
-        self.sparse_within = sparse_within
-        self.sparse_max = sparse_stop
-        self.sparse_coef = sparse_coef
 
     def build_reward(self) -> tf.Tensor:
         reward = super().build_reward()
         particle_pos = self._proc_obs[:, 0:3]
         sparse_dist = tf.norm(particle_pos - self.sparse_target, axis=-1)
-        clipped_dist = tf.math.maximum(sparse_dist, self.sparse_max)
+        clipped_dist = tf.math.maximum(sparse_dist, self.sparse_stop)
         clipped_dist = tf.math.minimum(clipped_dist, self.sparse_within)
         sparse_reward = self.sparse_within / clipped_dist
         reward += self.sparse_coef * sparse_reward
