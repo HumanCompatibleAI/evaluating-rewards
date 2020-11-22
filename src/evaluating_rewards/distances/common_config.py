@@ -38,6 +38,8 @@ POINT_MASS_KINDS = [
 POINT_MAZE_KINDS = [
     "imitation/PointMazeGroundTruthWithCtrl-v0",
     "imitation/PointMazeGroundTruthNoCtrl-v0",
+    "imitation/PointMazeRepellentWithCtrl-v0",
+    "imitation/PointMazeRepellentNoCtrl-v0",
 ]
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",
@@ -60,6 +62,7 @@ COMMON_CONFIGS = {
         "env_name": "imitation/PointMazeLeftVel-v0",
         "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
         "y_reward_cfgs": [
+            ("evaluating_rewards/PointMazeRepellentRewardWithCtrl-v0", "dummy"),
             ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
             ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
             (

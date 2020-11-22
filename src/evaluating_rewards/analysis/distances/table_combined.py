@@ -90,6 +90,14 @@ def point_maze_learned():
             f"{serialize.get_output_dir()}/transfer_point_maze/expert/train/policies/final/"
         ),
     }
+    wrong_target_policy_cfg = {
+        "policy_type": "ppo2",
+        "policy_path": (
+            f"{serialize.get_output_dir()}/train_experts/point_maze_wrong_target/"
+            "20201122_053216_fb1b0e/imitation_PointMazeLeftVel-v0/"
+            "evaluating_rewards_PointMazeWrongTarget-v0"
+        ),
+    }
     experiment_kinds = ("random", "expert", "mixture")
     config_updates = {
         "epic": {
@@ -102,20 +110,29 @@ def point_maze_learned():
                 "visitations_factory_kwargs": expert_policy_cfg,
                 "sample_dist_factory_kwargs": expert_policy_cfg,
             },
+            "wrong": {
+                "visitations_factory_kwargs": wrong_target_policy_cfg,
+                "sample_dist_factory_kwargs": wrong_target_policy_cfg,
+            },
         },
         "erc": {
             "mixture": {"trajectory_factory_kwargs": mixed_policy_cfg},
             "random": {},
             "expert": {"trajectory_factory_kwargs": expert_policy_cfg},
+            "wrong": {"trajectory_factory_kwargs": wrong_target_policy_cfg},
         },
         "npec": {
-            kind: {"data_subdir": os.path.join("transfer_point_maze", f"comparison_{kind}")}
-            for kind in ("random", "expert", "mixture")
+            "mixture": {"visitations_factory_kwargs": mixed_policy_cfg},
+            "random": {},
+            "expert": {"visitations_factory_kwargs": mixed_policy_cfg},
+            "wrong": {"visitations_factory_kwargs": mixed_policy_cfg},
         },
     }
     del mixed_policy_cfg
     del expert_policy_cfg
+    del wrong_target_policy_cfg
     pretty_models = {
+        r"\repelstaticmethod{}": ("evaluating_rewards/PointMazeRepellentWithCtrl-v0", "dummy"),
         r"\regressionmethod{}": (
             "evaluating_rewards/RewardModel-v0",
             "transfer_point_maze/reward/regress/model",

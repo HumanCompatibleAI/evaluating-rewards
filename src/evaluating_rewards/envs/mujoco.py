@@ -298,6 +298,46 @@ class PointMazeReward(MujocoHardcodedReward):
         return reward
 
 
+class PointMazeRepellentReward(PointMazeReward):  # pylint:disable=too-many-ancestors
+    """Alternative reward for imitation/PointMaze*: get close but not too close to goal."""
+
+    def __init__(
+        self,
+        *args,
+        repel_within: float = 0.05,
+        repel_max: float = 0.005,
+        repel_coef: float = 5.0,
+        **kwargs,
+    ):
+        """Constructs the reward model.
+
+        Further than `repel_within`, this is the same as `PointMazeReward` up to a constant.
+        Between `repel_within` and `repel_max` from the goal, the reward penalty increases inversely
+        proportional to the distance from the goal. It caps out at `repel_max`.
+
+        Args:
+            *args: passed through to `PointMazeReward`.
+            repel_within: start penalizing agent if it gets any closer than this to the goal.
+            repel_max: do not penalize agent any more from getting closer than this to the goal.
+            repel_coef: coefficient of repellent penalty.
+            **kwargs: passed through to `PointMazeReward`.
+        """
+        super().__init__(*args, **kwargs)
+        self.repel_max = repel_max
+        self.repel_within = repel_within
+        self.repel_coef = repel_coef
+
+    def build_reward(self) -> tf.Tensor:
+        reward = super().build_reward()
+        particle_pos = self._proc_obs[:, 0:3]
+        reward_dist = tf.norm(particle_pos - self.target, axis=-1)
+        clipped_dist = tf.math.maximum(reward_dist, self.repel_max)
+        clipped_dist = tf.math.minimum(clipped_dist, self.repel_within)
+        repel_penalty = self.repel_within / clipped_dist
+        reward -= self.repel_coef * repel_penalty
+        return reward
+
+
 # Register reward models
 def _register_models(format_str, cls, forward=True):
     """Registers reward models of type cls under key formatted by format_str."""
@@ -313,21 +353,20 @@ def _register_models(format_str, cls, forward=True):
     return res
 
 
-def _register_point_maze():
+def _register_point_maze(prefix, cls):
     control = {"WithCtrl": {}, "NoCtrl": {"ctrl_coef": 0.0}}
     for k, cfg in control.items():
-        fn = registry.build_loader_fn_require_space(
-            PointMazeReward, target=np.array([0.3, 0.5, 0.0]), **cfg
-        )
+        fn = registry.build_loader_fn_require_space(cls, target=np.array([0.3, 0.5, 0.0]), **cfg)
         reward_serialize.reward_registry.register(
-            key=f"evaluating_rewards/PointMazeGroundTruth{k}-v0", value=fn
+            key=f"evaluating_rewards/{prefix}{k}-v0", value=fn
         )
 
 
 _register_models("evaluating_rewards/HalfCheetahGroundTruth{}-v0", HalfCheetahGroundTruthReward)
 _register_models("evaluating_rewards/HopperGroundTruth{}-v0", HopperGroundTruthReward)
 _register_models("evaluating_rewards/HopperBackflip{}-v0", HopperBackflipReward, forward=False)
-_register_point_maze()
+_register_point_maze("evaluating_rewards/PointMazeGroundTruth", PointMazeReward)
+_register_point_maze("evaluating_rewards/PointMazeRepellent", PointMazeRepellentReward)
 reward_serialize.reward_registry.register(
     key="evaluating_rewards/PointMazeWrongTarget-v0",
     value=registry.build_loader_fn_require_space(PointMazeReward, target=np.array([0.1, 0.1, 0.0])),
