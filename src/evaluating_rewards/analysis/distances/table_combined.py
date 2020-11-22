@@ -293,9 +293,13 @@ def make_table(
         assert label is not None
         row = f"{label} & "
         for distance, visitation in itertools.product(distance_kinds, experiment_kinds):
-            col = vals[(distance, visitation)].loc[model]
-            multiplier = 100 if key.endswith("relative") else 1000
-            col = f"{col * multiplier:.4g}"
+            k = (distance, visitation)
+            if k in vals:
+                col = vals[k].loc[model]
+                multiplier = 100 if key.endswith("relative") else 1000
+                col = f"{col * multiplier:.4g}"
+            else:
+                col = "---"
             cols.append(col)
         row += r"\resultrow{" + "}{".join(cols) + "}"
         rows.append(row)
