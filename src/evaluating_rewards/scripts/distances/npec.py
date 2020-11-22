@@ -153,6 +153,12 @@ def test():
     del _
 
 
+@npec_distance_ex.named_config
+def high_precision():
+    """Increase number of timesteps to increase change of convergence."""
+    total_timesteps = int(10e6)
+
+
 script_utils.add_logging_config(npec_distance_ex, "npec")
 
 
