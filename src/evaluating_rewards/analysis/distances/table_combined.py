@@ -20,7 +20,7 @@ import itertools
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping, Optional, Set, Tuple, TypeVar
+from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from imitation.util import util as imit_util
 import pandas as pd
@@ -200,11 +200,12 @@ def quick():
 K = TypeVar("K")
 
 
-def common_keys(vals: Iterable[Mapping[K, Any]]) -> Set[K]:
-    res = set(next(iter(vals)).keys())
+def common_keys(vals: Iterable[Mapping[K, Any]]) -> Sequence[K]:
+    first = next(iter(vals)).keys()
+    res = set(first)
     for v in vals:
         res = res.intersection(v.keys())
-    return res
+    return [k for k in first if k in res]  # preserve order
 
 
 def make_table(
