@@ -115,30 +115,24 @@ def point_maze_learned_good():
     config_updates = _make_visitations_config_updates(
         {
             "random": {
-                "visitations_factory_kwargs": {
-                    "policy_type": "random",
-                    "policy_path": "dummy",
-                }
+                "policy_type": "random",
+                "policy_path": "dummy",
             },
             "expert": {
-                "visitations_factory_kwargs": {
-                    "policy_type": "ppo2",
-                    "policy_path": (
-                        f"{serialize.get_output_dir()}/transfer_point_maze/"
-                        "expert/train/policies/final/"
-                    ),
-                }
+                "policy_type": "ppo2",
+                "policy_path": (
+                    f"{serialize.get_output_dir()}/transfer_point_maze/"
+                    "expert/train/policies/final/"
+                ),
             },
             "mixture": {
-                "visitations_factory_kwargs": {
-                    "policy_type": "mixture",
-                    "policy_path": (
-                        f"0.05:random:dummy:ppo2:{serialize.get_output_dir()}/"
-                        "transfer_point_maze/expert/train/policies/final/"
-                    ),
-                }
+                "policy_type": "mixture",
+                "policy_path": (
+                    f"0.05:random:dummy:ppo2:{serialize.get_output_dir()}/"
+                    "transfer_point_maze/expert/train/policies/final/"
+                ),
             },
-            "global": {"visitations_factory_kwargs": {"env_name": "imitation/PointMazeLeftVel-v0"}},
+            "global": {"env_name": "imitation/PointMazeLeftVel-v0"},
         }
     )
     tag = "point_maze_learned"
