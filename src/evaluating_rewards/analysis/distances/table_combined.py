@@ -221,8 +221,8 @@ def pathological_second():
 def high_precision():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
         "precision": {
-            "epic": ("high_precision",),
-            "erc": ("high_precision",),
+            "epic": {"global": ("high_precision",)},
+            "erc": {"global": ("high_precision",)},
         }
     }
 
