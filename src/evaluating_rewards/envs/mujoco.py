@@ -409,6 +409,6 @@ _register_point_maze(
     sparse_coef=2.0,
 )
 reward_serialize.reward_registry.register(
-    key="evaluating_rewards/PointMazeWrongTarget-v0",
+    key="evaluating_rewards/PointMazeWrongTargetWithCtrl-v0",
     value=registry.build_loader_fn_require_space(PointMazeReward, target=np.array([0.1, 0.1, 0.0])),
 )

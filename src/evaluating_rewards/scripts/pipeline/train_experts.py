@@ -153,13 +153,21 @@ def ground_truth():
 
 
 @experts_ex.named_config
-def point_maze_wrong_target():
-    """Train RL expert to go to the wrong location in PointMaze."""
+def point_maze_pathologicals():
+    """Train RL policies on the "wrong" rewards in PointMaze."""
     configs = {
         "imitation/PointMazeLeftVel-v0": {
-            "evaluating_rewards/PointMazeWrongTarget-v0": dict(
+            # Repellent and BetterGoal we just want to report the policy return
+            "evaluating_rewards/PointMazeRepellentWithCtrl-v0": dict(
                 **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
-            )
+            ),
+            "evaluating_rewards/PointMazeBetterGoalWithCtrl-v0": dict(
+                **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
+            ),
+            # We use WrongTarget expert for a visitation distribution
+            "evaluating_rewards/PointMazeWrongTargetWithCtrl-v0": dict(
+                **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
+            ),
         }
     }
     run_tag = "point_maze_wrong_target"
