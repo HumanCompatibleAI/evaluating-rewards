@@ -152,9 +152,10 @@ def _factory_via_serialized(
     env_name: str,
     policy_type: str,
     policy_path: str,
+    parallel: bool = True,
     **kwargs,
 ) -> Iterator[T]:
-    venv = util.make_vec_env(env_name, **kwargs)
+    venv = util.make_vec_env(env_name, parallel=parallel, **kwargs)
     with serialize.load_policy(policy_type, policy_path, venv) as policy:
         with factory_from_policy(venv, policy) as generator:
             yield generator
