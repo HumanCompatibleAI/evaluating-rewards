@@ -88,7 +88,7 @@ def logging_config(
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
-        "plot_canon_heatmap",
+        "epic",
         env_name,
         sample_dist_tag,
         dataset_tag,

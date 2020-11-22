@@ -68,7 +68,7 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
-        "plot_return_heatmap",
+        "erc",
         env_name,
         dataset_tag,
         corr_kind,

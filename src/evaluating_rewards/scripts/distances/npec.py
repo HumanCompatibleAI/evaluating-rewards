@@ -153,7 +153,7 @@ def test():
     del _
 
 
-script_utils.add_logging_config(npec_distance_ex, "model_comparison")
+script_utils.add_logging_config(npec_distance_ex, "npec")
 
 
 @ray.remote
