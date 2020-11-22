@@ -316,7 +316,9 @@ def _register_models(format_str, cls, forward=True):
 def _register_point_maze():
     control = {"WithCtrl": {}, "NoCtrl": {"ctrl_coef": 0.0}}
     for k, cfg in control.items():
-        fn = registry.build_loader_fn_require_env(PointMazeReward.from_venv, **cfg)
+        fn = registry.build_loader_fn_require_space(
+            PointMazeReward, target=np.array([0.3, 0.5, 0.0]), **cfg
+        )
         reward_serialize.reward_registry.register(
             key=f"evaluating_rewards/PointMazeGroundTruth{k}-v0", value=fn
         )

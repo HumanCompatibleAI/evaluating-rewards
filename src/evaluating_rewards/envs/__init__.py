@@ -40,3 +40,21 @@ for i in range(10):
 register_point_mass("LineVariableHorizon", ndim=1, threshold=0.05)
 register_point_mass("LineStateOnly", ndim=1, ctrl_coef=0.0)
 register_point_mass("Grid", ndim=2)
+
+
+def register_point_maze():
+    # Maze true length is 0.1+maze_length-2*0.02, since walls span from -0.1 to maze_length with
+    # 0.02 radius. (It's a bit tighter than this up-down, because of the extra dividing wall.)
+    # Agent particle radius is 0.03, so 0.01 gives width of 0.1+0.01-2*0.02=0.09 minus 2*0.03
+    # equals 0.03 space for the particle to move in -- just enough to vibrate, but not go anywhere.
+    # 0.6 is the default length.
+    for length in [0.01, 0.05, 0.1, 0.2, 0.3]:
+        for dname, dval in {"Left": 0, "Right": 1}.items():
+            gym.register(
+                id=f"evaluating_rewards/PointMaze{length}{dname}-v0",
+                entry_point="imitation.envs.examples.airl_envs.point_maze_env:PointMazeEnv",
+                kwargs={"maze_length": length, "direction": dval, "include_vel": True},
+            )
+
+
+register_point_maze()
