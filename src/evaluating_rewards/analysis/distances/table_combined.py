@@ -220,7 +220,10 @@ def pathological_second():
 @table_combined_ex.named_config
 def high_precision():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
-        "precision": {"global": ("high_precision",)}
+        "precision": {
+            "epic": ("high_precision",),
+            "erc": ("high_precision",),
+        }
     }
 
 
