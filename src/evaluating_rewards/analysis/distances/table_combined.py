@@ -238,6 +238,16 @@ def epic_only():
 
 
 @table_combined_ex.named_config
+def npec_only():
+    distance_kinds = ("npec",)  # noqa: F841  pylint:disable=unused-variable
+
+
+@table_combined_ex.named_config
+def erc_only():
+    distance_kinds = ("erc",)  # noqa: F841  pylint:disable=unused-variable
+
+
+@table_combined_ex.named_config
 def quick():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
         "precision": {"global": ("test",)}
