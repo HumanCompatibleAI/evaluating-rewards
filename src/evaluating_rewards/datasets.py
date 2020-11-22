@@ -339,8 +339,8 @@ def transitions_factory_permute_wrapper(
             delta = target_size - len(buf["obs"])
             if delta > 0:
                 transitions = transitions_callable(delta)
-                if len(transitions["obs"]) != delta:
-                    print(f"WARNING WARNING: {len(transitions['obs'])} != {delta}")
+                if len(transitions.obs) != delta:
+                    print(f"WARNING WARNING: {len(transitions.obs)} != {delta}")
                 # assert len(transitions["obs"]) == delta
                 for k, v in buf.items():
                     new_v = getattr(transitions, k)
@@ -349,7 +349,7 @@ def transitions_factory_permute_wrapper(
                     buf[k] = new_v
 
             if len(buf["obs"]) != target_size:
-                print(f"WARNING WARNING: {len(transitions['obs'])} != {target_size}")
+                print(f"WARNING WARNING: {len(buf['obs'])} != {target_size}")
             # assert len(buf["obs"]) == target_size
             idxs = {k: rng.choice(target_size, size=n, replace=False) for k in buf.keys()}
             res = {k: buf[k][idx] for k, idx in idxs.items()}
