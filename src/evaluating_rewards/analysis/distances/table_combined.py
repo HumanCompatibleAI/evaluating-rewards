@@ -133,6 +133,7 @@ def point_maze_learned():
     del wrong_target_policy_cfg
     pretty_models = {
         r"\repelstaticmethod{}": ("evaluating_rewards/PointMazeRepellentWithCtrl-v0", "dummy"),
+        r"\bettergoalmethod{}": ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
         r"\regressionmethod{}": (
             "evaluating_rewards/RewardModel-v0",
             "transfer_point_maze/reward/regress/model",

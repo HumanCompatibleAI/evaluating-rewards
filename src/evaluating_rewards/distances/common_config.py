@@ -63,6 +63,7 @@ COMMON_CONFIGS = {
         "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
         "y_reward_cfgs": [
             ("evaluating_rewards/PointMazeRepellentWithCtrl-v0", "dummy"),
+            ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
             ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
             ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
             (
