@@ -195,13 +195,6 @@ def npec_worker(
     Returns:
         Statistics for training, including the final loss aka estimated NPEC distance.
     """
-    if "env_name" in visitations_factory_kwargs:
-        if visitations_factory_kwargs["env_name"] != env_name:
-            raise ValueError(
-                "env_name differs between NPEC and visitation distribution. "
-                "This is probably not what you wanted to do."
-            )
-
     with visitations_factory(seed=seed, **visitations_factory_kwargs) as dataset_generator:
 
         def make_source(venv):
