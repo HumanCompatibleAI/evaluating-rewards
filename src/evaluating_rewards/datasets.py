@@ -361,8 +361,9 @@ def transitions_factory_permute_wrapper(
 
 
 @contextlib.contextmanager
-def sample_dist_from_space(space: gym.Space) -> Iterator[SampleDist]:
+def sample_dist_from_space(space: gym.Space, seed: int = 0) -> Iterator[SampleDist]:
     """Creates function to sample `n` elements from from `space`."""
+    space.seed(seed)
 
     def f(n: int) -> np.ndarray:
         return np.array([space.sample() for _ in range(n)])
@@ -371,11 +372,11 @@ def sample_dist_from_space(space: gym.Space) -> Iterator[SampleDist]:
 
 
 @contextlib.contextmanager
-def sample_dist_from_env_name(env_name: str, obs: bool) -> Iterator[SampleDist]:
+def sample_dist_from_env_name(env_name: str, obs: bool, **kwargs) -> Iterator[SampleDist]:
     env = gym.make(env_name)
     try:
         space = env.observation_space if obs else env.action_space
     finally:
         env.close()
-    with sample_dist_from_space(space) as sample_dist:
+    with sample_dist_from_space(space, **kwargs) as sample_dist:
         yield sample_dist
