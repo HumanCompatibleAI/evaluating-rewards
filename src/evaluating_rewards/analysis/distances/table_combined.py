@@ -166,11 +166,17 @@ def point_maze_learned_pathological():
                     "evaluating_rewards_PointMazeWrongTarget-v0/0/policies/final"
                 ),
             },
+            "random_policy_permuted": {
+                "env_name": "imitation/PointMazeLeftVel-v0",
+                "policy_type": "random",
+                "policy_path": "dummy",
+            },
             "global": {
                 "env_name": "imitation/PointMazeLeftVel-v0",
             },
         }
     )
+    del config_updates["erc"]["random_policy_permuted"]
     named_configs = POINT_MAZE_LEARNED_COMMON["named_configs"]
     named_configs["point_maze_learned_pathological"] = {
         "epic": {
@@ -378,7 +384,10 @@ def table_combined(
     named_configs = functools.reduce(script_utils.recursive_dict_merge, named_configs)
 
     _input_validation(  # pylint:disable=no-value-for-parameter
-        experiments, experiment_kinds, distance_kinds
+        experiments,
+        experiment_kinds,
+        distance_kinds,
+        named_configs=named_configs,
     )
 
     if vals_path is not None:

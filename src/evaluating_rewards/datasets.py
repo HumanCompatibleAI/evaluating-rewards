@@ -238,7 +238,9 @@ def transitions_factory_from_policy(
 
     def f(total_timesteps: int) -> types.Transitions:
         # TODO(adam): inefficient -- discards partial trajectories and resets environment
-        return rollout.generate_transitions(policy, venv, n_timesteps=total_timesteps)
+        return rollout.generate_transitions(
+            policy, venv, n_timesteps=total_timesteps, truncate=True
+        )
 
     yield f
 

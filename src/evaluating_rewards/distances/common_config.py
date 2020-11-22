@@ -36,10 +36,10 @@ POINT_MASS_KINDS = [
     for label in ["SparseNoCtrl", "SparseWithCtrl", "DenseNoCtrl", "DenseWithCtrl", "GroundTruth"]
 ]
 POINT_MAZE_KINDS = [
-    "imitation/PointMazeGroundTruthWithCtrl-v0",
-    "imitation/PointMazeGroundTruthNoCtrl-v0",
-    "imitation/PointMazeRepellentWithCtrl-v0",
-    "imitation/PointMazeRepellentNoCtrl-v0",
+    "evaluating_rewards/PointMazeGroundTruthWithCtrl-v0",
+    "evaluating_rewards/PointMazeGroundTruthNoCtrl-v0",
+    "evaluating_rewards/PointMazeRepellentWithCtrl-v0",
+    "evaluating_rewards/PointMazeRepellentNoCtrl-v0",
 ]
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",
