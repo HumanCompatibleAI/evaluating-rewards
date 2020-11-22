@@ -328,3 +328,7 @@ _register_models("evaluating_rewards/HalfCheetahGroundTruth{}-v0", HalfCheetahGr
 _register_models("evaluating_rewards/HopperGroundTruth{}-v0", HopperGroundTruthReward)
 _register_models("evaluating_rewards/HopperBackflip{}-v0", HopperBackflipReward, forward=False)
 _register_point_maze()
+reward_serialize.reward_registry.register(
+    key="evaluating_rewards/PointMazeWrongTarget-v0",
+    value=registry.build_loader_fn_require_space(PointMazeReward, target=np.array([0.1, 0.1, 0.0])),
+)

@@ -145,6 +145,21 @@ def ground_truth():
 
 
 @experts_ex.named_config
+def point_maze_wrong_target():
+    """Train RL expert to go to the wrong location in PointMaze."""
+    configs = {
+        "imitation/PointMazeLeftVel-v0": {
+            "evaluating_rewards/PointMazeWrongTarget-v0": dict(
+                **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
+            )
+        }
+    }
+    run_tag = "point_maze_wrong_target"
+    _ = locals()
+    del _
+
+
+@experts_ex.named_config
 def test():
     """Intended for tests / debugging: small # of seeds and CPU cores, single env-reward pair."""
     ray_kwargs = {
