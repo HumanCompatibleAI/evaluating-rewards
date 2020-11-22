@@ -254,7 +254,8 @@ class MLPRewardModel(BasicRewardModel, serialize.LayersSerializable):
         use_obs: bool = True,
         use_act: bool = True,
         use_next_obs: bool = True,
-        use_dones: bool = True,
+        # TODO(adam): XXX - backward compatibility hack, remove before merging
+        use_dones: bool = False,
     ):
         """Builds MLPRewardModel.
 
