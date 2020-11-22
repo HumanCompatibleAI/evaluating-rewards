@@ -288,13 +288,13 @@ def compute_vals(
     try:
         keys = []
         refs = []
-        for source in y_reward_cfgs:
-            for target in x_reward_cfgs:
+        for target in x_reward_cfgs:
+            for source in y_reward_cfgs:
                 for seed in range(n_seeds):
                     obj_ref = compute_npec(  # pylint:disable=no-value-for-parameter
                         seed=seed, source_reward_cfg=source, target_reward_cfg=target
                     )
-                    keys.append((source, target))
+                    keys.append((target, source))
                     refs.append(obj_ref)
         values = ray.get(refs)
 
