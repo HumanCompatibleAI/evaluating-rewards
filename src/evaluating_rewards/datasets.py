@@ -341,7 +341,7 @@ def transitions_factory_permute_wrapper(
                 for k, v in buf.items():
                     new_v = getattr(transitions, k)
                     if len(v) > 0:
-                        new_v = np.concatenate(v, new_v)
+                        new_v = np.concatenate((v, new_v))
                     buf[k] = new_v
 
             assert len(buf["obs"]) == target_size
@@ -350,7 +350,7 @@ def transitions_factory_permute_wrapper(
             res = types.Transitions(**res, infos=None)
 
             for k, idx in idxs.items():
-                buf[k] = np.delete(buf[k], idx)
+                buf[k] = np.delete(buf[k], idx, axis=0)
 
             return res
 
