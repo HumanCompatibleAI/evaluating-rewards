@@ -41,6 +41,7 @@ def default_config():
     """Default configuration for table_combined."""
     vals_path = None
     log_root = serialize.get_output_dir()  # where results are read from/written to
+    distance_kinds = ("epic", "npec", "erc")
     experiment_kinds = ()
     config_updates = {}  # config updates applied to all subcommands
     named_configs = {}
@@ -73,9 +74,18 @@ def point_maze_learned():
     target_reward_path = "dummy"
     named_configs = {
         "point_maze_learned": {
-            "global": ("point_maze_learned"),
-            "epic": {"global": ("sample_from_serialized_policy", "dataset_from_serialized_policy")},
+            "global": ("point_maze_learned",),
         }
+    }
+    random_policy_cfg = {
+        "policy_type": "random",
+        "policy_path": "dummy",
+    }
+    expert_policy_cfg = {
+        "policy_type": "ppo2",
+        "policy_path": (
+            f"{serialize.get_output_dir()}/transfer_point_maze/expert/train/policies/final/"
+        ),
     }
     mixed_policy_cfg = {
         "policy_type": "mixture",
@@ -84,52 +94,42 @@ def point_maze_learned():
             "transfer_point_maze/expert/train/policies/final/"
         ),
     }
-    expert_policy_cfg = {
-        "policy_type": "ppo2",
-        "policy_path": (
-            f"{serialize.get_output_dir()}/transfer_point_maze/expert/train/policies/final/"
-        ),
-    }
     wrong_target_policy_cfg = {
         "policy_type": "ppo2",
         "policy_path": (
             f"{serialize.get_output_dir()}/train_experts/point_maze_wrong_target/"
             "20201122_053216_fb1b0e/imitation_PointMazeLeftVel-v0/"
-            "evaluating_rewards_PointMazeWrongTarget-v0"
+            "evaluating_rewards_PointMazeWrongTarget-v0/0/policies/final"
         ),
     }
-    experiment_kinds = ("random", "expert", "mixture")
+    experiment_kinds = ("random", "expert", "mixture", "wrong")
+    # TODO(adam): reduce code duplication?
     config_updates = {
         "epic": {
-            "mixture": {
-                "visitations_factory_kwargs": mixed_policy_cfg,
-                "sample_dist_factory_kwargs": mixed_policy_cfg,
-            },
-            "random": {},
-            "expert": {
-                "visitations_factory_kwargs": expert_policy_cfg,
-                "sample_dist_factory_kwargs": expert_policy_cfg,
-            },
-            "wrong": {
-                "visitations_factory_kwargs": wrong_target_policy_cfg,
-                "sample_dist_factory_kwargs": wrong_target_policy_cfg,
-            },
+            "random": {"visitations_factory_kwargs": random_policy_cfg},
+            "expert": {"visitations_factory_kwargs": expert_policy_cfg},
+            "mixture": {"visitations_factory_kwargs": mixed_policy_cfg},
+            "wrong": {"visitations_factory_kwargs": wrong_target_policy_cfg},
+            "global": {"visitations_factory_kwargs": {"env_name": "imitation/PointMazeLeftVel-v0"}},
         },
         "erc": {
-            "mixture": {"trajectory_factory_kwargs": mixed_policy_cfg},
-            "random": {},
+            "random": {"trajectory_factory_kwargs": random_policy_cfg},
             "expert": {"trajectory_factory_kwargs": expert_policy_cfg},
+            "mixture": {"trajectory_factory_kwargs": mixed_policy_cfg},
             "wrong": {"trajectory_factory_kwargs": wrong_target_policy_cfg},
+            "global": {"trajectory_factory_kwargs": {"env_name": "imitation/PointMazeLeftVel-v0"}},
         },
         "npec": {
-            "mixture": {"visitations_factory_kwargs": mixed_policy_cfg},
-            "random": {},
+            "random": {"visitations_factory_kwargs": random_policy_cfg},
             "expert": {"visitations_factory_kwargs": mixed_policy_cfg},
+            "mixture": {"visitations_factory_kwargs": mixed_policy_cfg},
             "wrong": {"visitations_factory_kwargs": mixed_policy_cfg},
+            "global": {"visitations_factory_kwargs": {"env_name": "imitation/PointMazeLeftVel-v0"}},
         },
     }
-    del mixed_policy_cfg
+    del random_policy_cfg
     del expert_policy_cfg
+    del mixed_policy_cfg
     del wrong_target_policy_cfg
     pretty_models = {
         r"\repelstaticmethod{}": ("evaluating_rewards/PointMazeRepellentWithCtrl-v0", "dummy"),
@@ -184,6 +184,18 @@ def test():
     del _
 
 
+@table_combined_ex.named_config
+def epic_only():
+    distance_kinds = ("epic",)  # noqa: F841  pylint:disable=unused-variable
+
+
+@table_combined_ex.named_config
+def quick():
+    named_configs = {  # noqa: F841  pylint:disable=unused-variable
+        "precision": {"global": ("test",)}
+    }
+
+
 K = TypeVar("K")
 
 
@@ -198,6 +210,7 @@ def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
     pretty_models: Mapping[str, common_config.RewardCfg],
+    distance_kinds: Tuple[str],
     experiment_kinds: Tuple[str],
 ) -> str:
     """Generate LaTeX table.
@@ -207,11 +220,9 @@ def make_table(
         vals: A Mapping from (distance, visitation) to a Series of values.
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration is given the associated short label.
+        distance_kinds: the distance metrics to compare with.
+        experiment_kinds: different subsets of data to plot, e.g. visitation distributions.
     """
-    # TODO(adam): re-enable npec
-    # distance_order = ("epic", "npec", "erc")
-    distance_order = ("epic", "erc")
-
     y_reward_cfgs = common_keys(vals.values())
 
     rows = []
@@ -226,7 +237,7 @@ def make_table(
                 label = search_label
         assert label is not None
         row = f"{label} & "
-        for distance, visitation in itertools.product(distance_order, experiment_kinds):
+        for distance, visitation in itertools.product(distance_kinds, experiment_kinds):
             col = vals[(distance, visitation)].loc[model]
             multiplier = 100 if key.endswith("relative") else 1000
             col = f"{col * multiplier:.4g}"
@@ -241,6 +252,7 @@ def make_table(
 def table_combined(
     vals_path: Optional[str],
     log_dir: str,
+    distance_kinds: Tuple[str],
     experiment_kinds: Tuple[str],
     config_updates: Mapping[str, Any],
     named_configs: Mapping[str, Mapping[str, Any]],
@@ -254,6 +266,7 @@ def table_combined(
         vals_path: path to precomputed values to tabulate. Skips everything but table generation
             if specified. This is useful for regenerating tables in a new style from old data.
         log_dir: directory to write figures and other logging to.
+        distance_kinds: the distance metrics to compare with.
         experiment_kinds: different subsets of data to plot, e.g. visitation distributions.
         config_updates: Config updates to apply. Hierarchically specified by algorithm and
             experiment kind. "global" may be specified at top-level (applies to all algorithms)
@@ -279,6 +292,7 @@ def table_combined(
             "epic": epic.epic_distance_ex,
             "erc": erc.erc_distance_ex,
         }
+        experiments = {k: experiments[k] for k in distance_kinds}
 
         # Merge named_configs. We have a faux top-level layer to workaround Sacred being unable to
         # have named configs build on top of each others definitions in a particular order.
@@ -288,17 +302,25 @@ def table_combined(
         runs = {}
         for ex_key, ex in experiments.items():
             for kind in experiment_kinds:
-                local_update = dict(config_updates.get("global", {}))
-                local_update.update(config_updates.get(ex_key, {}).get("global", {}))
-                local_update.update(config_updates.get(ex_key, {}).get(kind, {}))
-                local_update["log_dir"] = os.path.join(log_dir, kind)
+                local_updates = [
+                    config_updates.get("global", {}),
+                    config_updates.get(ex_key, {}).get("global", {}),
+                    config_updates.get(ex_key, {}).get(kind, {}),
+                ]
+                local_updates = [copy.deepcopy(cfg) for cfg in local_updates]
+                local_updates = functools.reduce(
+                    functools.partial(script_utils.recursive_dict_merge, overwrite=True),
+                    local_updates,
+                )
+                local_updates["log_dir"] = os.path.join(log_dir, kind)
 
                 local_named = tuple(named_configs.get("global", ()))
                 local_named += tuple(named_configs.get(ex_key, {}).get("global", ()))
                 local_named += tuple(named_configs.get(ex_key, {}).get(kind, ()))
 
+                print(f"Running ({ex_key}, {kind}): {local_updates} plus {local_named}")
                 runs[(ex_key, kind)] = ex.run(
-                    config_updates=local_update, named_configs=local_named
+                    config_updates=local_updates, named_configs=local_named
                 )
         vals = {k: run.result for k, run in runs.items()}
 
@@ -321,7 +343,7 @@ def table_combined(
         path = os.path.join(log_dir, f"{k}.csv")
         logger.info(f"Writing table to '{path}'")
         with open(path, "wb") as f:
-            table = make_table(k, v, pretty_models, experiment_kinds)
+            table = make_table(k, v, pretty_models, distance_kinds, experiment_kinds)
             f.write(table.encode())
 
 

@@ -261,6 +261,7 @@ class PointMazeReward(MujocoHardcodedReward):
         action_space: gym.Space,
         target: np.ndarray,
         ctrl_coef: float = 1e-3,
+        **kwargs,
     ):
         """Constructs the reward model.
 
@@ -269,8 +270,11 @@ class PointMazeReward(MujocoHardcodedReward):
             action_space: The action space of the environment.
             target: The position of the target (goal state).
             ctrl_coef: Scale factor for control penalty.
+            **kwargs: Passed through to Serialize.
         """
-        super().__init__(observation_space, action_space, target=target, ctrl_coef=ctrl_coef)
+        super().__init__(
+            observation_space, action_space, target=target, ctrl_coef=ctrl_coef, **kwargs
+        )
 
     @classmethod
     def from_venv(cls, venv: vec_env.VecEnv, *args, **kwargs):
@@ -322,9 +326,11 @@ class PointMazeRepellentReward(PointMazeReward):  # pylint:disable=too-many-ance
             repel_coef: coefficient of repellent penalty.
             **kwargs: passed through to `PointMazeReward`.
         """
-        super().__init__(*args, **kwargs)
-        self.repel_max = repel_max
+        super().__init__(
+            *args, repel_within=repel_within, repel_max=repel_max, repel_coef=repel_coef, **kwargs
+        )
         self.repel_within = repel_within
+        self.repel_max = repel_max
         self.repel_coef = repel_coef
 
     def build_reward(self) -> tf.Tensor:
@@ -357,9 +363,7 @@ def _register_point_maze(prefix, cls):
     control = {"WithCtrl": {}, "NoCtrl": {"ctrl_coef": 0.0}}
     for k, cfg in control.items():
         fn = registry.build_loader_fn_require_space(cls, target=np.array([0.3, 0.5, 0.0]), **cfg)
-        reward_serialize.reward_registry.register(
-            key=f"evaluating_rewards/{prefix}{k}-v0", value=fn
-        )
+        reward_serialize.reward_registry.register(key=f"{prefix}{k}-v0", value=fn)
 
 
 _register_models("evaluating_rewards/HalfCheetahGroundTruth{}-v0", HalfCheetahGroundTruthReward)

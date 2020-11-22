@@ -62,7 +62,7 @@ COMMON_CONFIGS = {
         "env_name": "imitation/PointMazeLeftVel-v0",
         "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
         "y_reward_cfgs": [
-            ("evaluating_rewards/PointMazeRepellentRewardWithCtrl-v0", "dummy"),
+            ("evaluating_rewards/PointMazeRepellentWithCtrl-v0", "dummy"),
             ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
             ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
             (
