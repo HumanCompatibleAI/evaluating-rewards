@@ -203,6 +203,20 @@ def point_maze_learned_pathological():
     del _
 
 
+# TODO(adam): remove these two following configs
+@table_combined_ex.named_config
+def pathological_first():
+    experiment_kinds = (  # noqa: F841  pylint:disable=unused-variable
+        "random_policy_permuted",
+        "iid",
+    )
+
+
+@table_combined_ex.named_config
+def pathological_second():
+    experiment_kinds = ("small", "wrong")  # noqa: F841  pylint:disable=unused-variable
+
+
 @table_combined_ex.named_config
 def high_precision():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
