@@ -45,6 +45,7 @@ def default_config():
     """Default configuration values."""
     # Parallelization
     ray_kwargs = {}
+    num_cpus = 2
 
     # Aggregation
     n_seeds = 3
@@ -147,6 +148,7 @@ def test():
         # CI build only has 1 core per test
         "num_cpus": 1,
     }
+    num_cpus = 1
     visitations_factory_kwargs = {
         "env_name": "evaluating_rewards/PointMassLine-v0",
         "parallel": False,
@@ -243,6 +245,7 @@ def npec_worker(
 
 @npec_distance_ex.capture
 def compute_npec(  # pylint:disable=unused-argument
+    num_cpus: int,
     seed: int,
     # Dataset
     env_name: str,
@@ -278,7 +281,10 @@ def compute_npec(  # pylint:disable=unused-argument
         script_utils.sanitize_path(target_reward_cfg),
         str(seed),
     )
-    return npec_worker.remote(**locals())
+
+    params = locals()
+    del params["num_cpus"]
+    return npec_worker.options(num_cpus=num_cpus).remote(**params)
 
 
 @npec_distance_ex.capture
