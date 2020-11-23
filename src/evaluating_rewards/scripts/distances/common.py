@@ -68,7 +68,7 @@ def load_models_create_sess(
     logger.info("Loading models")
     g = tf.Graph()
     with g.as_default():
-        sess = tf.Session()  # config=tf.ConfigProto(log_device_placement=True)
+        sess = tf.Session()
         with sess.as_default():
             models = load_models(env_name, reward_cfgs, discount)
     return models, g, sess
