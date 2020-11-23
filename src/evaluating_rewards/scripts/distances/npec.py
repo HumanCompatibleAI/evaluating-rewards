@@ -60,7 +60,7 @@ def default_config():
     total_timesteps = int(1e6)
     batch_size = 4096
     fit_kwargs = {
-        "affine_size": 16386,  # number of timesteps to use in pretraining; set to None to disable
+        "affine_size": 16384,  # number of timesteps to use in pretraining; set to None to disable
     }
 
     _ = locals()  # quieten flake8 unused variable warning

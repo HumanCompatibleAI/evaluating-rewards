@@ -236,6 +236,12 @@ def test():
         "test": {"global": ("test",)},
         # duplicate to get some coverage of recursive_dict_merge
         "test2": {"global": ("test",)},
+        "test3": {
+            k: {
+                "test": ("test",),
+            }
+            for k in ("epic", "npec", "erc")
+        },
     }
     pretty_models = {
         "GT": ("evaluating_rewards/PointMassGroundTruth-v0", "dummy"),
