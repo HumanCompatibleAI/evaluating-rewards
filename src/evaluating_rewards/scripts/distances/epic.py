@@ -140,6 +140,7 @@ def test_no_parallel():
 def mesh_canon(
     g: tf.Graph,
     sess: tf.Session,
+    seed: int,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
     models: Mapping[common_config.RewardCfg, base.RewardModel],
@@ -163,6 +164,7 @@ def mesh_canon(
     Args:
         g: the TensorFlow graph.
         sess: the TensorFlow session.
+        seed: (unused) the seed for any stochastic computation.
         obs_dist: the distribution over observations.
         act_dist: the distribution over actions.
         models: loaded reward models for all of `x_reward_cfgs` and `y_reward_cfgs`.
@@ -177,6 +179,8 @@ def mesh_canon(
     Returns:
         Dissimilarity matrix.
     """
+    del seed
+
     with g.as_default():
         with sess.as_default():
             mesh_rews, _, _ = epic_sample.discrete_iid_evaluate_models(
@@ -206,6 +210,7 @@ def _direct_distance(rewa: np.ndarray, rewb: np.ndarray, p: int) -> float:
 def sample_canon(
     g: tf.Graph,
     sess: tf.Session,
+    seed: int,
     obs_dist: datasets.SampleDist,
     act_dist: datasets.SampleDist,
     models: Mapping[common_config.RewardCfg, base.RewardModel],
@@ -225,6 +230,7 @@ def sample_canon(
     Args:
         g: the TensorFlow graph.
         sess: the TensorFlow session.
+        seed: the seed for `visitations_factory`.
         obs_dist: the distribution over observations.
         act_dist: the distribution over actions.
         models: loaded reward models for all of `x_reward_cfgs` and `y_reward_cfgs`.
@@ -317,10 +323,10 @@ def compute_vals(
     dissimilarities = {}
     for i in range(n_seeds):
         logger.info(f"Seed {i}")
-        with obs_sample_dist_factory(**sample_dist_factory_kwargs) as obs_dist:
-            with act_sample_dist_factory(**sample_dist_factory_kwargs) as act_dist:
+        with obs_sample_dist_factory(seed=i, **sample_dist_factory_kwargs) as obs_dist:
+            with act_sample_dist_factory(seed=i, **sample_dist_factory_kwargs) as act_dist:
                 dissimilarity = computation_fn(  # pylint:disable=no-value-for-parameter
-                    g, sess, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
+                    g, sess, i, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
                 )
                 for k, v in dissimilarity.items():
                     dissimilarities.setdefault(k, []).append(v)
