@@ -19,10 +19,11 @@ import itertools
 import logging
 import os
 import pickle
-from typing import Any, Dict, Iterable, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterable, Mapping, Tuple
 
 from imitation.util import util as imit_util
 import numpy as np
+import ray
 import sacred
 import tensorflow as tf
 
@@ -32,6 +33,8 @@ from evaluating_rewards.distances import common_config, epic_sample, tabular
 from evaluating_rewards.rewards import base
 from evaluating_rewards.scripts import script_utils
 from evaluating_rewards.scripts.distances import common
+
+Dissimilarity = Mapping[Tuple[common_config.RewardCfg, common_config.RewardCfg], float]
 
 epic_distance_ex = sacred.Experiment("epic_distance")
 logger = logging.getLogger("evaluating_rewards.scripts.distances.epic")
@@ -44,6 +47,7 @@ common.make_transitions_configs(epic_distance_ex)
 @epic_distance_ex.config
 def default_config():
     """Default configuration values."""
+    ray_kwargs = {}  # arguments to Ray, used for parallelization
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance
@@ -116,6 +120,10 @@ def high_precision():
 @epic_distance_ex.named_config
 def test():
     """Intended for debugging/unit test."""
+    ray_kwargs = {
+        # CI build only has 1 core per test
+        "num_cpus": 1,
+    }
     n_samples = 64
     n_mean_samples = 64
     n_obs = 16
@@ -136,7 +144,6 @@ def test_no_parallel():
     }
 
 
-@epic_distance_ex.capture
 def mesh_canon(
     g: tf.Graph,
     sess: tf.Session,
@@ -151,7 +158,7 @@ def mesh_canon(
     n_obs: int,
     n_act: int,
     direct_p: int,
-) -> Mapping[Tuple[common_config.RewardCfg, common_config.RewardCfg], float]:
+) -> Dissimilarity:
     """
     Computes approximation of canon distance by discretizing and then using a tabular method.
 
@@ -206,24 +213,23 @@ def _direct_distance(rewa: np.ndarray, rewb: np.ndarray, p: int) -> float:
     return 0.5 * tabular.direct_distance(rewa, rewb, p=p)
 
 
-@epic_distance_ex.capture
 def sample_canon(
     g: tf.Graph,
     sess: tf.Session,
     seed: int,
-    obs_dist: datasets.SampleDist,
-    act_dist: datasets.SampleDist,
+    obs_dist,  #: datasets.SampleDist,
+    act_dist,  #: datasets.SampleDist,
     models: Mapping[common_config.RewardCfg, base.RewardModel],
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
     distance_kind: str,
     discount: float,
-    visitations_factory: datasets.TransitionsFactory,
+    visitations_factory,  #: datasets.TransitionsFactory,
     visitations_factory_kwargs: Dict[str, Any],
     n_samples: int,
     n_mean_samples: int,
     direct_p: int,
-) -> Mapping[Tuple[common_config.RewardCfg, common_config.RewardCfg], float]:
+) -> Dissimilarity:
     """
     Computes approximation of canon distance using `canonical_sample.sample_canon_shaping`.
 
@@ -241,6 +247,8 @@ def sample_canon(
         n_samples: the number of samples to estimate the distance with.
         n_mean_samples: the number of samples to estimate the mean reward for canonicalization.
         direct_p: When `distance_kind` is "direct", the power used for comparison in the L^p norm.
+        visitations_factory: sample transitions from this factory for the outermost expectation.
+        visitations_factory_kwargs: keyword arguments to pass through to factory.
 
     Returns:
         Dissimilarity matrix.
@@ -277,23 +285,27 @@ def sample_canon(
     return util.cross_distance(x_deshaped_rew, y_deshaped_rew, distance_fn, parallelism=1)
 
 
-@epic_distance_ex.capture
-def compute_vals(
+@ray.remote
+def epic_worker(
+    computation_fn: Callable[..., Dissimilarity],
+    seed: int,
     env_name: str,
-    discount: float,
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
-    obs_sample_dist_factory: datasets.SampleDistFactory,
-    act_sample_dist_factory: datasets.SampleDistFactory,
+    # TODO(adam): add back type annotations for factories.
+    # As of cloudpickle 1.6.0, cannot pickle anything involving ContextManager type.
+    obs_sample_dist_factory,
+    act_sample_dist_factory,
     sample_dist_factory_kwargs: Dict[str, Any],
-    n_seeds: int,
-    aggregate_fns: Mapping[str, common.AggregateFn],
-    computation_kind: str,
-    log_dir: str,
-) -> common_config.AggregatedDistanceReturn:
-    """Computes values for dissimilarity heatmaps.
+    discount: float,
+    distance_kind: str,
+    direct_p: int,
+) -> Dissimilarity:
+    """
 
     Args:
+        computation_fn: Function to compute, one of `mesh_canon` or `sample_canon`.
+        seed: seed for sampling.
         env_name: the name of the environment to compare rewards for.
         discount: discount to use for reward models (mostly for shaping).
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
@@ -301,35 +313,129 @@ def compute_vals(
         obs_sample_dist_factory: factory to generate sample distribution for observations.
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
-        n_seeds: the number of independent seeds to take.
-        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
-        computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
-        log_dir: directory to save data to.
-
-    Returns:
-        Nested dictionary of aggregated distance values.
     """
     models, g, sess = common.load_models_create_sess(
         env_name, discount, itertools.chain(x_reward_cfgs, y_reward_cfgs)
     )
 
+    logger.info(f"Seed {seed}")
+    with obs_sample_dist_factory(seed=seed, **sample_dist_factory_kwargs) as obs_dist:
+        with act_sample_dist_factory(seed=seed, **sample_dist_factory_kwargs) as act_dist:
+            dissimilarity = computation_fn(  # pylint:disable=no-value-for-parameter
+                g=g,
+                sess=sess,
+                seed=seed,
+                obs_dist=obs_dist,
+                act_dist=act_dist,
+                models=models,
+                x_reward_cfgs=x_reward_cfgs,
+                y_reward_cfgs=y_reward_cfgs,
+                distance_kind=distance_kind,
+                direct_p=direct_p,
+                discount=discount,
+            )
+
+    return dissimilarity
+
+
+@epic_distance_ex.capture
+def compute_vals(
+    # Internal arguments (not passed to computation_fn or epic_worker)
+    ray_kwargs: Mapping[str, Any],
+    computation_kind: str,
+    aggregate_fns: Mapping[str, common.AggregateFn],
+    log_dir: str,
+    n_seeds: int,
+    # Common arguments (passed to epic_worker)
+    env_name: str,
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
+    obs_sample_dist_factory: datasets.SampleDistFactory,
+    act_sample_dist_factory: datasets.SampleDistFactory,
+    sample_dist_factory_kwargs: Dict[str, Any],
+    discount: float,
+    distance_kind: str,
+    direct_p: int,
+    # Specific to `sample_canon`
+    visitations_factory: datasets.TransitionsFactory,
+    visitations_factory_kwargs: Dict[str, Any],
+    n_samples: int,
+    n_mean_samples: int,
+    # Specific to `mesh_canon`
+    n_obs: int,
+    n_act: int,
+) -> common_config.AggregatedDistanceReturn:
+    """Computes values for dissimilarity heatmaps.
+
+    Args:
+        ray_kwargs: Passed through to `ray.init`.
+        computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
+        log_dir: directory to save data to.
+        n_seeds: the number of independent seeds to take.
+        env_name: the name of the environment to compare rewards for.
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        obs_sample_dist_factory: factory to generate sample distribution for observations.
+        act_sample_dist_factory: factory to generate sample distribution for actions.
+        sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
+        discount: discount to use for reward models (mostly for shaping).
+        distance_kind: the distance to use after deshaping: direct or Pearson.
+        direct_p: When `distance_kind` is "direct", the power used for comparison in the L^p norm.
+        visitations_factory: (sample only) sample transitions from this factory for the
+            outermost expectation.
+        visitations_factory_kwargs: (sample only) keyword arguments to pass through to factory.
+        n_samples: (sample only) the number of samples to estimate the distance with.
+        n_mean_samples: (sample only) the number of samples to estimate the mean reward
+            for canonicalization.
+        n_obs: (mesh only) The number of observations and next observations to use in the mesh.
+        n_act: (mesh only) The number of actions to use in the mesh.
+
+    Returns:
+        Nested dictionary of aggregated distance values.
+    """
     if computation_kind == "sample":
-        computation_fn = sample_canon
+        computation_fn = functools.partial(
+            sample_canon,
+            visitations_factory=visitations_factory,
+            visitations_factory_kwargs=visitations_factory_kwargs,
+            n_samples=n_samples,
+            n_mean_samples=n_mean_samples,
+        )
     elif computation_kind == "mesh":
-        computation_fn = mesh_canon
+        computation_fn = functools.partial(mesh_canon, n_obs=n_obs, n_act=n_act)
     else:
         raise ValueError(f"Unrecognized computation kind '{computation_kind}'")
 
+    ray.init(**ray_kwargs)
+
+    refs = []
+    import copy
+
+    try:
+        for seed in range(n_seeds):
+            ref = epic_worker.remote(
+                computation_fn=computation_fn,
+                seed=seed,
+                env_name=env_name,
+                discount=discount,
+                x_reward_cfgs=copy.deepcopy(x_reward_cfgs),
+                y_reward_cfgs=copy.deepcopy(y_reward_cfgs),
+                obs_sample_dist_factory=copy.deepcopy(obs_sample_dist_factory),
+                act_sample_dist_factory=copy.deepcopy(act_sample_dist_factory),
+                sample_dist_factory_kwargs=copy.deepcopy(sample_dist_factory_kwargs),
+                distance_kind=distance_kind,
+                direct_p=direct_p,
+            )
+            refs.append(ref)
+        results = ray.get(refs)
+    finally:
+        ray.shutdown()
+
     dissimilarities = {}
-    for i in range(n_seeds):
-        logger.info(f"Seed {i}")
-        with obs_sample_dist_factory(seed=i, **sample_dist_factory_kwargs) as obs_dist:
-            with act_sample_dist_factory(seed=i, **sample_dist_factory_kwargs) as act_dist:
-                dissimilarity = computation_fn(  # pylint:disable=no-value-for-parameter
-                    g, sess, i, obs_dist, act_dist, models, x_reward_cfgs, y_reward_cfgs
-                )
-                for k, v in dissimilarity.items():
-                    dissimilarities.setdefault(k, []).append(v)
+    for dissimilarity in results:
+        for k, v in dissimilarity.items():
+            dissimilarities.setdefault(k, []).append(v)
 
     logger.info("Saving raw dissimilarities")
     with open(os.path.join(log_dir, "dissimilarities.pkl"), "wb") as f:
