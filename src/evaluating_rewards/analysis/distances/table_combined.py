@@ -16,21 +16,25 @@
 
 import copy
 import functools
+import glob
 import itertools
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Iterable, Mapping, Sequence, Tuple, TypeVar
 
 from imitation.util import util as imit_util
 import pandas as pd
 import sacred
 
 from evaluating_rewards import serialize
+from evaluating_rewards.analysis import results
 from evaluating_rewards.analysis.distances import aggregated
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
 from evaluating_rewards.scripts.distances import epic, erc, npec
+
+Vals = Mapping[Tuple[str, str], Any]
 
 table_combined_ex = sacred.Experiment("table_combined")
 logger = logging.getLogger("evaluating_rewards.analysis.distances.table_combined")
@@ -39,7 +43,7 @@ logger = logging.getLogger("evaluating_rewards.analysis.distances.table_combined
 @table_combined_ex.config
 def default_config():
     """Default configuration for table_combined."""
-    vals_path = None
+    vals_paths = []
     log_root = serialize.get_output_dir()  # where results are read from/written to
     distance_kinds = ("epic", "npec", "erc")
     experiment_kinds = ()
@@ -363,26 +367,46 @@ def _input_validation(
                 raise ValueError(f"({ex_key}, {kind}) unconfigured but not skipped.")
 
 
-@table_combined_ex.main
-def table_combined(
-    vals_path: Optional[str],
-    log_dir: str,
-    distance_kinds: Tuple[str],
+def load_vals(vals_paths: Sequence[str]) -> Vals:
+    """Loads and combines values from vals_path, recursively searching in subdirectories."""
+    pickle_paths = []
+    for path in vals_paths:
+        if os.path.isdir(path):
+            nested_paths = glob.glob(os.path.join(path, "**", "vals.pkl"), recursive=True)
+            if not nested_paths:
+                raise ValueError(f"No 'vals.pkl' files found in {path}")
+            pickle_paths += nested_paths
+        else:
+            pickle_paths.append(path)
+
+    vals = {}
+    keys_to_path = {}
+    for path in pickle_paths:
+        with open(path, "rb") as f:
+            val = pickle.load(f)
+        for k, v in val.items():
+            keys_to_path.setdefault(k, []).append(path)
+            if k in vals:
+                print(f"Duplicate key {k} present in {keys_to_path[k]}")
+            else:
+                vals[k] = v
+
+    return vals
+
+
+@table_combined_ex.capture
+def compute_vals(
+    experiments: Mapping[str, sacred.Experiment],
     experiment_kinds: Tuple[str],
     config_updates: Mapping[str, Any],
     named_configs: Mapping[str, Mapping[str, Any]],
     skip: Mapping[str, Mapping[str, bool]],
-    target_reward_type: str,
-    target_reward_path: str,
-    pretty_models: Mapping[str, common_config.RewardCfg],
-) -> None:
-    """Entry-point into CLI script.
+    log_dir: str,
+) -> Vals:
+    """
+    Run experiments to compute distance values.
 
     Args:
-        vals_path: path to precomputed values to tabulate. Skips everything but table generation
-            if specified. This is useful for regenerating tables in a new style from old data.
-        log_dir: directory to write figures and other logging to.
-        distance_kinds: the distance metrics to compare with.
         experiment_kinds: different subsets of data to plot, e.g. visitation distributions.
         config_updates: Config updates to apply. Hierarchically specified by algorithm and
             experiment kind. "global" may be specified at top-level (applies to all algorithms)
@@ -394,10 +418,92 @@ def table_combined(
             using `recursive_dict_merge`.
         skip: If `skip[ex_key][kind]` is True, then skip that experiment (e.g. if a metric
             does not support a particular configuration).
+    """
+    runs = {}
+    for ex_key, ex in experiments.items():
+        for kind in experiment_kinds:
+            if kind in skip.get(ex_key, ()):
+                logging.info(f"Skipping ({ex_key}, {kind})")
+                continue
+
+            local_updates = [
+                config_updates.get("global", {}),
+                config_updates.get(ex_key, {}).get("global", {}),
+                config_updates.get(ex_key, {}).get(kind, {}),
+            ]
+            local_updates = [copy.deepcopy(cfg) for cfg in local_updates]
+            local_updates = functools.reduce(
+                functools.partial(script_utils.recursive_dict_merge, overwrite=True),
+                local_updates,
+            )
+            local_updates["log_dir"] = os.path.join(log_dir, ex_key, kind)
+
+            local_named = tuple(named_configs.get("global", ()))
+            local_named += tuple(named_configs.get(ex_key, {}).get("global", ()))
+            local_named += tuple(named_configs.get(ex_key, {}).get(kind, ()))
+
+            print(f"Running ({ex_key}, {kind}): {local_updates} plus {local_named}")
+            runs[(ex_key, kind)] = ex.run(config_updates=local_updates, named_configs=local_named)
+    return {k: run.result for k, run in runs.items()}
+
+
+def _canonicalize_cfg(cfg: common_config.RewardCfg) -> common_config.RewardCfg:
+    kind, path = cfg
+    return (kind, results.canonicalize_data_root(path))
+
+
+@table_combined_ex.capture
+def filter_values(
+    vals: Vals,
+    target_reward_type: str,
+    target_reward_path: str,
+) -> Mapping[str, Mapping[Tuple[str, str], pd.Series]]:
+    """
+    Extract values for the target reward from `vals` and convert to pandas format.
+
+    Args:
         target_reward_type: The target reward type to output distance from in the table;
             others are ignored.
         target_reward_path: The target reward path to output distance from in the table;
             others are ignored.
+    """
+    vals_filtered = {}
+    for model_key, outer_val in vals.items():
+        for table_key, inner_val in outer_val.items():
+            inner_val = {
+                (_canonicalize_cfg(target), _canonicalize_cfg(source)): v
+                for (target, source), v in inner_val.items()
+            }
+            inner_val = aggregated.oned_mapping_to_series(inner_val)
+            vals_filtered.setdefault(table_key, {})[model_key] = inner_val.xs(
+                key=(target_reward_type, target_reward_path),
+                level=("target_reward_type", "target_reward_path"),
+            )
+    return vals_filtered
+
+
+@table_combined_ex.main
+def table_combined(
+    vals_paths: Sequence[str],
+    log_dir: str,
+    distance_kinds: Tuple[str],
+    experiment_kinds: Tuple[str],
+    named_configs: Mapping[str, Mapping[str, Any]],
+    pretty_models: Mapping[str, common_config.RewardCfg],
+) -> None:
+    """Entry-point into CLI script.
+
+    Args:
+        vals_path: path to precomputed values to tabulate. Skips everything but table generation
+            if specified. This is useful for regenerating tables in a new style from old data.
+        log_dir: directory to write figures and other logging to.
+        distance_kinds: the distance metrics to compare with.
+        experiment_kinds: different subsets of data to plot, e.g. visitation distributions.
+        named_configs: Named configs to apply. First key is a namespace which has no semantic
+            meaning, but should be unique for each Sacred config scope. Second key is the algorithm
+            scope and third key the experiment kind, like with config_updates. Values at the leaf
+            are tuples of named configs. The dicts across namespaces are recursively merged
+            using `recursive_dict_merge`.
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration has the associated short label.
     """
@@ -420,54 +526,21 @@ def table_combined(
         named_configs=named_configs,
     )
 
-    if vals_path is not None:
-        with open(vals_path, "rb") as f:
-            vals = pickle.load(f)
+    if vals_paths:
+        vals = load_vals(vals_paths)
     else:
-        runs = {}
-        for ex_key, ex in experiments.items():
-            for kind in experiment_kinds:
-                if kind in skip.get(ex_key, ()):
-                    logging.info(f"Skipping ({ex_key}, {kind})")
-                    continue
-
-                local_updates = [
-                    config_updates.get("global", {}),
-                    config_updates.get(ex_key, {}).get("global", {}),
-                    config_updates.get(ex_key, {}).get(kind, {}),
-                ]
-                local_updates = [copy.deepcopy(cfg) for cfg in local_updates]
-                local_updates = functools.reduce(
-                    functools.partial(script_utils.recursive_dict_merge, overwrite=True),
-                    local_updates,
-                )
-                local_updates["log_dir"] = os.path.join(log_dir, ex_key, kind)
-
-                local_named = tuple(named_configs.get("global", ()))
-                local_named += tuple(named_configs.get(ex_key, {}).get("global", ()))
-                local_named += tuple(named_configs.get(ex_key, {}).get(kind, ()))
-
-                print(f"Running ({ex_key}, {kind}): {local_updates} plus {local_named}")
-                runs[(ex_key, kind)] = ex.run(
-                    config_updates=local_updates, named_configs=local_named
-                )
-        vals = {k: run.result for k, run in runs.items()}
+        vals = compute_vals(  # pylint:disable=no-value-for-parameter
+            experiments=experiments, named_configs=named_configs
+        )
 
         with open(os.path.join(log_dir, "vals.pkl"), "wb") as f:
             pickle.dump(vals, f)
 
     # TODO(adam): how to get generator reward? that might be easiest as side-channel.
     # or separate script, which you could potentially combine here.
-    vals_filtered = {}
-    for model_key, outer_val in vals.items():
-        for table_key, inner_val in outer_val.items():
-            inner_val = aggregated.oned_mapping_to_series(inner_val)
-            vals_filtered.setdefault(table_key, {})[model_key] = inner_val.xs(
-                key=(target_reward_type, target_reward_path),
-                level=("target_reward_type", "target_reward_path"),
-            )
+    vals_filtered = filter_values(vals)  # pylint:disable=no-value-for-parameter
 
-    for k in common_keys(vals.values()):
+    for k, v in vals_filtered.items():
         v = vals_filtered[k]
         path = os.path.join(log_dir, f"{k}.csv")
         logger.info(f"Writing table to '{path}'")

@@ -111,12 +111,13 @@ DATA_ROOT_PREFIXES = [
     # Older versions of the code stored absolute paths in config.
     # Try and turn these into relative paths for portability.
     "/root/output",
+    "/home/adam/output",
     "/mnt/eval_reward/data",
     "/mnt/eval_reward_efs/data",
 ]
 
 
-def _canonicalize_data_root(path: str) -> str:
+def canonicalize_data_root(path: str) -> str:
     if path.endswith("dummy"):
         path = "dummy"
     for root_prefix in DATA_ROOT_PREFIXES:
@@ -130,7 +131,7 @@ def _canonicalize_cfg_path(cfg: Dict[str, Any]) -> Dict[str, Any]:
     cfg = dict(cfg)
     for fld in ("source_reward_path", "target_reward_path"):
         if fld in cfg:
-            cfg[fld] = _canonicalize_data_root(cfg[fld])
+            cfg[fld] = canonicalize_data_root(cfg[fld])
     return cfg
 
 
@@ -195,7 +196,7 @@ def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
         if kind in HARDCODED_TYPES or path == "dummy":
             res.append((kind, "hardcoded", 0, 0))
         else:
-            path = _canonicalize_data_root(path)
+            path = canonicalize_data_root(path)
             config, run, path = _find_sacred_parent(path, seen)
             if "target_reward_type" in config:
                 # Learning directly from a reward: e.g. train_{regress,preferences}
@@ -204,7 +205,7 @@ def path_to_config(kinds: Iterable[str], paths: Iterable[str]) -> pd.DataFrame:
                 res.append((config["target_reward_type"], model_type, config["seed"], 0))
             elif "rollout_path" in config:
                 # Learning from demos: e.g. train_adversarial
-                config["rollout_path"] = _canonicalize_data_root(config["rollout_path"])
+                config["rollout_path"] = canonicalize_data_root(config["rollout_path"])
                 rollout_config, _, _ = _find_sacred_parent(config["rollout_path"], seen)
                 reward_type = rollout_config["reward_type"] or "EnvReward"
                 reward_args = config["init_trainer_kwargs"]["reward_kwargs"]
