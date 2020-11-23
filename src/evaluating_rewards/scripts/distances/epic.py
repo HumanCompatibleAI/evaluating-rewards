@@ -316,6 +316,9 @@ def epic_worker(
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
     """
+    # SOMEDAY(adam): there must be a better way of logging with Ray
+    script_utils.configure_logging()
+
     models, g, sess = common.load_models_create_sess(
         env_name, discount, itertools.chain(x_reward_cfgs, y_reward_cfgs)
     )
