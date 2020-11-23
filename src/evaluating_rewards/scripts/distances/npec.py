@@ -302,7 +302,7 @@ def compute_vals(
 ) -> common_config.AggregatedDistanceReturn:
     """Entry-point into script to regress source onto target reward model."""
     if normalize:
-        x_reward_cfgs = list(x_reward_cfgs) + [ZERO_CFG]
+        y_reward_cfgs = list(y_reward_cfgs) + [ZERO_CFG]
 
     ray.init(**ray_kwargs)
 
@@ -335,9 +335,9 @@ def compute_vals(
         normalized = {}
         for k, v in dissimilarities.items():
             target, source = k
-            if target == ZERO_CFG:
+            if source == ZERO_CFG:
                 continue
-            zero_mean = mean[(ZERO_CFG, source)]
+            zero_mean = mean[(target, ZERO_CFG)]
             normalized[k] = [x / zero_mean for x in v]
         dissimilarities = normalized
 
