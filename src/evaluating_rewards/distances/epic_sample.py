@@ -148,6 +148,7 @@ def _tile_first_dim(xs: np.ndarray, reps: int) -> np.ndarray:
     return np.tile(xs, reps_d)
 
 
+# @profile
 def sample_mean_rews(
     models: Mapping[K, base.RewardModel],
     mean_from_obs: np.ndarray,
@@ -192,7 +193,121 @@ def sample_mean_rews(
     reps = min(obs_per_batch, len(mean_from_obs))
     act_tiled = _tile_first_dim(act_samples, reps)
     next_obs_tiled = _tile_first_dim(next_obs_samples, reps)
+
+    # Store these in TensorFlow runtime for efficiency
+    # with tf.device("/cpu:0"):
+    mean_from_obs_ph = tf.placeholder(
+        mean_from_obs.dtype, shape=mean_from_obs.shape, name="mean_from_obs"
+    )
+    act_ph = tf.placeholder(act_tiled.dtype, shape=act_tiled.shape, name="act")
+    next_obs_ph = tf.placeholder(next_obs_tiled.dtype, shape=next_obs_tiled.shape, name="next_obs")
+
+    dones = tf.zeros(reps * len(act_samples), dtype=np.bool, name="dones")
+
+    handles = [mean_from_obs_ph, act_ph, next_obs_ph, dones]
+    handles = [tf.get_session_handle(h) for h in handles]
+    mean_from_obs_h, act_tiled, next_obs_tiled, dones = tf.get_default_session().run(
+        handles,
+        {mean_from_obs_ph: mean_from_obs, act_ph: act_tiled, next_obs_ph: next_obs_tiled},
+    )
+
+    # with tf.device("/cpu:0"):
+    start_ph = tf.placeholder(tf.int32, shape=(), name="start")
+    end_ph = tf.placeholder(tf.int32, shape=(), name="end")
+    mean_from_obs_p, mean_from_obs_t = tf.get_session_tensor(
+        mean_from_obs_h.handle, next_obs_samples.dtype
+    )
+
+    obs = mean_from_obs_t[start_ph:end_ph]
+    obs_repeated = tf.repeat(obs, len(act_samples), axis=0)
+
     for start, end in zip(idxs[:-1], idxs[1:]):
+        real_start = start
+        if end - start != reps:
+            start = max(0, end - reps)
+        # obs = mean_from_obs[start:end]
+        # obs_repeated = np.repeat(obs, len(act_samples), axis=0)
+        types.Transitions.__post_init__ = lambda self: True
+        obs_repeated_instance = tf.get_default_session().run(
+            tf.get_session_handle(obs_repeated),
+            feed_dict={mean_from_obs_p: mean_from_obs_h.handle, start_ph: start, end_ph: end},
+        )
+        batch = types.Transitions(
+            obs=obs_repeated_instance,
+            acts=act_tiled,
+            next_obs=next_obs_tiled,
+            dones=dones,
+            # acts=act_tiled[: len(obs_repeated), :],
+            # next_obs=next_obs_tiled[: len(obs_repeated), :],
+            # dones=np.zeros(len(obs_repeated), dtype=np.bool),
+            infos=None,
+        )
+        rews = base.evaluate_models(
+            models,
+            batch,
+        )
+        rews = {k: v.reshape(reps, -1) for k, v in rews.items()}
+        rews = {k: v[real_start - start :] for k, v in rews.items()}
+        for k, m in mean_rews.items():
+            means = np.mean(rews[k], axis=1)
+            m.extend(means)
+
+    mean_rews = {k: np.array(v) for k, v in mean_rews.items()}
+    for v in mean_rews.values():
+        assert v.shape == (len(mean_from_obs),)
+    return mean_rews
+
+
+# @profile
+def sample_mean_rews_orig(
+    models: Mapping[K, base.RewardModel],
+    mean_from_obs: np.ndarray,
+    act_samples: np.ndarray,
+    next_obs_samples: np.ndarray,
+    batch_size: int = 2 ** 30,
+) -> Mapping[K, np.ndarray]:
+    """
+    Estimates the mean reward from observations `mean_from_obs` using given samples.
+
+    Evaluates in batches of at most `batch_size` bytes to avoid running out of memory. Note that
+    the observations and actions, being vectors, often take up much more memory in RAM than the
+    results, a scalar value.
+
+    Args:
+        models: A mapping from keys to reward models.
+        mean_from_obs: Observations to compute the mean starting from.
+        act_samples: Actions to compute the mean with respect to.
+        next_obs_samples: Next observations to compute the mean with respect to.
+        batch_size: The maximum number of points to compute the reward with respect to in a single
+            batch.
+
+    Returns:
+        A mapping from keys to NumPy array of shape `(len(mean_from_obs),)`, containing the
+        mean reward of the model over triples:
+            `(obs, act, next_obs) for act, next_obs in zip(act_samples, next_obs_samples)`
+    """
+    assert act_samples.shape[0] == next_obs_samples.shape[0]
+    assert mean_from_obs.shape[1:] == next_obs_samples.shape[1:]
+
+    # Compute indexes to not exceed batch size
+    sample_mem_usage = act_samples.nbytes + mean_from_obs.nbytes
+    obs_per_batch = batch_size // sample_mem_usage
+    if obs_per_batch <= 0:
+        msg = f"`batch_size` too small to compute a batch: {batch_size} < {sample_mem_usage}."
+        raise ValueError(msg)
+    idxs = np.arange(0, len(mean_from_obs), obs_per_batch)
+    idxs = np.concatenate((idxs, [len(mean_from_obs)]))  # include end point
+
+    # Compute mean rewards
+    mean_rews = {k: [] for k in models.keys()}
+    reps = min(obs_per_batch, len(mean_from_obs))
+    act_tiled = _tile_first_dim(act_samples, reps)
+    next_obs_tiled = _tile_first_dim(next_obs_samples, reps)
+
+    for start, end in zip(idxs[:-1], idxs[1:]):
+        real_start = start
+        if end - start != obs_per_batch:
+            start = end - obs_per_batch
         obs = mean_from_obs[start:end]
         obs_repeated = np.repeat(obs, len(act_samples), axis=0)
         batch = types.Transitions(
@@ -204,6 +319,7 @@ def sample_mean_rews(
         )
         rews = base.evaluate_models(models, batch)
         rews = {k: v.reshape(len(obs), -1) for k, v in rews.items()}
+        rews = {k: v[real_start - start :] for k, v in rews.items()}
         for k, m in mean_rews.items():
             means = np.mean(rews[k], axis=1)
             m.extend(means)
@@ -221,6 +337,7 @@ def sample_canon_shaping(
     next_obs_samples: datasets.SampleDist,
     discount: float = 1.0,
     p: int = 1,
+    orig: bool = False,
 ) -> Mapping[K, np.ndarray]:
     r"""
     Canonicalize `batch` for `models` using a sample-based estimate of mean reward.
@@ -274,7 +391,10 @@ def sample_canon_shaping(
 
     all_obs = np.concatenate((next_obs_samples, batch.obs, batch.next_obs), axis=0)
     unique_obs, unique_inv = np.unique(all_obs, return_inverse=True, axis=0)
-    mean_rews = sample_mean_rews(models, unique_obs, act_samples, next_obs_samples)
+    if orig:
+        mean_rews = sample_mean_rews_orig(models, unique_obs, act_samples, next_obs_samples)
+    else:
+        mean_rews = sample_mean_rews(models, unique_obs, act_samples, next_obs_samples)
     mean_rews = {k: v[unique_inv] for k, v in mean_rews.items()}
 
     dataset_mean_rews = {k: v[0:n_mean_samples] for k, v in mean_rews.items()}

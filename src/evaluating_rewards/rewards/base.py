@@ -843,16 +843,16 @@ def make_feed_dict(
     models: Iterable[RewardModel], batch: types.Transitions
 ) -> Dict[tf.Tensor, np.ndarray]:
     """Construct a feed dictionary for models for data in batch."""
-    assert batch.obs.shape == batch.next_obs.shape
-    assert batch.obs.shape[0] == batch.acts.shape[0]
+    # assert batch.obs.shape == batch.next_obs.shape
+    # assert batch.obs.shape[0] == batch.acts.shape[0]
 
-    if models:
-        a_model = next(iter(models))
-        assert batch.obs.shape[1:] == a_model.observation_space.shape
-        assert batch.acts.shape[1:] == a_model.action_space.shape
-        for m in models:
-            assert a_model.observation_space == m.observation_space
-            assert a_model.action_space == m.action_space
+    # if models:
+    #     a_model = next(iter(models))
+    #     assert batch.obs.shape[1:] == a_model.observation_space.shape
+    #     assert batch.acts.shape[1:] == a_model.action_space.shape
+    #     for m in models:
+    #         assert a_model.observation_space == m.observation_space
+    #         assert a_model.action_space == m.action_space
 
     feed_dict = {}
     for m in models:
@@ -865,11 +865,14 @@ def make_feed_dict(
 
 
 def evaluate_models(
-    models: Mapping[K, RewardModel], batch: types.Transitions
+    models: Mapping[K, RewardModel],
+    batch: types.Transitions,
+    feed_dict=None,
 ) -> Mapping[K, np.ndarray]:
     """Computes prediction of reward models."""
     reward_outputs = {k: m.reward for k, m in models.items()}
-    feed_dict = make_feed_dict(models.values(), batch)
+    feed_dict = feed_dict or {}
+    feed_dict.update(make_feed_dict(models.values(), batch))
     return tf.get_default_session().run(reward_outputs, feed_dict=feed_dict)
 
 

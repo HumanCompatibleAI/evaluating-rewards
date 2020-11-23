@@ -245,7 +245,6 @@ def sample_canon(
     Returns:
         Dissimilarity matrix.
     """
-    del g
     logger.info("Sampling dataset")
     with visitations_factory(seed=seed, **visitations_factory_kwargs) as batch_callable:
         batch = batch_callable(n_samples)
@@ -253,18 +252,19 @@ def sample_canon(
     next_obs_samples = obs_dist(n_mean_samples)
     act_samples = act_dist(n_mean_samples)
 
-    with sess.as_default():
-        logger.info("Removing shaping")
-        deshaped_rew = epic_sample.sample_canon_shaping(
-            models,
-            batch,
-            act_samples,
-            next_obs_samples,
-            discount,
-            direct_p,
-        )
-        x_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in x_reward_cfgs}
-        y_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in y_reward_cfgs}
+    with g.as_default():
+        with sess.as_default():
+            logger.info("Removing shaping")
+            deshaped_rew = epic_sample.sample_canon_shaping(
+                models,
+                batch,
+                act_samples,
+                next_obs_samples,
+                discount,
+                direct_p,
+            )
+            x_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in x_reward_cfgs}
+            y_deshaped_rew = {cfg: deshaped_rew[cfg] for cfg in y_reward_cfgs}
 
     if distance_kind == "direct":
         distance_fn = functools.partial(_direct_distance, p=direct_p)
