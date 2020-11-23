@@ -189,12 +189,11 @@ def test():
             "n_episodes_eval": 1,
             "rollout_save_n_timesteps": 100,
         },
+        "named_configs": ["fast"],
     }
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
-            "evaluating_rewards/PointMassGroundTruth-v0": {
-                "named_configs": ["fast"],
-            },
+            "evaluating_rewards/PointMassGroundTruth-v0": {},
         }
     }
     run_tag = "test"
