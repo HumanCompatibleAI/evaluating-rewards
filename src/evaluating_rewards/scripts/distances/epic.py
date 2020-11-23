@@ -410,8 +410,6 @@ def compute_vals(
     ray.init(**ray_kwargs)
 
     refs = []
-    import copy
-
     try:
         for seed in range(n_seeds):
             ref = epic_worker.remote(
@@ -419,11 +417,11 @@ def compute_vals(
                 seed=seed,
                 env_name=env_name,
                 discount=discount,
-                x_reward_cfgs=copy.deepcopy(x_reward_cfgs),
-                y_reward_cfgs=copy.deepcopy(y_reward_cfgs),
-                obs_sample_dist_factory=copy.deepcopy(obs_sample_dist_factory),
-                act_sample_dist_factory=copy.deepcopy(act_sample_dist_factory),
-                sample_dist_factory_kwargs=copy.deepcopy(sample_dist_factory_kwargs),
+                x_reward_cfgs=x_reward_cfgs,
+                y_reward_cfgs=y_reward_cfgs,
+                obs_sample_dist_factory=obs_sample_dist_factory,
+                act_sample_dist_factory=act_sample_dist_factory,
+                sample_dist_factory_kwargs=sample_dist_factory_kwargs,
                 distance_kind=distance_kind,
                 direct_p=direct_p,
             )
