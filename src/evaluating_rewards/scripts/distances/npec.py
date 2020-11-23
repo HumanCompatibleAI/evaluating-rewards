@@ -309,30 +309,30 @@ def compute_vals(
                     keys.append((target, source))
                     refs.append(obj_ref)
         values = ray.get(refs)
-
-        stats = {}
-        for k, v in zip(keys, values):
-            stats.setdefault(k, []).append(v)
-
-        logger.info("Saving raw statistics")
-        with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
-            pickle.dump(stats, f)
-
-        dissimilarities = {k: [v["loss"][-1]["singleton"] for v in s] for k, s in stats.items()}
-        if normalize:
-            mean = {k: np.mean(v) for k, v in dissimilarities.items()}
-            normalized = {}
-            for k, v in dissimilarities.items():
-                target, source = k
-                if target == ZERO_CFG:
-                    continue
-                zero_mean = mean[(ZERO_CFG, source)]
-                normalized[k] = [x / zero_mean for x in v]
-            dissimilarities = normalized
-
-        return common.aggregate_seeds(aggregate_fns, dissimilarities)
     finally:
         ray.shutdown()
+
+    stats = {}
+    for k, v in zip(keys, values):
+        stats.setdefault(k, []).append(v)
+
+    logger.info("Saving raw statistics")
+    with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
+        pickle.dump(stats, f)
+
+    dissimilarities = {k: [v["loss"][-1]["singleton"] for v in s] for k, s in stats.items()}
+    if normalize:
+        mean = {k: np.mean(v) for k, v in dissimilarities.items()}
+        normalized = {}
+        for k, v in dissimilarities.items():
+            target, source = k
+            if target == ZERO_CFG:
+                continue
+            zero_mean = mean[(ZERO_CFG, source)]
+            normalized[k] = [x / zero_mean for x in v]
+        dissimilarities = normalized
+
+    return common.aggregate_seeds(aggregate_fns, dissimilarities)
 
 
 common.make_main(npec_distance_ex, compute_vals)
