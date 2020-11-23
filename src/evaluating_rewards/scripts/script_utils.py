@@ -14,6 +14,7 @@
 
 """Utility functions to aid in constructing Sacred experiments."""
 
+import logging
 import os
 from typing import Any, Iterable, Mapping, MutableMapping, Optional, TypeVar
 
@@ -94,6 +95,11 @@ def recursive_dict_merge(
 
 def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):
     """Main function for experiment."""
+    logging.basicConfig(
+        format="[%(asctime)s] %(levelname)-8s - %(name)s - %(message)s",
+        level=logging.INFO,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     sacred_dir = os.path.join(serialize.get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)
