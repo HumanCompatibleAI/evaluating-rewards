@@ -125,6 +125,17 @@ def test():
     del _
 
 
+@epic_distance_ex.named_config
+def test_no_parallel():
+    """Eliminate parallelism to reduce load on CI."""
+    visitations_factory_kwargs = {  # noqa: F841  pylint:disable=unused-variable
+        "env_name": "evaluating_rewards/PointMassLine-v0",
+        "parallel": False,
+        "policy_type": "random",
+        "policy_path": "dummy",
+    }
+
+
 @epic_distance_ex.capture
 def mesh_canon(
     g: tf.Graph,

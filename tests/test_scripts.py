@@ -63,15 +63,15 @@ def _check_distance_return(run: sacred.experiment.Run) -> None:
 
 EXPERIMENTS = {
     # experiment, expected_type, extra_named_configs, config_updates, extra_check
-    "epic_distance": (epic.epic_distance_ex, dict, [], {}, _check_distance_return),
-    "erc_distance": (erc.erc_distance_ex, dict, [], {}, _check_distance_return),
-    "npec_distance": (
-        npec.npec_distance_ex,
+    "epic_distance": (
+        epic.epic_distance_ex,
         dict,
-        [],
+        ["test_no_parallel"],
         {},
         _check_distance_return,
     ),
+    "erc_distance": (erc.erc_distance_ex, dict, [], {}, _check_distance_return),
+    "npec_distance": (npec.npec_distance_ex, dict, [], {}, _check_distance_return),
     "npec_distance_alternating": (
         npec.npec_distance_ex,
         dict,
@@ -122,12 +122,12 @@ def add_epic_experiments():
             EXPERIMENTS[f"epic_distance_{computation_kind}_{distance_kind}"] = (
                 epic.epic_distance_ex,
                 dict,
-                [],
+                ["test_no_parallel"],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
                 _check_distance_return,
             )
     NAMED_CONFIGS = {
-        "random_spaces": ["point_mass", "sample_from_env_spaces"],
+        "random_spaces": ["point_mass", "sample_from_env_spaces", "test_no_parallel"],
         "random_spaces_both": ["point_mass", "sample_from_env_spaces", "dataset_iid"],
         "random_transitions_both": [
             "point_mass",
@@ -173,7 +173,7 @@ add_gridworld_experiments()
 )
 def test_experiment(experiment, expected_type, named_configs, config_updates, extra_check):
     """Run Sacred experiment and sanity check run, including type of result."""
-    named_configs = ["test"] + named_configs
+    named_configs = named_configs + ["test"]
     with tempfile.TemporaryDirectory(prefix="eval-rewards-exp") as tmpdir:
         config_updates["log_root"] = tmpdir
         run = experiment.run(named_configs=named_configs, config_updates=config_updates)

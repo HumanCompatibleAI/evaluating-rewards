@@ -108,6 +108,10 @@ def high_precision():
 def test():
     """Intended for debugging/unit test."""
     n_episodes = 64
+    trajectory_factory_kwargs = {
+        "n_envs": 4,
+        "parallel": False,
+    }
     _ = locals()
     del _
 

@@ -147,6 +147,12 @@ def test():
         # CI build only has 1 core per test
         "num_cpus": 1,
     }
+    visitations_factory_kwargs = {
+        "env_name": "evaluating_rewards/PointMassLine-v0",
+        "parallel": False,
+        "policy_type": "random",
+        "policy_path": "dummy",
+    }
     batch_size = 512
     total_timesteps = 2048
     _ = locals()  # quieten flake8 unused variable warning
