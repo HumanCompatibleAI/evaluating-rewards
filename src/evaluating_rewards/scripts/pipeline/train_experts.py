@@ -156,19 +156,19 @@ def ground_truth():
 def point_maze_pathologicals():
     """Train RL policies on the "wrong" rewards in PointMaze."""
     configs = {
-        "imitation/PointMazeLeftVel-v0": {
-            # Repellent and BetterGoal we just want to report the policy return
-            "evaluating_rewards/PointMazeRepellentWithCtrl-v0": dict(
-                **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
-            ),
-            "evaluating_rewards/PointMazeBetterGoalWithCtrl-v0": dict(
-                **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
-            ),
-            # We use WrongTarget expert for a visitation distribution
-            "evaluating_rewards/PointMazeWrongTargetWithCtrl-v0": dict(
+        env: {
+            reward: dict(
                 **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
             ),
         }
+        for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
+        for reward in (
+            # Repellent and BetterGoal we just want to report the policy return
+            "evaluating_rewards/PointMazeRepellentWithCtrl-v0",
+            "evaluating_rewards/PointMazeBetterGoalWithCtrl-v0",
+            # We use WrongTarget expert for a visitation distribution
+            "evaluating_rewards/PointMazeWrongTargetWithCtrl-v0",
+        )
     }
     run_tag = "point_maze_wrong_target"
     _ = locals()
