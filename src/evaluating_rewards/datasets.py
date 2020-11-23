@@ -308,7 +308,7 @@ def transitions_factory_from_random_model(
 @contextlib.contextmanager
 def transitions_factory_permute_wrapper(
     factory: TransitionsFactory,
-    multiplier: int = 32,
+    min_buffer: int = 4096,
     rng: np.random.RandomState = np.random,
     **kwargs,
 ) -> Iterator[TransitionsCallable]:
@@ -326,7 +326,8 @@ def transitions_factory_permute_wrapper(
 
     Args:
         factory: The factory to sample transitions from.
-        multiplier: Scale factor of the buffer compared to `n`, the number of requested transitions.
+        min_buffer: Minimum size of buffer to sample from. This is desirable to ensure the samples
+            are appropriately mixed, e.g. not all from a single episode.
         rng: Random state.
         kwargs: passed through to factory.
 
@@ -338,7 +339,7 @@ def transitions_factory_permute_wrapper(
     with factory(**kwargs) as transitions_callable:
 
         def f(n: int) -> types.Transitions:
-            target_size = n * multiplier
+            target_size = max(min_buffer, n)
             delta = target_size - len(buf["obs"])
             if delta > 0:
                 transitions = transitions_callable(delta)
