@@ -48,6 +48,7 @@ common.make_transitions_configs(epic_distance_ex)
 def default_config():
     """Default configuration values."""
     ray_kwargs = {}  # arguments to Ray, used for parallelization
+    num_cpus = 4  # how many CPUs needed per seed
     computation_kind = "sample"  # either "sample" or "mesh"
     distance_kind = "pearson"  # either "direct" or "pearson"
     direct_p = 1  # the power to use for direct distance
@@ -124,6 +125,7 @@ def test():
         # CI build only has 1 core per test
         "num_cpus": 1,
     }
+    num_cpus = 1
     n_samples = 64
     n_mean_samples = 64
     n_obs = 16
@@ -342,6 +344,7 @@ def epic_worker(
 def compute_vals(
     # Internal arguments (not passed to computation_fn or epic_worker)
     ray_kwargs: Mapping[str, Any],
+    num_cpus: int,
     computation_kind: str,
     aggregate_fns: Mapping[str, common.AggregateFn],
     log_dir: str,
@@ -369,6 +372,7 @@ def compute_vals(
 
     Args:
         ray_kwargs: Passed through to `ray.init`.
+        num_cpus: number of CPUs needed to execute each seed.
         computation_kind: method to compute results, either "sample" or "mesh" (generally slower).
         aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
         log_dir: directory to save data to.
@@ -411,8 +415,9 @@ def compute_vals(
 
     refs = []
     try:
+        epic_worker_tagged = epic_worker.options(num_cpus=num_cpus)
         for seed in range(n_seeds):
-            ref = epic_worker.remote(
+            ref = epic_worker_tagged.remote(
                 computation_fn=computation_fn,
                 seed=seed,
                 env_name=env_name,
