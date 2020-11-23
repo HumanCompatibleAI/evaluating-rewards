@@ -58,7 +58,7 @@ def default_config():
     comparison_kwargs = {
         "learning_rate": 1e-2,
     }
-    total_timesteps = int(1e6)
+    total_timesteps = int(5e5)
     batch_size = 4096
     fit_kwargs = {
         "affine_size": 16384,  # number of timesteps to use in pretraining; set to None to disable
@@ -164,7 +164,7 @@ def test():
 @npec_distance_ex.named_config
 def high_precision():
     """Increase number of timesteps to increase change of convergence."""
-    total_timesteps = int(10e6)  # noqa: F841  pylint:disable=unused-variable
+    total_timesteps = int(1e6)  # noqa: F841  pylint:disable=unused-variable
 
 
 script_utils.add_logging_config(npec_distance_ex, "npec")
