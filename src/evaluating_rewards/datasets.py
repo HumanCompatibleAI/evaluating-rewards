@@ -30,6 +30,7 @@ from imitation.policies import serialize
 from imitation.util import util
 import numpy as np
 from stable_baselines.common import base_class, policies, vec_env
+import tensorflow as tf
 
 T = TypeVar("T")
 TrajectoryCallable = Callable[[rollout.GenTrajTerminationFn], Sequence[types.Trajectory]]
@@ -156,9 +157,11 @@ def _factory_via_serialized(
     **kwargs,
 ) -> Iterator[T]:
     venv = util.make_vec_env(env_name, parallel=parallel, **kwargs)
-    with serialize.load_policy(policy_type, policy_path, venv) as policy:
-        with factory_from_policy(venv, policy) as generator:
-            yield generator
+    with tf.device("/cpu:0"):
+        # It's normally faster to do policy inference on CPU, since batch sizes are small.
+        with serialize.load_policy(policy_type, policy_path, venv) as policy:
+            with factory_from_policy(venv, policy) as generator:
+                yield generator
 
 
 @contextlib.contextmanager
