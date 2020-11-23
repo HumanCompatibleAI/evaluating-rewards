@@ -217,9 +217,8 @@ def sample_mean_rews(
 def sample_canon_shaping(
     models: Mapping[K, base.RewardModel],
     batch: types.Transitions,
-    act_dist: datasets.SampleDist,
-    obs_dist: datasets.SampleDist,
-    n_mean_samples: int,
+    act_samples: datasets.SampleDist,
+    next_obs_samples: datasets.SampleDist,
     discount: float = 1.0,
     p: int = 1,
 ) -> Mapping[K, np.ndarray]:
@@ -254,9 +253,8 @@ def sample_canon_shaping(
     Args:
         models: A mapping from keys to reward models.
         batch: A batch to evaluate the models with respect to.
-        act_dist: The distribution to sample actions from.
-        obs_dist: The distribution to sample next observations from.
-        n_mean_samples: The number of samples to take.
+        act_samples: Samples of actions.
+        next_obs_samples: Samples of observations. Same length as `act_samples`.
         discount: The discount parameter to use for potential shaping.
         p: Controls power in the L^p norm used for normalization.
 
@@ -264,14 +262,15 @@ def sample_canon_shaping(
         A mapping from keys to NumPy arrays containing rewards from the model evaluated on batch
         and then canonicalized to be invariant to potential shaping and scale.
     """
+    # Sample-based estimate of mean reward
+    n_mean_samples = len(act_samples)
+    if len(next_obs_samples) != n_mean_samples:
+        raise ValueError(f"Different sample length: {len(next_obs_samples)} != {n_mean_samples}")
+
     # EPIC only defined on infinite-horizon MDPs, so pretend episodes never end.
     # SOMEDAY(adam): add explicit support for finite-horizon?
     batch = dataclasses.replace(batch, dones=np.zeros_like(batch.dones))
     raw_rew = base.evaluate_models(models, batch)
-
-    # Sample-based estimate of mean reward
-    act_samples = act_dist(n_mean_samples)
-    next_obs_samples = obs_dist(n_mean_samples)
 
     all_obs = np.concatenate((next_obs_samples, batch.obs, batch.next_obs), axis=0)
     unique_obs, unique_inv = np.unique(all_obs, return_inverse=True, axis=0)

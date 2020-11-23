@@ -241,17 +241,19 @@ def sample_canon(
     """
     del g
     logger.info("Sampling dataset")
-    with visitations_factory(**visitations_factory_kwargs) as batch_callable:
+    with visitations_factory(seed=seed, **visitations_factory_kwargs) as batch_callable:
         batch = batch_callable(n_samples)
+
+    next_obs_samples = obs_dist(n_mean_samples)
+    act_samples = act_dist(n_mean_samples)
 
     with sess.as_default():
         logger.info("Removing shaping")
         deshaped_rew = epic_sample.sample_canon_shaping(
             models,
             batch,
-            act_dist,
-            obs_dist,
-            n_mean_samples,
+            act_samples,
+            next_obs_samples,
             discount,
             direct_p,
         )
