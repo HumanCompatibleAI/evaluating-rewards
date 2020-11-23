@@ -148,7 +148,6 @@ def _tile_first_dim(xs: np.ndarray, reps: int) -> np.ndarray:
     return np.tile(xs, reps_d)
 
 
-# @profile
 def sample_mean_rews(
     models: Mapping[K, base.RewardModel],
     mean_from_obs: np.ndarray,
@@ -195,29 +194,19 @@ def sample_mean_rews(
     next_obs_tiled = _tile_first_dim(next_obs_samples, reps)
 
     # Store these in TensorFlow runtime for efficiency
-    # with tf.device("/cpu:0"):
-    mean_from_obs_ph = tf.placeholder(
-        mean_from_obs.dtype, shape=mean_from_obs.shape, name="mean_from_obs"
-    )
-    act_ph = tf.placeholder(act_tiled.dtype, shape=act_tiled.shape, name="act")
-    next_obs_ph = tf.placeholder(next_obs_tiled.dtype, shape=next_obs_tiled.shape, name="next_obs")
-
+    mean_from_obs_t = tf.constant(mean_from_obs)
+    act_t = tf.constant(act_tiled)
+    next_obs_t = tf.constant(next_obs_tiled)
     dones = tf.zeros(reps * len(act_samples), dtype=np.bool, name="dones")
 
-    handles = [mean_from_obs_ph, act_ph, next_obs_ph, dones]
+    handles = [act_t, next_obs_t, dones]
     handles = [tf.get_session_handle(h) for h in handles]
-    mean_from_obs_h, act_tiled, next_obs_tiled, dones = tf.get_default_session().run(
+    act_tiled, next_obs_tiled, dones = tf.get_default_session().run(
         handles,
-        {mean_from_obs_ph: mean_from_obs, act_ph: act_tiled, next_obs_ph: next_obs_tiled},
     )
 
-    # with tf.device("/cpu:0"):
     start_ph = tf.placeholder(tf.int32, shape=(), name="start")
     end_ph = tf.placeholder(tf.int32, shape=(), name="end")
-    mean_from_obs_p, mean_from_obs_t = tf.get_session_tensor(
-        mean_from_obs_h.handle, next_obs_samples.dtype
-    )
-
     obs = mean_from_obs_t[start_ph:end_ph]
     obs_repeated = tf.repeat(obs, len(act_samples), axis=0)
 
@@ -230,7 +219,7 @@ def sample_mean_rews(
         types.Transitions.__post_init__ = lambda self: True
         obs_repeated_instance = tf.get_default_session().run(
             tf.get_session_handle(obs_repeated),
-            feed_dict={mean_from_obs_p: mean_from_obs_h.handle, start_ph: start, end_ph: end},
+            feed_dict={start_ph: start, end_ph: end},
         )
         batch = types.Transitions(
             obs=obs_repeated_instance,
@@ -258,7 +247,6 @@ def sample_mean_rews(
     return mean_rews
 
 
-# @profile
 def sample_mean_rews_orig(
     models: Mapping[K, base.RewardModel],
     mean_from_obs: np.ndarray,
