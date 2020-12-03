@@ -77,7 +77,6 @@ POINT_MAZE_LEARNED_COMMON = {
         }
     },
     "pretty_models": {
-        r"\repelstaticmethod{}": ("evaluating_rewards/PointMazeRepellentWithCtrl-v0", "dummy"),
         r"\bettergoalmethod{}": ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
         r"\regressionmethod{}": (
             "evaluating_rewards/RewardModel-v0",
