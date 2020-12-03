@@ -116,7 +116,12 @@ def default_config():
 
 
 @experts_ex.config
-def fill_in_blank(configs):
+def default_env_rewards(configs):
+    """Set default env-reward pair in `configs` entry if it is empty.
+
+    This is needed since if we were to define it in `default_config` it would be impossible
+    to delete it given how Sacred dictionary merging works.
+    """
     if not configs:
         configs = {  # noqa: F401
             "evaluating_rewards/PointMassLine-v0": {
@@ -158,7 +163,7 @@ def point_maze_pathologicals():
     configs = {
         env: {
             reward: dict(
-                **CONFIG_BY_ENV["imitation/PointMazeLeftVel-v0"],
+                **CONFIG_BY_ENV[env],
             )
             for reward in (
                 # Repellent and BetterGoal we just want to report the policy return

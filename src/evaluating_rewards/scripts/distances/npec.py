@@ -209,7 +209,7 @@ def npec_worker(
     Returns:
         Statistics for training, including the final loss aka estimated NPEC distance.
     """
-    # SOMEDAY(adam): there must be a better way of logging with Ray
+    # Configure logging, since Ray children do not by default inherit logging configs.
     script_utils.configure_logging()
 
     with visitations_factory(seed=seed, **visitations_factory_kwargs) as dataset_generator:
