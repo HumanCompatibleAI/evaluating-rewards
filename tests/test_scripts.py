@@ -66,7 +66,7 @@ EXPERIMENTS = {
     "epic_distance": (
         epic.epic_distance_ex,
         dict,
-        ["test_no_parallel_venv"],
+        [],
         {},
         _check_distance_return,
     ),
@@ -122,12 +122,12 @@ def add_epic_experiments():
             EXPERIMENTS[f"epic_distance_{computation_kind}_{distance_kind}"] = (
                 epic.epic_distance_ex,
                 dict,
-                ["test_no_parallel_venv"],
+                [],
                 {"computation_kind": computation_kind, "distance_kind": distance_kind},
                 _check_distance_return,
             )
     NAMED_CONFIGS = {
-        "random_spaces": ["point_mass", "sample_from_env_spaces", "test_no_parallel_venv"],
+        "random_spaces": ["point_mass", "sample_from_env_spaces"],
         "random_spaces_both": ["point_mass", "sample_from_env_spaces", "dataset_iid"],
         "random_transitions_both": [
             "point_mass",

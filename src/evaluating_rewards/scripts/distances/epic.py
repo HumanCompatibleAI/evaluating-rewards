@@ -118,26 +118,30 @@ def high_precision():
     del _
 
 
-@epic_distance_ex.named_config
-def test():
-    """Intended for debugging/unit test."""
-    ray_kwargs = {
+FAST_CONFIG = dict(
+    ray_kwargs={
         # CI build only has 1 core per test
         "num_cpus": 1,
-    }
-    num_cpus = 1
-    n_samples = 64
-    n_mean_samples = 64
-    n_obs = 16
-    n_act = 16
-    n_seeds = 2
-    _ = locals()
-    del _
+    },
+    num_cpus=1,
+    n_samples=64,
+    n_mean_samples=64,
+    n_obs=16,
+    n_act=16,
+    n_seeds=2,
+)
 
 
 @epic_distance_ex.named_config
-def test_no_parallel_venv():
-    """Eliminate parallelism in VecEnv to reduce load on CI."""
+def fast():
+    """Intended for debugging."""
+    locals().update(**FAST_CONFIG)
+
+
+@epic_distance_ex.named_config
+def test():
+    """Unit test config."""
+    locals().update(**FAST_CONFIG)
     visitations_factory_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "env_name": "evaluating_rewards/PointMassLine-v0",
         "parallel": False,

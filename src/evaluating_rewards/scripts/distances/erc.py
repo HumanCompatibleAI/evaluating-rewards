@@ -104,16 +104,17 @@ def high_precision():
     del _
 
 
-@erc_distance_ex.named_config
-def test():
-    """Intended for debugging/unit test."""
-    n_episodes = 64
-    trajectory_factory_kwargs = {
+FAST_CONFIG = dict(
+    n_episodes=64,
+    trajectory_factory_kwargs={
         "n_envs": 4,
         "parallel": False,
-    }
-    _ = locals()
-    del _
+    },
+)
+
+# Duplicate to have consistent interface with EPIC & NPEC
+erc_distance_ex.add_named_config("test", FAST_CONFIG)
+erc_distance_ex.add_named_config("fast", FAST_CONFIG)
 
 
 def batch_compute_returns(
