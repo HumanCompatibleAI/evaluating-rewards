@@ -199,14 +199,12 @@ def point_maze_learned():
     del _
 
 
-@experts_ex.named_config
-def test():
-    """Intended for tests / debugging: small # of seeds and CPU cores, single env-reward pair."""
-    ray_kwargs = {
+FAST_CONFIG = dict(
+    ray_kwargs={
         # CI build only has 1 core per test
         "num_cpus": 1,
-    }
-    global_configs = {
+    },
+    global_configs={
         "n_seeds": 2,
         "config_updates": {
             "num_vec": 1,  # avoid taking up too many resources on CI
@@ -214,7 +212,18 @@ def test():
             "rollout_save_n_timesteps": 100,
         },
         "named_configs": ["fast"],
-    }
+    },
+)
+
+
+@experts_ex.named_config
+def fast():
+    """Intended for debugging small # of seeds and CPU cores, single env-reward pair."""
+    locals().update(**FAST_CONFIG)
+
+
+def test():
+    """Unit test config."""
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
             ("evaluating_rewards/PointMassGroundTruth-v0", "dummy"): {},
