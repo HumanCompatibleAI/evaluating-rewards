@@ -35,14 +35,14 @@ def point_maze_learned_cfgs(prefix="transfer_point_maze") -> List[RewardCfg]:
     "Configurations for learned rewards in PointMaze."
     return [
         ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/regress/model"),
-        ("evaluating_rewards/RewardModel-v0", "{prefix}/reward/preferences/model"),
+        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/preferences/model"),
         (
             "imitation/RewardNet_unshaped-v0",
-            "{prefix}/reward/irl_state_only/checkpoints/final/discrim/reward_net",
+            f"{prefix}/reward/irl_state_only/checkpoints/final/discrim/reward_net",
         ),
         (
             "imitation/RewardNet_unshaped-v0",
-            "{prefix}_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
+            f"{prefix}_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
         ),
     ]
 

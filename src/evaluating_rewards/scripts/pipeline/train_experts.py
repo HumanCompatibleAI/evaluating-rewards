@@ -233,6 +233,7 @@ def fast():
     locals().update(**FAST_CONFIG)
 
 
+@experts_ex.named_config
 def test():
     """Unit test config."""
     configs = {
