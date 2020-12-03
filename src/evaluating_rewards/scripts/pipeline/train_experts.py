@@ -181,26 +181,33 @@ def point_maze_pathologicals():
     del _
 
 
-@experts_ex.named_config
-def point_maze_learned():
+def _point_maze_learned(fast_config: bool):
     """Train RL policies on learned rewards in PointMaze."""
-    configs = {
-        env: {cfg: dict(**CONFIG_BY_ENV[env]) for cfg in common_config.POINT_MAZE_LEARNED_CFGS}
-        for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
-    }
-    # Increase from default number of evaluation episodes since we actually report these numbers,
-    # not just use them to pick the best seed. (Note there may be a slight optimizer's curse
-    # here biasing these numbers upward, since we report numbers from the best seed and do not
-    # re-evaluate, but it should be small given large number of episodes plus the fact we pick
-    # seed with best learned reward but report that of best ground-truth reward.)
-    global_configs = {
-        "config_updates": {
-            "n_episodes_eval": 1000,
-        }
-    }
-    run_tag = "point_maze_learned"
-    _ = locals()
-    del _
+    prefix = "point_maze_learned_fast" if fast_config else "point_maze_learned"
+    return dict(
+        configs={
+            env: {
+                cfg: dict(**CONFIG_BY_ENV[env])
+                for cfg in common_config.point_maze_learned_cfgs(prefix)
+            }
+            for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
+        },
+        # Increase from default number of evaluation episodes since we actually report statistics,
+        # not just use them to pick the best seed. (Note there may be a slight optimizer's curse
+        # here biasing these numbers upward, since we report numbers from the best seed and do not
+        # re-evaluate, but it should be small given large number of episodes plus the fact we pick
+        # seed with best learned reward but report that of best ground-truth reward.)
+        global_configs={
+            "config_updates": {
+                "n_episodes_eval": 1000,
+            }
+        },
+        run_tag=prefix,
+    )
+
+
+experts_ex.add_named_config("point_maze_learned", _point_maze_learned(fast_config=False))
+experts_ex.add_named_config("point_maze_learned_fast", _point_maze_learned(fast_config=True))
 
 
 FAST_CONFIG = dict(
