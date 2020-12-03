@@ -109,12 +109,25 @@ def default_config():
             },
         },
     }
-    configs = {
-        "evaluating_rewards/PointMassLine-v0": {"evaluating_rewards/PointMassGroundTruth-v0": {}},
-    }
+    configs = {}
     run_tag = "default"
     _ = locals()
     del _
+
+
+@experts_ex.config
+def default_env_rewards(configs):
+    """Set default env-reward pair in `configs` entry if it is empty.
+
+    This is needed since if we were to define it in `default_config` it would be impossible
+    to delete it given how Sacred dictionary merging works.
+    """
+    if not configs:
+        configs = {  # noqa: F401
+            "evaluating_rewards/PointMassLine-v0": {
+                "evaluating_rewards/PointMassGroundTruth-v0": {}
+            },
+        }
 
 
 @experts_ex.config
@@ -145,6 +158,29 @@ def ground_truth():
 
 
 @experts_ex.named_config
+def point_maze_pathologicals():
+    """Train RL policies on the "wrong" rewards in PointMaze."""
+    configs = {
+        env: {
+            reward: dict(
+                **CONFIG_BY_ENV[env],
+            )
+            for reward in (
+                # Repellent and BetterGoal we just want to report the policy return
+                "evaluating_rewards/PointMazeRepellentWithCtrl-v0",
+                "evaluating_rewards/PointMazeBetterGoalWithCtrl-v0",
+                # We use WrongTarget expert for a visitation distribution
+                "evaluating_rewards/PointMazeWrongTargetWithCtrl-v0",
+            )
+        }
+        for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
+    }
+    run_tag = "point_maze_wrong_target"
+    _ = locals()
+    del _
+
+
+@experts_ex.named_config
 def test():
     """Intended for tests / debugging: small # of seeds and CPU cores, single env-reward pair."""
     ray_kwargs = {
@@ -158,12 +194,11 @@ def test():
             "n_episodes_eval": 1,
             "rollout_save_n_timesteps": 100,
         },
+        "named_configs": ["fast"],
     }
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
-            "evaluating_rewards/PointMassGroundTruth-v0": {
-                "named_configs": ["fast"],
-            },
+            "evaluating_rewards/PointMassGroundTruth-v0": {},
         }
     }
     run_tag = "test"
@@ -225,7 +260,9 @@ def _filter_key(k: str) -> Optional[str]:
     elif k.endswith("_max") or k.endswith("_min"):
         return None
     else:
-        return k.replace("monitor_return", "mr")
+        k = k.replace("monitor_return", "mr")
+        k = k.replace("wrapped_return", "wr")
+        return k
 
 
 def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
@@ -305,10 +342,14 @@ def parallel_training(
 def select_best(stats: Stats, log_dir: str) -> None:
     """Pick the best seed for each environment-reward pair in `stats`.
 
-    Concretely, chooses the seed with highest `monitor_return_mean`, and:
+    Concretely, chooses the seed with highest mean return, and:
       - Adds a symlink `best` in the same directory as the seeds;
       - Adds a key "best" that is `True` for the winning seed and `False` otherwise.
         Note this modifies `stats` in-place.
+
+    For experiments where `reward_type` is not `None` (i.e. we are using a wrapped reward),
+    uses `wrapped_return_mean` for selection. Otherwise, uses `monitor_return_mean` (the
+    environment ground-truth return).
 
     Args:
         stats: The statistics to select the best seed from. Note this is modified in-place.
@@ -316,9 +357,11 @@ def select_best(stats: Stats, log_dir: str) -> None:
     """
     for key, single_stats in stats.items():
         env_name, reward_type = key
+        return_key = "wrapped_return_mean" if reward_type else "monitor_return_mean"
+
         threshold = env_rewards.THRESHOLDS.get(key, -np.inf)
 
-        returns = [x["monitor_return_mean"] for x in single_stats]
+        returns = [x[return_key] for x in single_stats]
         best_seed = np.argmax(returns)
         base_dir = os.path.join(
             log_dir,
@@ -329,14 +372,14 @@ def select_best(stats: Stats, log_dir: str) -> None:
         os.symlink(str(best_seed), os.path.join(base_dir, "best"))
 
         for v in single_stats:
-            v["pass"] = v["monitor_return_mean"] > threshold
+            v["pass"] = v[return_key] > threshold
             v["best"] = False
 
         single_stats[best_seed]["best"] = True
         if not single_stats[best_seed]["pass"]:
             print(
                 f"WARNING: ({env_name}, {reward_type}) did not meet threshold: "
-                f"{single_stats[best_seed]['monitor_return_mean']} < {threshold}"
+                f"{single_stats[best_seed][return_key]} < {threshold}"
             )
 
 

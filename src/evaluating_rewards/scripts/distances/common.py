@@ -306,7 +306,7 @@ def make_transitions_configs(
         """Named config that sets default visitation factory.
 
         This is needed for other named configs that manipulate visitation factories, but can
-        otherwise be omitted since `_visitation_default_config`  will do the same update."""
+        otherwise be omitted since `_visitation_default_config` will do the same update."""
         locals().update(**_visitation_config(env_name, None))
 
     @experiment.named_config

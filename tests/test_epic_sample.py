@@ -140,15 +140,17 @@ def test_sample_canon_shaping(
         batch = iid_generator(256)
 
     with datasets.sample_dist_from_space(venv.observation_space) as obs_dist:
-        with datasets.sample_dist_from_space(venv.action_space) as act_dist:
-            canon_rew = epic_sample.sample_canon_shaping(
-                models,
-                batch,
-                act_dist,
-                obs_dist,
-                n_mean_samples=256,
-                discount=discount,
-            )
+        next_obs_samples = obs_dist(256)
+    with datasets.sample_dist_from_space(venv.action_space) as act_dist:
+        act_samples = act_dist(256)
+
+    canon_rew = epic_sample.sample_canon_shaping(
+        models,
+        batch,
+        act_samples,
+        next_obs_samples,
+        discount=discount,
+    )
 
     sparse_vs_affine = tabular.direct_distance(
         canon_rew["evaluating_rewards/PointMassSparseWithCtrl-v0"],

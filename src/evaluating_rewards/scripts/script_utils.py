@@ -14,6 +14,7 @@
 
 """Utility functions to aid in constructing Sacred experiments."""
 
+import logging
 import os
 from typing import Any, Iterable, Mapping, MutableMapping, Optional, TypeVar
 
@@ -32,7 +33,7 @@ def logging_config(log_root, env_name):
     del _
 
 
-def add_logging_config(experiment, name):
+def add_logging_config(experiment: sacred.Experiment, name: str) -> None:
     experiment.add_config({"log_root": os.path.join(serialize.get_output_dir(), name)})
     experiment.config(logging_config)
 
@@ -92,8 +93,18 @@ def recursive_dict_merge(
     return dest
 
 
-def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):
+def configure_logging() -> None:
+    """Set up default Python logging configuration."""
+    logging.basicConfig(
+        format="[%(asctime)s] %(levelname)-8s - %(name)s - %(message)s",
+        level=logging.INFO,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+
+def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True) -> None:
     """Main function for experiment."""
+    configure_logging()
 
     sacred_dir = os.path.join(serialize.get_output_dir(), "sacred", name)
     observer = observers.FileStorageObserver.create(sacred_dir)

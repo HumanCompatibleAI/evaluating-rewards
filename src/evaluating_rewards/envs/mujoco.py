@@ -15,6 +15,7 @@
 """Reward functions for Gym environments."""
 
 import abc
+from typing import Optional
 
 import gym
 from imitation.util import registry, serialize
@@ -75,9 +76,10 @@ class HalfCheetahGroundTruthReward(MujocoHardcodedReward):
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
+        *,
         forward: bool = True,
         ctrl_coef: float = 0.1,
-    ):
+    ):  # pylint:disable=useless-super-delegation
         """Constructs the reward model.
 
         Args:
@@ -201,9 +203,10 @@ class HopperBackflipReward(MujocoHardcodedReward):
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
+        *,
         forward: bool = True,
         ctrl_coef: float = 1e-2,
-    ):
+    ):  # pylint:disable=useless-super-delegation
         """Constructs the reward model.
 
         Args:
@@ -259,9 +262,11 @@ class PointMazeReward(MujocoHardcodedReward):
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
+        *,
         target: np.ndarray,
         ctrl_coef: float = 1e-3,
-    ):
+        **kwargs,
+    ):  # pylint:disable=useless-super-delegation
         """Constructs the reward model.
 
         Args:
@@ -269,8 +274,11 @@ class PointMazeReward(MujocoHardcodedReward):
             action_space: The action space of the environment.
             target: The position of the target (goal state).
             ctrl_coef: Scale factor for control penalty.
+            **kwargs: Passed through to Serialize.
         """
-        super().__init__(observation_space, action_space, target=target, ctrl_coef=ctrl_coef)
+        super().__init__(
+            observation_space, action_space, target=target, ctrl_coef=ctrl_coef, **kwargs
+        )
 
     @classmethod
     def from_venv(cls, venv: vec_env.VecEnv, *args, **kwargs):
@@ -278,7 +286,7 @@ class PointMazeReward(MujocoHardcodedReward):
         target = venv.env_method("get_body_com", "target")
         assert np.all(target[0] == target)
         return PointMazeReward(
-            venv.observation_space, venv.action_space, target[0], *args, **kwargs
+            venv.observation_space, venv.action_space, *args, target=target[0], **kwargs
         )
 
     def build_reward(self) -> tf.Tensor:
@@ -298,6 +306,68 @@ class PointMazeReward(MujocoHardcodedReward):
         return reward
 
 
+class PointMazeSparseBonusReward(PointMazeReward):  # pylint:disable=too-many-ancestors
+    """Alternative reward for imitation/PointMaze* with a reward spike close to a sparse target.
+
+    Example use cases:
+        Position `sparse_target` at the same location as the usual (dense) `target`,
+        and set `sparse_coef` negative so optimal policy stays at a fixed distance from `target`.
+
+        Position `sparse_target` at another location with a large enough positive `sparse_coef`
+        so optimal policy goes to `sparse_target` instead of `target`. Discovering `sparse_target`
+        is hard-exploration, so distance metrics could easily miss the difference, and RL training
+        might also find the suboptimal policy that goes to `target` instead of `sparse_target`.
+    """
+
+    def __init__(
+        self,
+        *args,
+        target: np.ndarray,
+        sparse_target: Optional[np.ndarray] = None,
+        sparse_within: float = 0.05,
+        sparse_stop: float = 0.005,
+        sparse_coef: float = 5.0,
+        **kwargs,
+    ):
+        """Constructs the reward model.
+
+        Further than `sparse_within`, this is the same as `PointMazeReward` up to a constant.
+        Between `sparse_within` and `sparse_stop` from the goal, the reward increases inversely
+        proportional to the distance from the goal. It is constant closer than `sparse_stop`.
+        This auxiliary reward is multiplied by `sparse_coef`.
+
+        Args:
+            *args: passed through to `PointMazeReward`.
+            target: The position of the target (goal state).
+            sparse_target: The position of the sparse target; defaults to `target`.
+            sparse_within: auxiliary reward to agent if it gets closer than this to `sparse_target`.
+            sparse_stop: auxiliary reward does not increase below this distance.
+            sparse_coef: coefficient of sparse reward (positive for bonus, negative for penalty).
+            **kwargs: passed through to `PointMazeReward`.
+        """
+        if sparse_target is None:
+            sparse_target = target
+
+        super().__init__(
+            *args,
+            target=target,
+            sparse_target=sparse_target,
+            sparse_within=sparse_within,
+            sparse_stop=sparse_stop,
+            sparse_coef=sparse_coef,
+            **kwargs,
+        )
+
+    def build_reward(self) -> tf.Tensor:
+        reward = super().build_reward()
+        particle_pos = self._proc_obs[:, 0:3]
+        sparse_dist = tf.norm(particle_pos - self.sparse_target, axis=-1)
+        clipped_dist = tf.math.maximum(sparse_dist, self.sparse_stop)
+        clipped_dist = tf.math.minimum(clipped_dist, self.sparse_within)
+        sparse_reward = self.sparse_within / clipped_dist
+        return reward + self.sparse_coef * sparse_reward
+
+
 # Register reward models
 def _register_models(format_str, cls, forward=True):
     """Registers reward models of type cls under key formatted by format_str."""
@@ -313,16 +383,32 @@ def _register_models(format_str, cls, forward=True):
     return res
 
 
-def _register_point_maze():
+def _register_point_maze(prefix, cls, **kwargs):
     control = {"WithCtrl": {}, "NoCtrl": {"ctrl_coef": 0.0}}
     for k, cfg in control.items():
-        fn = registry.build_loader_fn_require_env(PointMazeReward.from_venv, **cfg)
-        reward_serialize.reward_registry.register(
-            key=f"evaluating_rewards/PointMazeGroundTruth{k}-v0", value=fn
+        fn = registry.build_loader_fn_require_space(
+            cls, target=np.array([0.3, 0.5, 0.0]), **cfg, **kwargs
         )
+        reward_serialize.reward_registry.register(key=f"{prefix}{k}-v0", value=fn)
 
 
 _register_models("evaluating_rewards/HalfCheetahGroundTruth{}-v0", HalfCheetahGroundTruthReward)
 _register_models("evaluating_rewards/HopperGroundTruth{}-v0", HopperGroundTruthReward)
 _register_models("evaluating_rewards/HopperBackflip{}-v0", HopperBackflipReward, forward=False)
-_register_point_maze()
+_register_point_maze("evaluating_rewards/PointMazeGroundTruth", PointMazeReward)
+_register_point_maze(
+    "evaluating_rewards/PointMazeRepellent", PointMazeSparseBonusReward, sparse_coef=-1.0
+)
+_register_point_maze(
+    "evaluating_rewards/PointMazeBetterGoal",
+    PointMazeSparseBonusReward,
+    # Locate target on the left behind the wall, so the agent (in the Left version of environment)
+    # has to pass the wall and go past the goal state to hit the sparse target. This is unlikely for
+    # random exploration (hard to get past wall) or expert (will not go past goal).
+    sparse_target=np.array([0.1, 0.5, 0.0]),
+    sparse_coef=2.0,
+)
+reward_serialize.reward_registry.register(
+    key="evaluating_rewards/PointMazeWrongTargetWithCtrl-v0",
+    value=registry.build_loader_fn_require_space(PointMazeReward, target=np.array([0.1, 0.1, 0.0])),
+)

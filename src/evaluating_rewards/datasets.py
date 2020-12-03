@@ -30,6 +30,7 @@ from imitation.policies import serialize
 from imitation.util import util
 import numpy as np
 from stable_baselines.common import base_class, policies, vec_env
+import tensorflow as tf
 
 T = TypeVar("T")
 TrajectoryCallable = Callable[[rollout.GenTrajTerminationFn], Sequence[types.Trajectory]]
@@ -152,12 +153,15 @@ def _factory_via_serialized(
     env_name: str,
     policy_type: str,
     policy_path: str,
+    parallel: bool = True,
     **kwargs,
 ) -> Iterator[T]:
-    venv = util.make_vec_env(env_name, **kwargs)
-    with serialize.load_policy(policy_type, policy_path, venv) as policy:
-        with factory_from_policy(venv, policy) as generator:
-            yield generator
+    venv = util.make_vec_env(env_name, parallel=parallel, **kwargs)
+    with tf.device("/cpu:0"):
+        # It's normally faster to do policy inference on CPU, since batch sizes are small.
+        with serialize.load_policy(policy_type, policy_path, venv) as policy:
+            with factory_from_policy(venv, policy) as generator:
+                yield generator
 
 
 @contextlib.contextmanager
@@ -238,7 +242,9 @@ def transitions_factory_from_policy(
 
     def f(total_timesteps: int) -> types.Transitions:
         # TODO(adam): inefficient -- discards partial trajectories and resets environment
-        return rollout.generate_transitions(policy, venv, n_timesteps=total_timesteps)
+        return rollout.generate_transitions(
+            policy, venv, n_timesteps=total_timesteps, truncate=True
+        )
 
     yield f
 
@@ -302,7 +308,7 @@ def transitions_factory_from_random_model(
 @contextlib.contextmanager
 def transitions_factory_permute_wrapper(
     factory: TransitionsFactory,
-    multiplier: int = 32,
+    min_buffer: int = 4096,
     rng: np.random.RandomState = np.random,
     **kwargs,
 ) -> Iterator[TransitionsCallable]:
@@ -320,7 +326,8 @@ def transitions_factory_permute_wrapper(
 
     Args:
         factory: The factory to sample transitions from.
-        multiplier: Scale factor of the buffer compared to `n`, the number of requested transitions.
+        min_buffer: Minimum size of buffer to sample from. This is desirable to ensure the samples
+            are appropriately mixed, e.g. not all from a single episode.
         rng: Random state.
         kwargs: passed through to factory.
 
@@ -332,23 +339,28 @@ def transitions_factory_permute_wrapper(
     with factory(**kwargs) as transitions_callable:
 
         def f(n: int) -> types.Transitions:
-            target_size = n * multiplier
+            target_size = max(min_buffer, n)
             delta = target_size - len(buf["obs"])
             if delta > 0:
                 transitions = transitions_callable(delta)
+                assert len(transitions.obs) == delta
                 for k, v in buf.items():
                     new_v = getattr(transitions, k)
                     if len(v) > 0:
-                        new_v = np.concatenate(v, new_v)
+                        new_v = np.concatenate((v, new_v), axis=0)
                     buf[k] = new_v
 
-            assert len(buf["obs"]) == target_size
+                # Note this assert may not hold outside this branch: if f was previously called
+                # with a larger `n`, then `len(buf["obs"])` may be greater than `target_size`.
+                assert len(buf["obs"]) == target_size
+
+            assert len(buf["obs"]) >= target_size
             idxs = {k: rng.choice(target_size, size=n, replace=False) for k in buf.keys()}
             res = {k: buf[k][idx] for k, idx in idxs.items()}
             res = types.Transitions(**res, infos=None)
 
             for k, idx in idxs.items():
-                buf[k] = np.delete(buf[k], idx)
+                buf[k] = np.delete(buf[k], idx, axis=0)
 
             return res
 
@@ -359,8 +371,9 @@ def transitions_factory_permute_wrapper(
 
 
 @contextlib.contextmanager
-def sample_dist_from_space(space: gym.Space) -> Iterator[SampleDist]:
+def sample_dist_from_space(space: gym.Space, seed: int = 0) -> Iterator[SampleDist]:
     """Creates function to sample `n` elements from from `space`."""
+    space.seed(seed)
 
     def f(n: int) -> np.ndarray:
         return np.array([space.sample() for _ in range(n)])
@@ -369,11 +382,11 @@ def sample_dist_from_space(space: gym.Space) -> Iterator[SampleDist]:
 
 
 @contextlib.contextmanager
-def sample_dist_from_env_name(env_name: str, obs: bool) -> Iterator[SampleDist]:
+def sample_dist_from_env_name(env_name: str, obs: bool, **kwargs) -> Iterator[SampleDist]:
     env = gym.make(env_name)
     try:
         space = env.observation_space if obs else env.action_space
     finally:
         env.close()
-    with sample_dist_from_space(space) as sample_dist:
+    with sample_dist_from_space(space, **kwargs) as sample_dist:
         yield sample_dist

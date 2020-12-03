@@ -68,7 +68,7 @@ def logging_config(log_root, env_name, dataset_tag, corr_kind, discount):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
-        "plot_return_heatmap",
+        "erc",
         env_name,
         dataset_tag,
         corr_kind,
@@ -108,6 +108,10 @@ def high_precision():
 def test():
     """Intended for debugging/unit test."""
     n_episodes = 64
+    trajectory_factory_kwargs = {
+        "n_envs": 4,
+        "parallel": False,
+    }
     _ = locals()
     del _
 
@@ -194,6 +198,7 @@ def correlation_distance(
             "bootstrap_middle": middle,
             "bootstrap_upper": upper,
             "bootstrap_width": upper - lower,
+            "bootstrap_relative": common.relative_error(lower, middle, upper),
         }
 
     logger.info("Computing distance")

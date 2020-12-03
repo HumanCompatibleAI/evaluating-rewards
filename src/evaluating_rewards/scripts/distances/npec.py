@@ -45,6 +45,7 @@ def default_config():
     """Default configuration values."""
     # Parallelization
     ray_kwargs = {}
+    num_cpus = 2
 
     # Aggregation
     n_seeds = 3
@@ -57,10 +58,10 @@ def default_config():
     comparison_kwargs = {
         "learning_rate": 1e-2,
     }
-    total_timesteps = int(1e6)
+    total_timesteps = int(5e5)
     batch_size = 4096
     fit_kwargs = {
-        "affine_size": 16386,  # number of timesteps to use in pretraining; set to None to disable
+        "affine_size": 16384,  # number of timesteps to use in pretraining; set to None to disable
     }
 
     _ = locals()  # quieten flake8 unused variable warning
@@ -147,13 +148,26 @@ def test():
         # CI build only has 1 core per test
         "num_cpus": 1,
     }
+    num_cpus = 1
+    visitations_factory_kwargs = {
+        "env_name": "evaluating_rewards/PointMassLine-v0",
+        "parallel": False,
+        "policy_type": "random",
+        "policy_path": "dummy",
+    }
     batch_size = 512
     total_timesteps = 2048
     _ = locals()  # quieten flake8 unused variable warning
     del _
 
 
-script_utils.add_logging_config(npec_distance_ex, "model_comparison")
+@npec_distance_ex.named_config
+def high_precision():
+    """Increase number of timesteps to increase change of convergence."""
+    total_timesteps = int(1e6)  # noqa: F841  pylint:disable=unused-variable
+
+
+script_utils.add_logging_config(npec_distance_ex, "npec")
 
 
 @ray.remote
@@ -195,12 +209,8 @@ def npec_worker(
     Returns:
         Statistics for training, including the final loss aka estimated NPEC distance.
     """
-    if "env_name" in visitations_factory_kwargs:
-        if visitations_factory_kwargs["env_name"] != env_name:
-            raise ValueError(
-                "env_name differs between NPEC and visitation distribution. "
-                "This is probably not what you wanted to do."
-            )
+    # Configure logging, since Ray children do not by default inherit logging configs.
+    script_utils.configure_logging()
 
     with visitations_factory(seed=seed, **visitations_factory_kwargs) as dataset_generator:
 
@@ -238,6 +248,7 @@ def npec_worker(
 
 @npec_distance_ex.capture
 def compute_npec(  # pylint:disable=unused-argument
+    num_cpus: int,
     seed: int,
     # Dataset
     env_name: str,
@@ -273,7 +284,10 @@ def compute_npec(  # pylint:disable=unused-argument
         script_utils.sanitize_path(target_reward_cfg),
         str(seed),
     )
-    return npec_worker.remote(**locals())
+
+    params = locals()
+    del params["num_cpus"]
+    return npec_worker.options(num_cpus=num_cpus).remote(**params)
 
 
 @npec_distance_ex.capture
@@ -295,39 +309,39 @@ def compute_vals(
     try:
         keys = []
         refs = []
-        for source in y_reward_cfgs:
-            for target in x_reward_cfgs:
+        for target in x_reward_cfgs:
+            for source in y_reward_cfgs:
                 for seed in range(n_seeds):
                     obj_ref = compute_npec(  # pylint:disable=no-value-for-parameter
                         seed=seed, source_reward_cfg=source, target_reward_cfg=target
                     )
-                    keys.append((source, target))
+                    keys.append((target, source))
                     refs.append(obj_ref)
         values = ray.get(refs)
-
-        stats = {}
-        for k, v in zip(keys, values):
-            stats.setdefault(k, []).append(v)
-
-        logger.info("Saving raw statistics")
-        with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
-            pickle.dump(stats, f)
-
-        dissimilarities = {k: [v["loss"][-1]["singleton"] for v in s] for k, s in stats.items()}
-        if normalize:
-            mean = {k: np.mean(v) for k, v in dissimilarities.items()}
-            normalized = {}
-            for k, v in dissimilarities.items():
-                source, target = k
-                if source == ZERO_CFG:
-                    continue
-                zero_mean = mean[(ZERO_CFG, target)]
-                normalized[k] = [x / zero_mean for x in v]
-            dissimilarities = normalized
-
-        return common.aggregate_seeds(aggregate_fns, dissimilarities)
     finally:
         ray.shutdown()
+
+    stats = {}
+    for k, v in zip(keys, values):
+        stats.setdefault(k, []).append(v)
+
+    logger.info("Saving raw statistics")
+    with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
+        pickle.dump(stats, f)
+
+    dissimilarities = {k: [v["loss"][-1]["singleton"] for v in s] for k, s in stats.items()}
+    if normalize:
+        mean = {k: np.mean(v) for k, v in dissimilarities.items()}
+        normalized = {}
+        for k, v in dissimilarities.items():
+            target, source = k
+            if source == ZERO_CFG:
+                continue
+            zero_mean = mean[(target, ZERO_CFG)]
+            normalized[k] = [x / zero_mean for x in v]
+        dissimilarities = normalized
+
+    return common.aggregate_seeds(aggregate_fns, dissimilarities)
 
 
 common.make_main(npec_distance_ex, compute_vals)
