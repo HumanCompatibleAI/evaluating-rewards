@@ -136,8 +136,8 @@ def test():
 
 
 @epic_distance_ex.named_config
-def test_no_parallel():
-    """Eliminate parallelism to reduce load on CI."""
+def test_no_parallel_venv():
+    """Eliminate parallelism in VecEnv to reduce load on CI."""
     visitations_factory_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "env_name": "evaluating_rewards/PointMassLine-v0",
         "parallel": False,
@@ -179,7 +179,7 @@ def mesh_canon(
         models: loaded reward models for all of `x_reward_cfgs` and `y_reward_cfgs`.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
-        distance_kind: the distance to use after deshaping: direct or Pearson.
+        distance_kind: the distance to use after deshaping: "direct" or "pearson".
         discount: the discount rate for shaping.
         n_obs: The number of observations and next observations to use in the mesh.
         n_act: The number of actions to use in the mesh.
@@ -219,14 +219,15 @@ def sample_canon(
     g: tf.Graph,
     sess: tf.Session,
     seed: int,
-    obs_dist,  #: datasets.SampleDist,
-    act_dist,  #: datasets.SampleDist,
+    obs_dist: datasets.SampleDist,
+    act_dist: datasets.SampleDist,
     models: Mapping[common_config.RewardCfg, base.RewardModel],
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
     distance_kind: str,
     discount: float,
-    visitations_factory,  #: datasets.TransitionsFactory,
+    # TODO(adam): add back type annotations for factories once GH cloudpickle#399 is closed
+    visitations_factory,
     visitations_factory_kwargs: Dict[str, Any],
     n_samples: int,
     n_mean_samples: int,
@@ -244,7 +245,7 @@ def sample_canon(
         models: loaded reward models for all of `x_reward_cfgs` and `y_reward_cfgs`.
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
-        distance_kind: the distance to use after deshaping: direct or Pearson.
+        distance_kind: the distance to use after deshaping: "direct" or "pearson".
         discount: the discount rate for shaping.
         n_samples: the number of samples to estimate the distance with.
         n_mean_samples: the number of samples to estimate the mean reward for canonicalization.
@@ -294,8 +295,7 @@ def epic_worker(
     env_name: str,
     x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
-    # TODO(adam): add back type annotations for factories.
-    # As of cloudpickle 1.6.0, cannot pickle anything involving ContextManager type.
+    # TODO(adam): add back type annotations for factories once GH cloudpickle#399 is closed
     obs_sample_dist_factory,
     act_sample_dist_factory,
     sample_dist_factory_kwargs: Dict[str, Any],
@@ -303,20 +303,22 @@ def epic_worker(
     distance_kind: str,
     direct_p: int,
 ) -> Dissimilarity:
-    """
+    """Computes EPIC distance for a single seed `seed`.
 
     Args:
         computation_fn: Function to compute, one of `mesh_canon` or `sample_canon`.
         seed: seed for sampling.
         env_name: the name of the environment to compare rewards for.
-        discount: discount to use for reward models (mostly for shaping).
         x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
         obs_sample_dist_factory: factory to generate sample distribution for observations.
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
+        discount: discount to use for reward models (mostly for shaping).
+        distance_kind: the distance to use after deshaping: "direct" or "pearson".
+        direct_p: When `distance_kind` is "direct", the power used for comparison in the L^p norm.
     """
-    # SOMEDAY(adam): there must be a better way of logging with Ray
+    # Configure logging, since Ray children do not by default inherit logging configs.
     script_utils.configure_logging()
 
     models, g, sess = common.load_models_create_sess(
@@ -326,7 +328,7 @@ def epic_worker(
     logger.info(f"Seed {seed}")
     with obs_sample_dist_factory(seed=seed, **sample_dist_factory_kwargs) as obs_dist:
         with act_sample_dist_factory(seed=seed, **sample_dist_factory_kwargs) as act_dist:
-            dissimilarity = computation_fn(  # pylint:disable=no-value-for-parameter
+            return computation_fn(  # pylint:disable=no-value-for-parameter
                 g=g,
                 sess=sess,
                 seed=seed,
@@ -339,8 +341,6 @@ def epic_worker(
                 direct_p=direct_p,
                 discount=discount,
             )
-
-    return dissimilarity
 
 
 @epic_distance_ex.capture
@@ -387,7 +387,7 @@ def compute_vals(
         act_sample_dist_factory: factory to generate sample distribution for actions.
         sample_dist_factory_kwargs: keyword arguments for sample distribution factories.
         discount: discount to use for reward models (mostly for shaping).
-        distance_kind: the distance to use after deshaping: direct or Pearson.
+        distance_kind: the distance to use after deshaping: "direct" or "pearson".
         direct_p: When `distance_kind` is "direct", the power used for comparison in the L^p norm.
         visitations_factory: (sample only) sample transitions from this factory for the
             outermost expectation.
