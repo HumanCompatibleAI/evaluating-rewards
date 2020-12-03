@@ -332,8 +332,9 @@ class PointMazeSparseBonusReward(PointMazeReward):  # pylint:disable=too-many-an
         """Constructs the reward model.
 
         Further than `sparse_within`, this is the same as `PointMazeReward` up to a constant.
-        Between `repel_within` and `repel_max` from the goal, the reward penalty increases inversely
-        proportional to the distance from the goal. It caps out at `repel_max`.
+        Between `sparse_within` and `sparse_stop` from the goal, the reward increases inversely
+        proportional to the distance from the goal. It is constant closer than `sparse_stop`.
+        This auxiliary reward is multiplied by `sparse_coef`.
 
         Args:
             *args: passed through to `PointMazeReward`.
@@ -364,8 +365,7 @@ class PointMazeSparseBonusReward(PointMazeReward):  # pylint:disable=too-many-an
         clipped_dist = tf.math.maximum(sparse_dist, self.sparse_stop)
         clipped_dist = tf.math.minimum(clipped_dist, self.sparse_within)
         sparse_reward = self.sparse_within / clipped_dist
-        reward += self.sparse_coef * sparse_reward
-        return reward
+        return reward + self.sparse_coef * sparse_reward
 
 
 # Register reward models
