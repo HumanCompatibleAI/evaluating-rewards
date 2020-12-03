@@ -34,20 +34,12 @@ TRAIN_ENV_RL=${EVAL_OUTPUT_ROOT}/transfer_point_maze.old/expert/train
 
 if [[ ${fast} == "true" ]]; then
   # intended for debugging
-  RL_TIMESTEPS="total_timesteps=16384"
   IRL_EPOCHS="n_epochs=5"
-  PREFERENCES_TIMESTEPS="fast"
-  REGRESS_TIMESTEPS="fast"
-  COMPARISON_TIMESTEPS="fast"
-  EVAL_TIMESTEPS=4096
+  TIMESTEPS_MODIFIER="fast"
   PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze_fast
 else
-  RL_TIMESTEPS=""
   IRL_EPOCHS=""
-  PREFERENCES_TIMESTEPS=""
-  REGRESS_TIMESTEPS=""
-  COMPARISON_TIMESTEPS=""
-  EVAL_TIMESTEPS=100000
+  TIMESTEPS_MODIFIER=""
   PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze
 fi
 
@@ -56,10 +48,10 @@ fi
 MIXED_POLICY_PATH=${TRANSITION_P}:random:dummy:ppo2:${TRAIN_ENV_RL}/policies/final
 $(call_script "train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/preferences \
-    ${PREFERENCES_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
+    ${TIMESTEPS_MODIFIER} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 $(call_script "train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
-    ${REGRESS_TIMESTEPS} dataset_factory_kwargs.policy_type=mixture \
+    ${TIMESTEPS_MODIFIER} dataset_factory_kwargs.policy_type=mixture \
     dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}&
 
 for state_only in True False; do
@@ -80,12 +72,12 @@ wait
 
 for cmd in epic npec erc; do
   python -m evaluating_rewards.scripts.distances.${cmd} with \
-      point_maze_learned ${COMPARISON_TIMESTEPS} log_dir=${PM_OUTPUT}/distance/${cmd}
+      point_maze_learned ${TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/distance/${cmd}
 done
 
 # Step 3) Train Policies on Learnt Reward Models
 
 python -m evaluating_rewards.scripts.pipeline.train_experts with \
-    point_maze_learned ${COMPARISON_TIMESTEPS} log_dir=${PM_OUTPUT}/policy_learned
+    point_maze_learned ${TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/policy_learned
 
 wait
