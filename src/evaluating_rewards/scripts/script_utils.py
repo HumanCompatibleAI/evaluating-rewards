@@ -33,7 +33,7 @@ def logging_config(log_root, env_name):
     del _
 
 
-def add_logging_config(experiment, name):
+def add_logging_config(experiment: sacred.Experiment, name: str) -> None:
     experiment.add_config({"log_root": os.path.join(serialize.get_output_dir(), name)})
     experiment.config(logging_config)
 
@@ -102,7 +102,7 @@ def configure_logging() -> None:
     )
 
 
-def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True):
+def experiment_main(experiment: sacred.Experiment, name: str, sacred_symlink: bool = True) -> None:
     """Main function for experiment."""
     configure_logging()
 
