@@ -17,7 +17,6 @@
 import copy
 import functools
 import glob
-import itertools
 import logging
 import os
 import pickle
@@ -291,6 +290,28 @@ def common_keys(vals: Iterable[Mapping[K, Any]]) -> Sequence[K]:
     return [k for k in first if k in res]  # preserve order
 
 
+def _fixed_width_format(x: float, figs: int = 3) -> str:
+    raw_repr = str(x).replace(".", "")
+    num_leading_zeros = 0
+    for digit in raw_repr:
+        if digit == "0":
+            num_leading_zeros += 1
+        else:
+            break
+    if x > 10 ** figs:
+        # No decimal point gives us an extra character to use
+        figs += 1
+    fstr = "{:." + str(figs - num_leading_zeros) + "g}"
+    res = fstr.format(x)
+
+    if "." in res:
+        delta = (figs + 1) - len(res)
+        if delta > 0:  # g drops trailing zeros, add them back
+            res += "0" * delta
+
+    return res
+
+
 def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
@@ -321,17 +342,24 @@ def make_table(
                 assert label is None
                 label = search_label
         assert label is not None
-        row = f"{label} & "
-        for distance, visitation in itertools.product(distance_kinds, experiment_kinds):
-            k = (distance, visitation)
-            if k in vals:
-                col = vals[k].loc[model]
-                multiplier = 100 if key.endswith("relative") else 1000
-                col = f"{col * multiplier:.4g}"
-            else:
-                col = "---"
-            cols.append(col)
-        row += r"\resultrow{" + "}{".join(cols) + "}"
+        row = f"{label} & & "
+        for distance in distance_kinds:
+            for visitation in experiment_kinds:
+                k = (distance, visitation)
+                if k in vals:
+                    val = vals[k].loc[model]
+                    multiplier = 100 if key.endswith("relative") else 1000
+                    val = val * multiplier
+                    # Fit as many SFs as we can into 4 characters
+                    if 0 < val < 0.01:
+                        col = "<0.01"
+                    else:
+                        col = "\\num{" + _fixed_width_format(val) + "}"
+                else:
+                    col = "---"
+                cols.append(col)
+            cols.append("")  # spacer between distance metric groups
+        row += " & ".join(cols)
         rows.append(row)
     rows.append("")
     return " \\\\\n".join(rows)
