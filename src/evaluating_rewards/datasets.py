@@ -347,7 +347,7 @@ def transitions_factory_permute_wrapper(
                 for k, v in buf.items():
                     new_v = getattr(transitions, k)
                     if len(v) > 0:
-                        new_v = np.concatenate((v, new_v))
+                        new_v = np.concatenate((v, new_v), axis=0)
                     buf[k] = new_v
 
                 # Note this assert may not hold outside this branch: if f was previously called
