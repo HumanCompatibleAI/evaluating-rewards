@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DOCKER_IMAGE="humancompatibleai/evaluating_rewards:pathological"
+DOCKER_IMAGE="humancompatibleai/evaluating_rewards:latest"
 if [[ ${LOCAL_MNT} == "" ]]; then
   LOCAL_MNT="/mnt/eval_reward"
 fi
