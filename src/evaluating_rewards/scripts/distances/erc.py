@@ -198,6 +198,7 @@ def correlation_distance(
             "bootstrap_middle": middle,
             "bootstrap_upper": upper,
             "bootstrap_width": upper - lower,
+            "bootstrap_relative": common.relative_error(lower, middle, upper),
         }
 
     logger.info("Computing distance")
