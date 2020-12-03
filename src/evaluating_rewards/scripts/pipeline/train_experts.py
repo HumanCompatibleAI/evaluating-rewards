@@ -235,6 +235,7 @@ def fast():
 @experts_ex.named_config
 def test():
     """Unit test config."""
+    locals().update(**FAST_CONFIG)
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
             "evaluating_rewards/PointMassGroundTruth-v0": {"dummy": {}},
