@@ -41,6 +41,18 @@ POINT_MAZE_KINDS = [
     "evaluating_rewards/PointMazeRepellentWithCtrl-v0",
     "evaluating_rewards/PointMazeRepellentNoCtrl-v0",
 ]
+POINT_MAZE_LEARNED_CFGS = [
+    ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
+    ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
+    (
+        "imitation/RewardNet_unshaped-v0",
+        "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
+    ),
+    (
+        "imitation/RewardNet_unshaped-v0",
+        "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
+    ),
+]
 MUJOCO_STANDARD_ORDER = [
     "ForwardNoCtrl",
     "ForwardWithCtrl",
@@ -63,17 +75,8 @@ COMMON_CONFIGS = {
         "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
         "y_reward_cfgs": [
             ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
-            ),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
-            ),
-        ],
+        ]
+        + POINT_MAZE_LEARNED_CFGS,
     },
     # seals version of the canonical MuJoCo tasks
     "half_cheetah": _config_from_kinds(

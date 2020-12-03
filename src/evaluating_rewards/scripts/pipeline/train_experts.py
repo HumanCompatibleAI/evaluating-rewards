@@ -31,6 +31,7 @@ from sacred import observers
 import tabulate
 
 from evaluating_rewards import serialize
+from evaluating_rewards.distances import common_config
 from evaluating_rewards.experiments import env_rewards
 from evaluating_rewards.scripts import script_utils
 
@@ -144,7 +145,7 @@ def _make_ground_truth_configs():
     Separate function to avoid polluting Sacred ConfigScope with local variables."""
     configs = {}
     for env, gt_reward in env_rewards.GROUND_TRUTH_REWARDS_BY_ENV.items():
-        configs.setdefault(env, {})[str(gt_reward)] = CONFIG_BY_ENV.get(env, {})
+        configs.setdefault(env, {})[(str(gt_reward), "dummy")] = CONFIG_BY_ENV.get(env, {})
     return configs
 
 
@@ -162,7 +163,7 @@ def point_maze_pathologicals():
     """Train RL policies on the "wrong" rewards in PointMaze."""
     configs = {
         env: {
-            reward: dict(
+            (reward, "dummy"): dict(
                 **CONFIG_BY_ENV[env],
             )
             for reward in (
@@ -175,7 +176,25 @@ def point_maze_pathologicals():
         }
         for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
     }
-    run_tag = "point_maze_wrong_target"
+    run_tag = "point_maze_pathologicals"
+    _ = locals()
+    del _
+
+
+@experts_ex.named_config
+def point_maze_learned():
+    """Train RL policies on learned rewards in PointMaze."""
+    configs = {
+        env: {cfg: dict(**CONFIG_BY_ENV[env]) for cfg in common_config.POINT_MAZE_LEARNED_CFGS}
+        for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
+    }
+    # Increase from default number of evaluation episodes since we actually report these numbers,
+    # not just use them to pick the best seed. (Note there may be a slight optimizer's curse
+    # here biasing these numbers upward, since we report numbers from the best seed and do not
+    # re-evaluate, but it should be small given large number of episodes plus the fact we pick
+    # seed with best learned reward but report that of best ground-truth reward.)
+    n_episodes_eval = 500
+    run_tag = "point_maze_learned"
     _ = locals()
     del _
 
@@ -198,7 +217,7 @@ def test():
     }
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
-            "evaluating_rewards/PointMassGroundTruth-v0": {},
+            ("evaluating_rewards/PointMassGroundTruth-v0", "dummy"): {},
         }
     }
     run_tag = "test"
@@ -210,6 +229,7 @@ def test():
 def rl_worker(
     env_name: str,
     reward_type: Optional[str],
+    reward_path: Optional[str],
     seed: int,
     log_root: str,
     updates: Mapping[str, Any],
@@ -220,6 +240,8 @@ def rl_worker(
         env_name: the name of the environment to train a policy in.
         reward_type: the reward type to load and train a policy on;
                      if None, use original environment reward.
+        reward_path: the path to load the reward from. (Ignored if
+            `reward_type` is None.)
         seed: seed for RL algorithm.
         log_root: the root logging directory for this experiment.
             Each RL policy will have a subdirectory created:
@@ -242,7 +264,7 @@ def rl_worker(
             "env_name": env_name,
             "seed": seed,
             "reward_type": reward_type,
-            "reward_path": "dummy",
+            "reward_path": reward_path,
             "log_dir": log_dir,
         }
     )
@@ -307,7 +329,7 @@ def parallel_training(
     keys = []
     refs = []
     for env_name, inner_configs in configs.items():
-        for reward_type, cfg in inner_configs.items():
+        for (reward_type, reward_path), cfg in inner_configs.items():
             if reward_type == "None":  # Sacred config doesn't support literal None
                 reward_type = None
             updates = copy.deepcopy(dict(global_configs))
@@ -324,11 +346,12 @@ def parallel_training(
                 obj_ref = rl_worker_tagged.remote(
                     env_name=env_name,
                     reward_type=reward_type,
+                    reward_path=reward_path,
                     seed=seed,
                     log_root=log_dir,
                     updates=updates,
                 )
-                keys.append((env_name, reward_type))
+                keys.append((env_name, (reward_type, reward_path)))
                 refs.append(obj_ref)
     raw_values = ray.get(refs)
 
@@ -356,7 +379,7 @@ def select_best(stats: Stats, log_dir: str) -> None:
         log_dir: The log directory for this experiment.
     """
     for key, single_stats in stats.items():
-        env_name, reward_type = key
+        env_name, (reward_type, reward_path) = key
         return_key = "wrapped_return_mean" if reward_type else "monitor_return_mean"
 
         threshold = env_rewards.THRESHOLDS.get(key, -np.inf)
@@ -367,6 +390,7 @@ def select_best(stats: Stats, log_dir: str) -> None:
             log_dir,
             script_utils.sanitize_path(env_name),
             script_utils.sanitize_path(reward_type),
+            script_utils.sanitize_path(reward_path),
         )
         # make symlink relative so it'll work even if directory structure is copied/moved
         os.symlink(str(best_seed), os.path.join(base_dir, "best"))
@@ -378,7 +402,7 @@ def select_best(stats: Stats, log_dir: str) -> None:
         single_stats[best_seed]["best"] = True
         if not single_stats[best_seed]["pass"]:
             print(
-                f"WARNING: ({env_name}, {reward_type}) did not meet threshold: "
+                f"WARNING: ({env_name}, {reward_type}, {reward_path}) did not meet threshold: "
                 f"{single_stats[best_seed][return_key]} < {threshold}"
             )
 
@@ -401,8 +425,9 @@ def train_experts(
         log_dir: the root directory to log experiments to.
 
     Returns:
-        Statistics `stats` for all policies, where `stats[(env_name, reward_type)][i]` are
-        the statistics for seed `i` of the given environment and reward pair.
+        Statistics `stats` for all policies, where
+            `stats[(env_name, (reward_type, reward_path))][i]`
+        are the statistics for seed `i` of the given environment and reward pair.
     """
     ray.init(**ray_kwargs)
 
