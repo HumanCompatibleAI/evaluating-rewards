@@ -279,15 +279,13 @@ def _fixed_width_format(x: float, figs: int = 3) -> str:
     unless `x == 0` in which case we format `x` as "0" exactly.
 
     Args:
-        x: The number to format.
+        x: The number to format. The code assumes this is non-negative; the return
+            value may exceed the character target if it is negative.
         figs: The number of digits to target.
 
     Returns:
         The number formatted as described above.
     """
-    if x < 0:
-        raise ValueError("Negative numbers not supported.")
-
     smallest_representable = 10 ** (-figs + 1)
     if 0 < x < 10 ** (-figs + 1):
         return "<" + str(smallest_representable)
