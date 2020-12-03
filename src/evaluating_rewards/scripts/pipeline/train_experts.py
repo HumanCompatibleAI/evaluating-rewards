@@ -193,7 +193,11 @@ def point_maze_learned():
     # here biasing these numbers upward, since we report numbers from the best seed and do not
     # re-evaluate, but it should be small given large number of episodes plus the fact we pick
     # seed with best learned reward but report that of best ground-truth reward.)
-    n_episodes_eval = 500
+    global_configs = {
+        "config_updates": {
+            "n_episodes_eval": 1000,
+        }
+    }
     run_tag = "point_maze_learned"
     _ = locals()
     del _
