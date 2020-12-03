@@ -126,7 +126,7 @@ def default_env_rewards(configs):
     if not configs:
         configs = {  # noqa: F401
             "evaluating_rewards/PointMassLine-v0": {
-                "evaluating_rewards/PointMassGroundTruth-v0": {}
+                "evaluating_rewards/PointMassGroundTruth-v0": {"dummy": {}}
             },
         }
 
@@ -145,7 +145,8 @@ def _make_ground_truth_configs():
     Separate function to avoid polluting Sacred ConfigScope with local variables."""
     configs = {}
     for env, gt_reward in env_rewards.GROUND_TRUTH_REWARDS_BY_ENV.items():
-        configs.setdefault(env, {})[(str(gt_reward), "dummy")] = CONFIG_BY_ENV.get(env, {})
+        cfg = CONFIG_BY_ENV.get(env, {})
+        configs.setdefault(env, {}).setdefault(str(gt_reward), {})["dummy"] = cfg
     return configs
 
 
@@ -163,9 +164,7 @@ def point_maze_pathologicals():
     """Train RL policies on the "wrong" rewards in PointMaze."""
     configs = {
         env: {
-            (reward, "dummy"): dict(
-                **CONFIG_BY_ENV[env],
-            )
+            reward: {"dummy": dict(CONFIG_BY_ENV[env])}
             for reward in (
                 # Repellent and BetterGoal we just want to report the policy return
                 "evaluating_rewards/PointMazeRepellentWithCtrl-v0",
@@ -184,14 +183,14 @@ def point_maze_pathologicals():
 def _point_maze_learned(fast_config: bool):
     """Train RL policies on learned rewards in PointMaze."""
     prefix = "point_maze_learned_fast" if fast_config else "point_maze_learned"
+    configs = {}
+    for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0"):
+        configs[env] = {}
+        for reward_type, reward_path in common_config.point_maze_learned_cfgs(prefix):
+            configs[env].setdefault(reward_type, {})[reward_path] = dict(CONFIG_BY_ENV[env])
+
     return dict(
-        configs={
-            env: {
-                cfg: dict(**CONFIG_BY_ENV[env])
-                for cfg in common_config.point_maze_learned_cfgs(prefix)
-            }
-            for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
-        },
+        configs=configs,
         # Increase from default number of evaluation episodes since we actually report statistics,
         # not just use them to pick the best seed. (Note there may be a slight optimizer's curse
         # here biasing these numbers upward, since we report numbers from the best seed and do not
@@ -238,7 +237,7 @@ def test():
     """Unit test config."""
     configs = {
         "evaluating_rewards/PointMassLine-v0": {
-            ("evaluating_rewards/PointMassGroundTruth-v0", "dummy"): {},
+            "evaluating_rewards/PointMassGroundTruth-v0": {"dummy": {}},
         }
     }
     run_tag = "test"
@@ -350,30 +349,31 @@ def parallel_training(
     keys = []
     refs = []
     for env_name, inner_configs in configs.items():
-        for (reward_type, reward_path), cfg in inner_configs.items():
+        for reward_type, path_configs in inner_configs.items():
             if reward_type == "None":  # Sacred config doesn't support literal None
                 reward_type = None
-            updates = copy.deepcopy(dict(global_configs))
-            script_utils.recursive_dict_merge(updates, cfg, overwrite=True)
-            n_seeds = updates.pop("n_seeds", 1)
-            for seed in range(n_seeds):
-                # Infer the number of parallel environments being run and reserve that many CPUs
-                config_updates = updates.get("config_updates", {})
-                num_vec = config_updates.get("num_vec", 8)  # 8 is default in expert_demos
-                parallel = config_updates.get("parallel", True)
-                num_cpus = math.ceil(num_vec * num_cpus_fudge_factor) if parallel else 1
-                rl_worker_tagged = rl_worker.options(num_cpus=num_cpus)
-                # Now execute RL training
-                obj_ref = rl_worker_tagged.remote(
-                    env_name=env_name,
-                    reward_type=reward_type,
-                    reward_path=reward_path,
-                    seed=seed,
-                    log_root=log_dir,
-                    updates=updates,
-                )
-                keys.append((env_name, (reward_type, reward_path)))
-                refs.append(obj_ref)
+            for reward_path, cfg in path_configs.items():
+                updates = copy.deepcopy(dict(global_configs))
+                script_utils.recursive_dict_merge(updates, cfg, overwrite=True)
+                n_seeds = updates.pop("n_seeds", 1)
+                for seed in range(n_seeds):
+                    # Infer the number of parallel environments being run and reserve that many CPUs
+                    config_updates = updates.get("config_updates", {})
+                    num_vec = config_updates.get("num_vec", 8)  # 8 is default in expert_demos
+                    parallel = config_updates.get("parallel", True)
+                    num_cpus = math.ceil(num_vec * num_cpus_fudge_factor) if parallel else 1
+                    rl_worker_tagged = rl_worker.options(num_cpus=num_cpus)
+                    # Now execute RL training
+                    obj_ref = rl_worker_tagged.remote(
+                        env_name=env_name,
+                        reward_type=reward_type,
+                        reward_path=reward_path,
+                        seed=seed,
+                        log_root=log_dir,
+                        updates=updates,
+                    )
+                    keys.append((env_name, (reward_type, reward_path)))
+                    refs.append(obj_ref)
     raw_values = ray.get(refs)
 
     stats = {}
