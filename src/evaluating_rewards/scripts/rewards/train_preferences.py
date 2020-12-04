@@ -52,12 +52,19 @@ def default_config():
     del _
 
 
+FAST_CONFIG = dict(total_timesteps=1e4)
+
+
+@train_preferences_ex.named_config
+def fast():
+    """Small number of epochs, finish quickly, intended for debugging."""
+    locals().update(FAST_CONFIG)
+
+
 @train_preferences_ex.named_config
 def test():
-    """Small number of epochs, finish quickly, intended for tests / debugging."""
-    total_timesteps = 1e4
-    _ = locals()  # quieten flake8 unused variable warning
-    del _
+    """Unit test config."""
+    locals().update(FAST_CONFIG)
 
 
 script_utils.add_logging_config(train_preferences_ex, "train_preferences")

@@ -55,10 +55,19 @@ def default_kwargs(dataset_factory, dataset_factory_kwargs):
     del _
 
 
+FAST_CONFIG = dict(total_timesteps=8192)
+
+
+@train_regress_ex.named_config
+def fast():
+    """Small number of epochs, finish quickly, intended for debugging."""
+    locals().update(FAST_CONFIG)
+
+
 @train_regress_ex.named_config
 def test():
-    """Small number of epochs, finish quickly, intended for tests / debugging."""
-    total_timesteps = 8192  # noqa: F841  pylint:disable=unused-variable
+    """Unit test config."""
+    locals().update(FAST_CONFIG)
 
 
 @train_regress_ex.named_config
