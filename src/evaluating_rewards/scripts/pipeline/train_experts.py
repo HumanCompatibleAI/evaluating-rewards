@@ -415,7 +415,7 @@ def select_best(stats: Stats, log_dir: str) -> None:
             script_utils.sanitize_path(reward_path),
         )
         # make symlink relative so it'll work even if directory structure is copied/moved
-        os.symlink(str(best_seed), os.path.join(base_dir, "best"))
+        os.symlink(os.path.join(base_dir, "best"), str(best_seed))
 
         for v in single_stats:
             v["pass"] = v[return_key] > threshold
