@@ -182,11 +182,13 @@ def point_maze_pathologicals():
 
 def _point_maze_learned(fast_config: bool):
     """Train RL policies on learned rewards in PointMaze."""
-    prefix = "point_maze_learned_fast" if fast_config else "point_maze_learned"
+    suffix = "_fast" if fast else ""
     configs = {}
     for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0"):
         configs[env] = {}
-        for reward_type, reward_path in common_config.point_maze_learned_cfgs(prefix):
+        for reward_type, reward_path in common_config.point_maze_learned_cfgs(
+            f"transfer_point_maze{suffix}"
+        ):
             configs[env].setdefault(reward_type, {})[reward_path] = dict(CONFIG_BY_ENV[env])
 
     return dict(
@@ -201,7 +203,7 @@ def _point_maze_learned(fast_config: bool):
                 "n_episodes_eval": 1000,
             }
         },
-        run_tag=prefix,
+        run_tag=f"point_maze_learned{suffix}",
     )
 
 

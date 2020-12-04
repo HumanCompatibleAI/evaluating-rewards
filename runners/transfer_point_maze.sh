@@ -28,9 +28,7 @@ NORMALIZE="normalize_kwargs.norm_obs=False"  # normalize reward still, but not o
 SEED=42
 TRANSITION_P=0.05
 
-# TODO(adam): update with new results
-#TRAIN_ENV_RL=${EVAL_OUTPUT_ROOT}/train_experts/ground_truth/.../imitation_PointMazeLeftVel-v0/evaluating_rewards_PointMazeGroundTruthWithCtrl-v0/dummy/best/
-TRAIN_ENV_RL=${EVAL_OUTPUT_ROOT}/transfer_point_maze.old/expert/train
+TRAIN_ENV_RL=${EVAL_OUTPUT_ROOT}/train_experts/ground_truth/20201203_105631_297835/imitation_PointMazeLeftVel-v0/evaluating_rewards_PointMazeGroundTruthWithCtrl-v0/best/
 
 if [[ ${fast} == "true" ]]; then
   # intended for debugging
