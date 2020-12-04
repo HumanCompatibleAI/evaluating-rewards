@@ -60,7 +60,7 @@ for state_only in True False; do
   else
     name="state_action"
   fi
-  $(call_script "rewards.train_adversarial" "with") env_name=${ENV_TRAIN} seed=${SEED} \
+  $(call_script "rewards.train_adversarial" "with") airl env_name=${ENV_TRAIN} seed=${SEED} \
       init_trainer_kwargs.reward_kwargs.state_only=${state_only} \
       rollout_path=${TRAIN_ENV_RL}/rollouts/final.pkl \
       ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
