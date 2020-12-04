@@ -42,7 +42,7 @@ def point_maze_learned_cfgs(prefix="transfer_point_maze") -> List[RewardCfg]:
         ),
         (
             "imitation/RewardNet_unshaped-v0",
-            f"{prefix}_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
+            f"{prefix}/reward/irl_state_action/checkpoints/final/discrim/reward_net",
         ),
     ]
 
