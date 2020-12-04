@@ -34,12 +34,14 @@ if [[ ${fast} == "true" ]]; then
   # intended for debugging
   IRL_EPOCHS="n_epochs=5"
   NAMED_CONFIG="point_maze_learned_fast"
-  TIMESTEPS_MODIFIER="fast"
+  TRAIN_TIMESTEPS_MODIFIER="fast"
+  COMPARISON_TIMESTEPS_MODIFIER="fast"
   PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze_fast
 else
   IRL_EPOCHS=""
   NAMED_CONFIG="point_maze_learned"
-  TIMESTEPS_MODIFIER=""
+  TRAIN_TIMESTEPS_MODIFIER=""
+  COMPARISON_TIMESTEPS_MODIFIER="high_precision"
   PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze
 fi
 
@@ -48,10 +50,10 @@ fi
 MIXED_POLICY_PATH=${TRANSITION_P}:random:dummy:ppo2:${TRAIN_ENV_RL}/policies/final
 $(call_script "rewards.train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/preferences \
-    ${TIMESTEPS_MODIFIER} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
+    ${TRAIN_TIMESTEPS_MODIFIER} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
 $(call_script "rewards.train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
-    ${TIMESTEPS_MODIFIER} dataset_factory_kwargs.policy_type=mixture \
+    ${TRAIN_TIMESTEPS_MODIFIER} dataset_factory_kwargs.policy_type=mixture \
     dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}&
 
 for state_only in True False; do
@@ -63,7 +65,7 @@ for state_only in True False; do
   $(call_script "rewards.train_adversarial" "with") airl env_name=${ENV_TRAIN} seed=${SEED} \
       init_trainer_kwargs.reward_kwargs.state_only=${state_only} \
       rollout_path=${TRAIN_ENV_RL}/rollouts/final.pkl \
-      ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
+      ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
 done
 
 wait
@@ -72,12 +74,12 @@ wait
 
 for cmd in epic npec erc; do
   python -m evaluating_rewards.scripts.distances.${cmd} with \
-      ${NAMED_CONFIG} ${TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/distance/${cmd}
+      ${NAMED_CONFIG} ${COMPARISON_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/distance/${cmd}
 done
 
 # Step 3) Train Policies on Learnt Reward Models
 
 python -m evaluating_rewards.scripts.pipeline.train_experts with \
-    ${NAMED_CONFIG} ${TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/policy_learned
+    ${NAMED_CONFIG} ${TRAIN_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/policy_learned
 
 wait
