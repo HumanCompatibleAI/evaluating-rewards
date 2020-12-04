@@ -95,14 +95,15 @@ COMMON_CONFIGS = {
 
 def _update_common_configs() -> None:
     for suffix in ("", "_fast"):
-        tag = f"point_maze_learned{suffix}"
-        COMMON_CONFIGS[tag] = {
+        key = f"point_maze_learned{suffix}"
+        cfgs = point_maze_learned_cfgs(f"transfer_point_maze{suffix}")
+        COMMON_CONFIGS[key] = {
             "env_name": "imitation/PointMazeLeftVel-v0",
             "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
             "y_reward_cfgs": [
                 ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
             ]
-            + point_maze_learned_cfgs(tag),
+            + cfgs,
         }
 
 
