@@ -279,6 +279,7 @@ def rl_worker(
         log_root,
         script_utils.sanitize_path(env_name),
         script_utils.sanitize_path(reward_type),
+        script_utils.sanitize_path(reward_path),
         str(seed),
     )
     updates["config_updates"] = dict(updates.get("config_updates", {}))
