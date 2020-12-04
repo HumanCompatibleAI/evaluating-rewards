@@ -182,7 +182,7 @@ def point_maze_pathologicals():
 
 def _point_maze_learned(fast_config: bool):
     """Train RL policies on learned rewards in PointMaze."""
-    suffix = "_fast" if fast else ""
+    suffix = "_fast" if fast_config else ""
     configs = {}
     for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0"):
         configs[env] = {}
