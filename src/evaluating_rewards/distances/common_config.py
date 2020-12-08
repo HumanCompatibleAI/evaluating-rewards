@@ -17,8 +17,13 @@
 Used in `plot_heatmap`, `epic`, `npec` and `erc`.
 """
 
+import glob
+import itertools
+import math
 import os
-from typing import Any, Iterable, List, Mapping, Tuple
+from typing import Any, Iterable, List, Mapping, Optional, Tuple
+
+from evaluating_rewards import serialize
 
 RewardCfg = Tuple[str, str]  # (type, path)
 AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
@@ -31,20 +36,56 @@ def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
     return res
 
 
-def point_maze_learned_cfgs(prefix="transfer_point_maze") -> List[RewardCfg]:
+_POINT_MAZE_CFG = [
+    ("evaluating_rewards/RewardModel-v0", "regress/checkpoints/{}"),
+    ("evaluating_rewards/RewardModel-v0", "preferences/checkpoints/{}"),
+    ("imitation/RewardNet_unshaped-v0", "irl_state_only/checkpoints/{}/discrim/reward_net"),
+    ("imitation/RewardNet_unshaped-v0", "irl_state_action/checkpoints/{}/discrim/reward_net"),
+]
+
+
+def point_maze_learned_cfgs(prefix: str = "transfer_point_maze") -> List[RewardCfg]:
     "Configurations for learned rewards in PointMaze."
     return [
-        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/regress/checkpoints/final"),
-        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/preferences/checkpoints/final"),
-        (
-            "imitation/RewardNet_unshaped-v0",
-            f"{prefix}/reward/irl_state_only/checkpoints/final/discrim/reward_net",
-        ),
-        (
-            "imitation/RewardNet_unshaped-v0",
-            f"{prefix}/reward/irl_state_action/checkpoints/final/discrim/reward_net",
-        ),
+        (kind, os.path.join(prefix, "reward", path.format("final")))
+        for (kind, path) in _POINT_MAZE_CFG
     ]
+
+
+def point_maze_learned_checkpoint_cfgs(
+    prefix: str = "transfer_point_maze", target_num: Optional[int] = None
+) -> List[RewardCfg]:
+    """Configurations for learned rewards in PointMaze for each checkpoint.
+
+    Args:
+        prefix: The directory to locate results under.
+        target_num: The target number of checkpoints to return for each algorithm.
+            May return less than this if there are fewer checkpoints than `target_num`.
+            May return up to twice this number.
+
+    Returns:
+        Reward configurations for checkpoints for each reward model.
+    """
+    res = {}
+    for kind, fstr_path in _POINT_MAZE_CFG:
+        glob_path = os.path.join(
+            serialize.get_output_dir(), prefix, "reward", fstr_path.format("*")
+        )
+        paths = sorted(glob.glob(glob_path))
+        cfgs = [(kind, path) for path in paths]
+
+        if target_num and len(cfgs) > target_num:
+            subsample = max(1, math.floor(len(cfgs) / target_num))
+            cfgs = cfgs[::subsample]
+            assert target_num <= len(cfgs) <= 2 * target_num
+
+        res[kind] = cfgs
+
+    empty = {k: bool(v) for k, v in res.items()}
+    if any(empty) and not all(empty):
+        raise ValueError(f"No checkpoints found for some algorithms: {empty}")
+
+    return list(itertools.chain(*res.values()))
 
 
 POINT_MASS_KINDS = [
@@ -93,18 +134,28 @@ COMMON_CONFIGS = {
 }
 
 
+def _make_point_maze_cfg(extra_y):
+    return {
+        "env_name": "imitation/PointMazeLeftVel-v0",
+        "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
+        "y_reward_cfgs": [
+            ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
+        ]
+        + extra_y,
+    }
+
+
 def _update_common_configs() -> None:
     for suffix in ("", "_fast"):
-        key = f"point_maze_learned{suffix}"
-        cfgs = point_maze_learned_cfgs(f"transfer_point_maze{suffix}")
-        COMMON_CONFIGS[key] = {
-            "env_name": "imitation/PointMazeLeftVel-v0",
-            "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
-            "y_reward_cfgs": [
-                ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
-            ]
-            + cfgs,
-        }
+        prefix = f"transfer_point_maze{suffix}"
+
+        std_key = f"point_maze_learned{suffix}"
+        std_cfgs = point_maze_learned_cfgs(prefix)
+        COMMON_CONFIGS[std_key] = _make_point_maze_cfg(std_cfgs)
+
+        chk_key = f"point_maze_checkpoints{suffix}"
+        chk_cfgs = point_maze_learned_checkpoint_cfgs(prefix)
+        COMMON_CONFIGS[chk_key] = _make_point_maze_cfg(chk_cfgs)
 
 
 _update_common_configs()
