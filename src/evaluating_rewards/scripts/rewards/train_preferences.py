@@ -33,6 +33,7 @@ def default_config():
     """Default configuration values."""
     locals().update(**regress_utils.DEFAULT_CONFIG)
     num_vec = 8  # number of environments in VecEnv
+    checkpoint_interval = 10  # save every checkpoint_interval epochs
 
     # Trajectory specification
     policy_type = "random"  # type of policy to generate comparison trajectories

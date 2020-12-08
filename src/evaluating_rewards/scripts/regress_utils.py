@@ -35,7 +35,6 @@ EnvRewardFactory = Callable[[gym.Space, gym.Space], base.RewardModel]
 DEFAULT_CONFIG = {
     "env_name": "evaluating_rewards/PointMassLine-v0",
     "discount": 0.99,
-    "checkpoint_interval": 1,
     "target_reward_type": "evaluating_rewards/Zero-v0",
     "target_reward_path": "dummy",
     "model_reward_type": base.MLPRewardModel,

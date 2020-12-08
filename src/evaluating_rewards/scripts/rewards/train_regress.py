@@ -30,6 +30,7 @@ train_regress_ex = sacred.Experiment("train_regress")
 def default_config():
     """Default configuration values."""
     locals().update(**regress_utils.DEFAULT_CONFIG)
+    checkpoint_interval = 50  # save every checkpoint_interval epochs
     dataset_factory = datasets.transitions_factory_from_serialized_policy
     dataset_factory_kwargs = dict()
 
