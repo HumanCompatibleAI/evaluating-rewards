@@ -195,6 +195,7 @@ def npec_worker(
     total_timesteps: int,
     batch_size: int,
     fit_kwargs: Dict[str, Any],
+    # Logging
     log_dir: str,
 ) -> comparisons.FitStats:
     """Performs a single NPEC comparison by fitting a model.
@@ -230,12 +231,13 @@ def npec_worker(
             del model_scope
             return comparison_class(model, target, **comparison_kwargs)
 
-        def do_training(target, trainer):
+        def do_training(target, trainer, callback):
             del target
             return trainer.fit(
                 dataset_generator,
                 total_timesteps=total_timesteps,
                 batch_size=batch_size,
+                callback=callback,
                 **fit_kwargs,
             )
 
@@ -251,6 +253,7 @@ def npec_worker(
             target_reward_type=target_reward_type,
             target_reward_path=target_reward_path,
             log_dir=log_dir,
+            checkpoint_interval=0,  # disable checkpoints
         )
 
 

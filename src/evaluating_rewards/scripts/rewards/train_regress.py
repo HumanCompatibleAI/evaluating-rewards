@@ -15,7 +15,7 @@
 """CLI script to regress a model onto another, pre-loaded model."""
 
 import functools
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 import sacred
 
@@ -89,6 +89,7 @@ def train_regress(
     batch_size: int,
     learning_rate: float,
     # Logging
+    checkpoint_interval: int,
     log_dir: str,
 ) -> Mapping[str, Any]:
     """Entry-point into script to regress source onto target reward model."""
@@ -99,7 +100,7 @@ def train_regress(
             del model_scope
             return comparisons.RegressModel(model, target, learning_rate=learning_rate)
 
-        def do_training(target, trainer, callback):
+        def do_training(target, trainer, callback: Optional[regress_utils.Callback]):
             del target
             return trainer.fit(
                 dataset_generator,
@@ -119,6 +120,7 @@ def train_regress(
             target_reward_type=target_reward_type,
             target_reward_path=target_reward_path,
             log_dir=log_dir,
+            checkpoint_interval=checkpoint_interval,
         )
 
 

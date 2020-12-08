@@ -16,7 +16,7 @@
 
 import os
 import pickle
-from typing import Callable, TypeVar
+from typing import Callable, Optional, TypeVar
 
 import gym
 from imitation.util import networks, util
@@ -48,9 +48,10 @@ def logging_config(log_root, env_name):
     del _
 
 
+Callback = Callable[[int], None]
 MakeModelFn = Callable[[vec_env.VecEnv], T]
 MakeTrainerFn = Callable[[base.RewardModel, tf.VariableScope, base.RewardModel], T]
-DoTrainingFn = Callable[[base.RewardModel, T], V]
+DoTrainingFn = Callable[[base.RewardModel, T, Optional[Callback]], V]
 
 
 def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> base.RewardModel:
@@ -59,16 +60,20 @@ def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> bas
 
 def regress(
     seed: int,
+    # Dataset
     env_name: str,
     discount: float,
-    checkpoint_interval: int,
+    # Target specification
+    target_reward_type: str,
+    target_reward_path: str,
+    # Model parameters
     make_source: MakeModelFn,
     source_init: bool,
     make_trainer: MakeTrainerFn,
     do_training: DoTrainingFn,
-    target_reward_type: str,
-    target_reward_path: str,
+    # Logging
     log_dir: str,
+    checkpoint_interval: int,
 ) -> V:
     """Train a model on target and save the results, reporting training stats."""
     # This venv is needed by serialize.load_reward, but is never stepped.

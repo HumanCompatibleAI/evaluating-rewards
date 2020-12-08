@@ -15,7 +15,7 @@
 """CLI script to fit a model to synthetically generated preferences."""
 
 import functools
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 from imitation.policies import serialize as policies_serialize
 from imitation.util import util
@@ -84,6 +84,7 @@ def train_preferences(
     accuracy_threshold: float,
     # Logging
     log_dir: str,
+    checkpoint_interval: int,
 ) -> Mapping[str, Any]:
     """Entry-point into script for synthetic preference comparisons."""
     venv = util.make_vec_env(env_name, n_envs=num_vec, seed=_seed)
@@ -107,7 +108,7 @@ def train_preferences(
 
     with policies_serialize.load_policy(policy_type, policy_path, venv) as policy:
 
-        def do_training(target, trainer, callback):
+        def do_training(target, trainer, callback: Optional[regress_utils.Callback]):
             # Specify in terms of total_timesteps so longer trajectory_length
             # does not give model more data.
             total_comparisons = total_timesteps // trajectory_length
@@ -132,6 +133,7 @@ def train_preferences(
             target_reward_type=target_reward_type,
             target_reward_path=target_reward_path,
             log_dir=log_dir,
+            checkpoint_interval=checkpoint_interval,
         )
 
 
