@@ -34,8 +34,8 @@ def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
 def point_maze_learned_cfgs(prefix="transfer_point_maze") -> List[RewardCfg]:
     "Configurations for learned rewards in PointMaze."
     return [
-        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/regress/model"),
-        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/preferences/model"),
+        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/regress/checkpoints/final"),
+        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/preferences/checkpoints/final"),
         (
             "imitation/RewardNet_unshaped-v0",
             f"{prefix}/reward/irl_state_only/checkpoints/final/discrim/reward_net",

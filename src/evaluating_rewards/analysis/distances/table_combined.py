@@ -80,11 +80,11 @@ POINT_MAZE_LEARNED_COMMON = {
         r"\bettergoalmethod{}": ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
         r"\regressionmethod{}": (
             "evaluating_rewards/RewardModel-v0",
-            "transfer_point_maze/reward/regress/model",
+            "transfer_point_maze/reward/regress/checkpoints/final",
         ),
         r"\preferencesmethod{}": (
             "evaluating_rewards/RewardModel-v0",
-            "transfer_point_maze/reward/preferences/model",
+            "transfer_point_maze/reward/preferences/checkpoints/final",
         ),
         r"\airlstateonlymethod{}": (
             "imitation/RewardNet_unshaped-v0",
