@@ -53,18 +53,9 @@ def default_config():
 
 
 FAST_CONFIG = dict(total_timesteps=1e4)
-
-
-@train_preferences_ex.named_config
-def fast():
-    """Small number of epochs, finish quickly, intended for debugging."""
-    locals().update(FAST_CONFIG)
-
-
-@train_preferences_ex.named_config
-def test():
-    """Unit test config."""
-    locals().update(FAST_CONFIG)
+# Duplicate to have consistent interface
+train_preferences_ex.add_named_config("test", FAST_CONFIG)
+train_preferences_ex.add_named_config("fast", FAST_CONFIG)
 
 
 script_utils.add_logging_config(train_preferences_ex, "train_preferences")

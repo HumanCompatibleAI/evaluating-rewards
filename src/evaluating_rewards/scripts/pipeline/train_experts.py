@@ -197,7 +197,7 @@ def _point_maze_learned(fast_config: bool):
         # not just use them to pick the best seed. (Note there may be a slight optimizer's curse
         # here biasing these numbers upward, since we report numbers from the best seed and do not
         # re-evaluate, but it should be small given large number of episodes plus the fact we pick
-        # seed with best learned reward but report that of best ground-truth reward.)
+        # seed with best learned reward but report the ground-truth reward.)
         global_configs={
             "config_updates": {
                 "n_episodes_eval": 1000,
