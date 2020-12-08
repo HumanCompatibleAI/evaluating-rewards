@@ -28,125 +28,58 @@ NORMALIZE="normalize_kwargs.norm_obs=False"  # normalize reward still, but not o
 SEED=42
 TRANSITION_P=0.05
 
+TRAIN_ENV_RL=${EVAL_OUTPUT_ROOT}/train_experts/ground_truth/20201203_105631_297835/imitation_PointMazeLeftVel-v0/evaluating_rewards_PointMazeGroundTruthWithCtrl-v0/best/
+
 if [[ ${fast} == "true" ]]; then
   # intended for debugging
-  RL_TIMESTEPS="total_timesteps=16384"
   IRL_EPOCHS="n_epochs=5"
-  PREFERENCES_TIMESTEPS="fast"
-  REGRESS_TIMESTEPS="fast"
-  COMPARISON_TIMESTEPS="fast"
-  EVAL_TIMESTEPS=4096
+  NAMED_CONFIG="point_maze_learned_fast"
+  TRAIN_TIMESTEPS_MODIFIER="fast"
+  COMPARISON_TIMESTEPS_MODIFIER="fast"
   PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze_fast
 else
-  RL_TIMESTEPS=""
   IRL_EPOCHS=""
-  PREFERENCES_TIMESTEPS=""
-  REGRESS_TIMESTEPS=""
-  COMPARISON_TIMESTEPS=""
-  EVAL_TIMESTEPS=100000
+  NAMED_CONFIG="point_maze_learned"
+  TRAIN_TIMESTEPS_MODIFIER=""
+  COMPARISON_TIMESTEPS_MODIFIER="high_precision"
   PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze
 fi
 
-
-# Step 0) Train Policies on Ground Truth
-# This acts as a baseline, and the demonstrations are needed for IRL.
-
-EXPERT_DEMO_CMD="$(call_script "expert_demos" "with") seed=${SEED} \
-    ${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
-    ${RL_TIMESTEPS} reward_type=${TARGET_REWARD_TYPE}"
-${EXPERT_DEMO_CMD} env_name=${ENV_TRAIN} log_dir=${PM_OUTPUT}/expert/train \
-    rollout_save_n_episodes=1000&
-${EXPERT_DEMO_CMD} env_name=${ENV_TEST} log_dir=${PM_OUTPUT}/expert/test&
-
-wait
-
 # Step 1) Train Reward Models
 
-# Direct Methods: Preference Comparison and Reward Regression
-# These can learn directly from the reward model
-
-MIXED_POLICY_PATH=${TRANSITION_P}:random:dummy:ppo2:${PM_OUTPUT}/expert/train/policies/final
-$(call_script "train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
+MIXED_POLICY_PATH=${TRANSITION_P}:random:dummy:ppo2:${TRAIN_ENV_RL}/policies/final
+$(call_script "rewards.train_preferences" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/preferences \
-    ${PREFERENCES_TIMESTEPS} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
-$(call_script "train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
+    ${TRAIN_TIMESTEPS_MODIFIER} policy_type=mixture policy_path=${MIXED_POLICY_PATH}&
+$(call_script "rewards.train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED} \
     target_reward_type=${TARGET_REWARD_TYPE} log_dir=${PM_OUTPUT}/reward/regress \
-    ${REGRESS_TIMESTEPS} dataset_factory_kwargs.policy_type=mixture \
+    ${TRAIN_TIMESTEPS_MODIFIER} dataset_factory_kwargs.policy_type=mixture \
     dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}&
 
-# IRL: uses demonstrations from previous part
 for state_only in True False; do
   if [[ ${state_only} == "True" ]]; then
     name="state_only"
   else
     name="state_action"
   fi
-  $(call_script "train_adversarial" "with") env_name=${ENV_TRAIN} seed=${SEED} \
+  $(call_script "rewards.train_adversarial" "with") airl env_name=${ENV_TRAIN} seed=${SEED} \
       init_trainer_kwargs.reward_kwargs.state_only=${state_only} \
-      rollout_path=${PM_OUTPUT}/expert/train/rollouts/final.pkl \
-      ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
+      rollout_path=${TRAIN_ENV_RL}/rollouts/final.pkl \
+      ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
 done
 
 wait
 
-# Step 2a) Compare Reward Models
+# Step 2) Evaluate Reward Models with Distance Metrics
 
-for name in comparison_expert comparison_mixture comparison_random; do
-  if [[ ${name} == "comparison_expert" ]]; then
-    extra_flags="dataset_factory_kwargs.policy_type=ppo2 \
-                 dataset_factory_kwargs.policy_path=${PM_OUTPUT}/expert/train/policies/final"
-  elif [[ ${name} == "comparison_mixture" ]]; then
-    extra_flags="dataset_factory_kwargs.policy_type=mixture \
-                 dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}"
-  elif [[ ${name} == "comparison_random" ]]; then
-    extra_flags=""
-  else
-    echo "BUG: unknown name ${name}"
-    exit 1
-  fi
-  parallel --header : --results ${PM_OUTPUT}/parallel/${name} \
-    $(call_script "model_comparison" "with") \
-    env_name=${ENV_TRAIN} ${extra_flags} \
-    seed={seed} source_reward_type={source_reward_type} \
-    source_reward_path=${PM_OUTPUT}/reward/{source_reward_path}/{source_reward_suffix} \
-    target_reward_type=${TARGET_REWARD_TYPE} \
-    ${COMPARISON_TIMESTEPS} log_dir=${PM_OUTPUT}/${name}/{source_reward_path}/{seed} \
-    ::: source_reward_type evaluating_rewards/Zero-v0 \
-        evaluating_rewards/RewardModel-v0 evaluating_rewards/RewardModel-v0 \
-        imitation/RewardNet_unshaped-v0 imitation/RewardNet_unshaped-v0 \
-    :::+ source_reward_path zero preferences regress irl_state_only irl_state_action \
-    :::+ source_reward_suffix dummy model model checkpoints/final/discrim/reward_net \
-                              checkpoints/final/discrim/reward_net \
-    ::: seed 0 1 2&
+for cmd in epic npec erc; do
+  python -m evaluating_rewards.scripts.distances.${cmd} with \
+      ${NAMED_CONFIG} ${COMPARISON_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/distance/${cmd}
 done
 
-# Step 2b) Train Policies on Learnt Reward Models
+# Step 3) Train Policies on Learnt Reward Models
 
-parallel --header : --results ${PM_OUTPUT}/parallel/transfer \
-  $(call_script "expert_demos" "with") ${RL_TIMESTEPS} \
-  ${NORMALIZE} init_rl_kwargs.n_steps=${N_STEPS} \
-  env_name={env} seed={seed} reward_type={reward_type} \
-  reward_path=${PM_OUTPUT}/reward/{reward_path}/{reward_suffix} \
-  log_dir=${PM_OUTPUT}/policy/{env_sanitized}/{reward_path}/{seed} \
-  ::: env ${ENVS} :::+ env_sanitized ${ENVS_SANITIZED} \
-  ::: reward_type evaluating_rewards/RewardModel-v0 evaluating_rewards/RewardModel-v0 \
-                  imitation/RewardNet_unshaped-v0 imitation/RewardNet_unshaped-v0 \
-  :::+ reward_path preferences regress irl_state_only irl_state_action \
-  :::+ reward_suffix model model checkpoints/final/discrim/reward_net \
-                     checkpoints/final/discrim/reward_net \
-  ::: seed 0 1 2&
+python -m evaluating_rewards.scripts.pipeline.train_experts with \
+    ${NAMED_CONFIG} ${TRAIN_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/policy_learned
 
 wait
-
-# Step 3) Evaluate Policies
-
-for env in ${ENVS}; do
-  env_sanitized=$(echo ${env} | sed -e 's/\//_/g')
-  parallel --header : --results ${EVAL_OUTPUT_ROOT}/parallel/learnt \
-           $(call_script "eval_policy" "with") render=False num_vec=8 \
-           eval_n_timesteps=${EVAL_TIMESTEPS} policy_type=ppo2 env_name=${env} \
-           reward_type=${TARGET_REWARD_TYPE} \
-           policy_path={policy_path}/policies/final \
-           log_dir=${PM_OUTPUT}/policy_eval/{policy_path} \
-           ::: policy_path ${PM_OUTPUT}/policy/${env_sanitized}/*/*
-done

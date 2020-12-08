@@ -288,6 +288,16 @@ def aggregate_seeds(
     return vals
 
 
+def _ignore_extraneous_dataset_iid(real_kwargs, **_):
+    """Thin-wrapper to workaround Sacred inability to delete keys from config dict."""
+    return datasets.transitions_factory_iid_from_sample_dist_factory(**real_kwargs)
+
+
+def _ignore_extraneous_random_model(real_kwargs, **_):
+    """Thin-wrapper to workaround Sacred inability to delete keys from config dict."""
+    return datasets.transitions_factory_from_random_model(**real_kwargs)
+
+
 def make_transitions_configs(
     experiment: sacred.Experiment,
 ):  # pylint: disable=unused-variable
@@ -339,23 +349,25 @@ def make_transitions_configs(
         e.g. by using `sample_from_env_spaces`, since by default it is marginalized from
         `visitations_factory`, leading to an infinite recursion.
         """
-        visitations_factory = datasets.transitions_factory_iid_from_sample_dist_factory
+        visitations_factory = _ignore_extraneous_dataset_iid
         visitations_factory_kwargs = {
-            "obs_dist_factory": obs_sample_dist_factory,
-            "act_dist_factory": act_sample_dist_factory,
-            "obs_kwargs": obs_sample_dist_factory_kwargs,
-            "act_kwargs": act_sample_dist_factory_kwargs,
-            "env_name": env_name,
+            "real_kwargs": {
+                "obs_dist_factory": obs_sample_dist_factory,
+                "act_dist_factory": act_sample_dist_factory,
+                "obs_kwargs": obs_sample_dist_factory_kwargs,
+                "act_kwargs": act_sample_dist_factory_kwargs,
+                "env_name": env_name,
+            }
         }
-        visitations_factory_kwargs.update(**sample_dist_factory_kwargs)
+        visitations_factory_kwargs["real_kwargs"].update(**sample_dist_factory_kwargs)
         dataset_tag = "iid_" + sample_dist_tag
         _ = locals()
         del _
 
     @experiment.named_config
     def dataset_from_random_transitions(env_name):
-        visitations_factory = datasets.transitions_factory_from_random_model
-        visitations_factory_kwargs = {"env_name": env_name}
+        visitations_factory = _ignore_extraneous_random_model
+        visitations_factory_kwargs = {"real_kwargs": {"env_name": env_name}}
         dataset_tag = "random_transitions"
         _ = locals()
         del _

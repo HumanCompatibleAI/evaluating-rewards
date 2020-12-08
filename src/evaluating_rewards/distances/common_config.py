@@ -18,7 +18,7 @@ Used in `plot_heatmap`, `epic`, `npec` and `erc`.
 """
 
 import os
-from typing import Any, Iterable, Mapping, Tuple
+from typing import Any, Iterable, List, Mapping, Tuple
 
 RewardCfg = Tuple[str, str]  # (type, path)
 AggregatedDistanceReturn = Mapping[str, Mapping[Tuple[RewardCfg, RewardCfg], float]]
@@ -29,6 +29,22 @@ def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
     res = dict(kwargs)
     res.update({"x_reward_cfgs": cfgs, "y_reward_cfgs": cfgs})
     return res
+
+
+def point_maze_learned_cfgs(prefix="transfer_point_maze") -> List[RewardCfg]:
+    "Configurations for learned rewards in PointMaze."
+    return [
+        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/regress/model"),
+        ("evaluating_rewards/RewardModel-v0", f"{prefix}/reward/preferences/model"),
+        (
+            "imitation/RewardNet_unshaped-v0",
+            f"{prefix}/reward/irl_state_only/checkpoints/final/discrim/reward_net",
+        ),
+        (
+            "imitation/RewardNet_unshaped-v0",
+            f"{prefix}/reward/irl_state_action/checkpoints/final/discrim/reward_net",
+        ),
+    ]
 
 
 POINT_MASS_KINDS = [
@@ -58,23 +74,6 @@ COMMON_CONFIGS = {
         env_name="imitation/PointMazeLeft-v0",
     ),
     # Compare rewards learned in imitation/PointMaze* to the ground-truth reward
-    "point_maze_learned": {
-        "env_name": "imitation/PointMazeLeftVel-v0",
-        "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
-        "y_reward_cfgs": [
-            ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/regress/model"),
-            ("evaluating_rewards/RewardModel-v0", "transfer_point_maze/reward/preferences/model"),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
-            ),
-            (
-                "imitation/RewardNet_unshaped-v0",
-                "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
-            ),
-        ],
-    },
     # seals version of the canonical MuJoCo tasks
     "half_cheetah": _config_from_kinds(
         [
@@ -92,6 +91,23 @@ COMMON_CONFIGS = {
         env_name="seals/Hopper-v0",
     ),
 }
+
+
+def _update_common_configs() -> None:
+    for suffix in ("", "_fast"):
+        key = f"point_maze_learned{suffix}"
+        cfgs = point_maze_learned_cfgs(f"transfer_point_maze{suffix}")
+        COMMON_CONFIGS[key] = {
+            "env_name": "imitation/PointMazeLeftVel-v0",
+            "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
+            "y_reward_cfgs": [
+                ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
+            ]
+            + cfgs,
+        }
+
+
+_update_common_configs()
 
 
 def canonicalize_reward_cfg(reward_cfg: RewardCfg, data_root: str) -> RewardCfg:

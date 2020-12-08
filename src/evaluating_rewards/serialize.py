@@ -55,6 +55,7 @@ class RewardRegistry(registry.Registry[RewardLoaderFn]):
         @contextlib.contextmanager
         def reward_fn_loader(path: str, venv: vec_env.VecEnv) -> Iterator[common.RewardFn]:
             """Load a TensorFlow reward model, then convert it into a Callable."""
+            path = os.path.join(get_output_dir(), path)
             reward_model_loader = self.get(key)
             with networks.make_session() as (_, sess):
                 reward_model = reward_model_loader(path, venv)

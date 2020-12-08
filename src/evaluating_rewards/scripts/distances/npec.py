@@ -136,29 +136,37 @@ def ellp_loss():
 # and Zero target. (Sacred does not currently support combining named configs
 # but they're intending to add it.)
 
+FAST_CONFIG = dict(
+    n_seeds=1,
+    # Disable studentt_ci and sample_mean_sd since they need >1 seed (this test is already slow)
+    aggregate_kinds=("bootstrap",),
+    fit_kwargs={"affine_size": 512},
+    ray_kwargs={
+        # CI build only has 1 core per test
+        "num_cpus": 1,
+    },
+    num_cpus=1,
+    batch_size=512,
+    total_timesteps=2048,
+)
+
+
+@npec_distance_ex.named_config
+def fast():
+    """Small number of epochs, finish quickly, intended for tests / debugging."""
+    locals().update(**FAST_CONFIG)
+
 
 @npec_distance_ex.named_config
 def test():
-    """Small number of epochs, finish quickly, intended for tests / debugging."""
-    n_seeds = 1
-    # Disable studentt_ci and sample_mean_sd since they need >1 seed (this test is already slow)
-    aggregate_kinds = ("bootstrap",)
-    fit_kwargs = {"affine_size": 512}
-    ray_kwargs = {
-        # CI build only has 1 core per test
-        "num_cpus": 1,
-    }
-    num_cpus = 1
-    visitations_factory_kwargs = {
+    """Eliminate parallelism in VecEnv to reduce load on CI."""
+    locals().update(**FAST_CONFIG)
+    visitations_factory_kwargs = {  # noqa: F841  pylint:disable=unused-variable
         "env_name": "evaluating_rewards/PointMassLine-v0",
         "parallel": False,
         "policy_type": "random",
         "policy_path": "dummy",
     }
-    batch_size = 512
-    total_timesteps = 2048
-    _ = locals()  # quieten flake8 unused variable warning
-    del _
 
 
 @npec_distance_ex.named_config
