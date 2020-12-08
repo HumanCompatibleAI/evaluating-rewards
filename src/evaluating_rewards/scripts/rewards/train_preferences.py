@@ -107,16 +107,18 @@ def train_preferences(
 
     with policies_serialize.load_policy(policy_type, policy_path, venv) as policy:
 
-        def do_training(target, trainer):
+        def do_training(target, trainer, callback):
             # Specify in terms of total_timesteps so longer trajectory_length
             # does not give model more data.
             total_comparisons = total_timesteps // trajectory_length
+
             return trainer.fit_synthetic(
                 venv,
                 policy=policy,
                 target=target,
                 trajectory_length=trajectory_length,
                 total_comparisons=total_comparisons,
+                callback=callback,
             )
 
         return regress_utils.regress(

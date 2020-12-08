@@ -35,6 +35,7 @@ EnvRewardFactory = Callable[[gym.Space, gym.Space], base.RewardModel]
 DEFAULT_CONFIG = {
     "env_name": "evaluating_rewards/PointMassLine-v0",
     "discount": 0.99,
+    "checkpoint_interval": 1,
     "target_reward_type": "evaluating_rewards/Zero-v0",
     "target_reward_path": "dummy",
     "model_reward_type": base.MLPRewardModel,
@@ -60,6 +61,7 @@ def regress(
     seed: int,
     env_name: str,
     discount: float,
+    checkpoint_interval: int,
     make_source: MakeModelFn,
     source_init: bool,
     make_trainer: MakeTrainerFn,
@@ -91,11 +93,15 @@ def regress(
             init_vars += model_scope.global_variables()
         sess.run(tf.initializers.variables(init_vars))
 
-        stats = do_training(target, trainer)
+        def callback(epoch: int) -> None:
+            if checkpoint_interval > 0 and epoch % checkpoint_interval == 0:
+                trainer.model.save(os.path.join(log_dir, "checkpoints", f"{epoch:05d}"))
 
-        # Trainer may wrap source, so save trainer.source not source directly
+        stats = do_training(target, trainer, callback)
+
+        # Trainer may wrap source, so save `trainer.model` not source directly
         # (see e.g. RegressWrappedModel).
-        trainer.model.save(os.path.join(log_dir, "model"))
+        trainer.model.save(os.path.join(log_dir, "checkpoints", "final"))
 
         with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
             pickle.dump(stats, f)
