@@ -69,7 +69,7 @@ def point_maze_learned_checkpoint_cfgs(
     res = {}
     for kind, fstr_path in _POINT_MAZE_CFG:
         glob_path = os.path.join(
-            serialize.get_output_dir(), prefix, "reward", fstr_path.format("*")
+            serialize.get_output_dir(), prefix, "reward", fstr_path.format("[0-9].*")
         )
         paths = sorted(glob.glob(glob_path))
         cfgs = [(kind, path) for path in paths]
@@ -134,28 +134,27 @@ COMMON_CONFIGS = {
 }
 
 
-def _make_point_maze_cfg(extra_y):
-    return {
+def _update_common_configs() -> None:
+    base_cfg = {
         "env_name": "imitation/PointMazeLeftVel-v0",
         "x_reward_cfgs": [("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy")],
-        "y_reward_cfgs": [
-            ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
-        ]
-        + extra_y,
     }
-
-
-def _update_common_configs() -> None:
     for suffix in ("", "_fast"):
         prefix = f"transfer_point_maze{suffix}"
 
         std_key = f"point_maze_learned{suffix}"
         std_cfgs = point_maze_learned_cfgs(prefix)
-        COMMON_CONFIGS[std_key] = _make_point_maze_cfg(std_cfgs)
+        COMMON_CONFIGS[std_key] = dict(
+            **base_cfg,
+            y_reward_cfgs=[
+                ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
+            ]
+            + std_cfgs,
+        )
 
         chk_key = f"point_maze_checkpoints{suffix}"
         chk_cfgs = point_maze_learned_checkpoint_cfgs(prefix)
-        COMMON_CONFIGS[chk_key] = _make_point_maze_cfg(chk_cfgs)
+        COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
 
 
 _update_common_configs()
