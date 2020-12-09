@@ -56,15 +56,14 @@ $(call_script "rewards.train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED}
     ${TRAIN_TIMESTEPS_MODIFIER} dataset_factory_kwargs.policy_type=mixture \
     dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}&
 
-for state_only in True False; do
-  if [[ ${state_only} == "True" ]]; then
-    name="state_only"
-  else
+for use_action in True False; do
+  if [[ ${use_action} == "True" ]]; then
     name="state_action"
+  else
+    name="state_only"
   fi
-  $(call_script "rewards.train_adversarial" "with") airl checkpoint_interval=1 \
-      env_name=${ENV_TRAIN} seed=${SEED} rollout_path=${TRAIN_ENV_RL}/rollouts/final.pkl \
-      init_trainer_kwargs.reward_kwargs.state_only=${state_only} \
+  $(call_script "rewards.train_adversarial" "with") airl point_maze checkpoint_interval=1 \
+      seed=${SEED} algorithm_kwargs.airl.reward_net_kwargs.use_action=${use_action} \
       ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
 done
 
