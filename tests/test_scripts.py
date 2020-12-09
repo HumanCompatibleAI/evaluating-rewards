@@ -21,11 +21,7 @@ import pandas as pd
 import sacred
 import xarray as xr
 
-from evaluating_rewards.analysis.distances import (
-    plot_gridworld_heatmap,
-    plot_heatmap,
-    table_combined,
-)
+from evaluating_rewards.analysis.distances import combined, plot_gridworld_heatmap, plot_heatmap
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
 from evaluating_rewards.scripts.distances import epic, erc, npec
 from evaluating_rewards.scripts.pipeline import train_experts
@@ -108,7 +104,7 @@ EXPERIMENTS = {
         None,
     ),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}, None),
-    "table_combined": (table_combined.table_combined_ex, type(None), [], {}, None),
+    "combined": (combined.combined_ex, type(None), [], {}, None),
     "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}, None),
     "regress": (train_regress.train_regress_ex, dict, [], {}, None),
     "train_experts": (train_experts.experts_ex, dict, [], {}, None),

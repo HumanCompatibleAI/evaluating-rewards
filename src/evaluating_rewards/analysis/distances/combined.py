@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to make table of EPIC, NPEC and ERC distances from a reward model."""
+"""CLI script to analyse combined EPIC, NPEC and ERC distances from a reward model.
+
+Can output a table (all cases), or a lineplot (for timeseries over checkpoints)."""
 
 import copy
 import functools
@@ -39,13 +41,13 @@ from evaluating_rewards.scripts.distances import epic, erc, npec
 Vals = Mapping[Tuple[str, str], Any]
 ValsFiltered = Mapping[str, Mapping[Tuple[str, str], pd.Series]]
 
-table_combined_ex = sacred.Experiment("table_combined")
-logger = logging.getLogger("evaluating_rewards.analysis.distances.table_combined")
+combined_ex = sacred.Experiment("combined")
+logger = logging.getLogger("evaluating_rewards.analysis.distances.combined")
 
 
-@table_combined_ex.config
+@combined_ex.config
 def default_config():
-    """Default configuration for table_combined."""
+    """Default configuration for combined."""
     vals_paths = []
     log_root = serialize.get_output_dir()  # where results are read from/written to
     distance_kinds = ("epic", "npec", "erc")
@@ -64,12 +66,12 @@ def default_config():
     del _
 
 
-@table_combined_ex.config
+@combined_ex.config
 def logging_config(log_root, tag):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
-        "table_combined",
+        "combined",
         tag,
         imit_util.make_unique_timestamp(),
     )
@@ -121,7 +123,7 @@ _POINT_MAZE_EXPERT = (
 )
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def point_maze_learned_good():
     """Compare rewards learned in PointMaze to the ground-truth reward.
 
@@ -154,7 +156,7 @@ def point_maze_learned_good():
     del _
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def point_maze_learned_pathological():
     """Compare PointMaze rewards under pathological distributions."""
     locals().update(**POINT_MAZE_LEARNED_COMMON)
@@ -207,7 +209,7 @@ def point_maze_learned_pathological():
     del _
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def point_maze_checkpoints():
     """Compare rewards learned in PointMaze to the ground-truth reward over time.
 
@@ -238,7 +240,7 @@ def point_maze_checkpoints():
     del _
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def high_precision():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
         "precision": {
@@ -247,7 +249,7 @@ def high_precision():
     }
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def test():
     """Simple, quick config for unit testing."""
     experiment_kinds = ("test",)
@@ -275,22 +277,22 @@ def test():
     del _
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def epic_only():
     distance_kinds = ("epic",)  # noqa: F841  pylint:disable=unused-variable
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def npec_only():
     distance_kinds = ("npec",)  # noqa: F841  pylint:disable=unused-variable
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def erc_only():
     distance_kinds = ("erc",)  # noqa: F841  pylint:disable=unused-variable
 
 
-@table_combined_ex.named_config
+@combined_ex.named_config
 def fast():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
         "precision": {"global": ("fast",)}
@@ -420,7 +422,7 @@ def make_table(
     return " \\\\\n".join(rows)
 
 
-@table_combined_ex.capture
+@combined_ex.capture
 def _input_validation(
     experiments: Mapping[str, sacred.Experiment],
     experiment_kinds: Tuple[str],
@@ -431,7 +433,7 @@ def _input_validation(
 ):
     """Validate input.
 
-    See `table_combined` for args definition."""
+    See `combined` for args definition."""
     if not experiment_kinds:
         raise ValueError("Empty `experiment_kinds`.")
     if not distance_kinds:
@@ -477,7 +479,7 @@ def load_vals(vals_paths: Sequence[str]) -> Vals:
     return vals
 
 
-@table_combined_ex.capture
+@combined_ex.capture
 def compute_vals(
     experiments: Mapping[str, sacred.Experiment],
     experiment_kinds: Tuple[str],
@@ -540,7 +542,7 @@ def _canonicalize_cfg(cfg: common_config.RewardCfg) -> common_config.RewardCfg:
     return kind, results.canonicalize_data_root(path)
 
 
-@table_combined_ex.capture
+@combined_ex.capture
 def filter_values(
     vals: Vals,
     target_reward_type: str,
@@ -577,7 +579,7 @@ def filter_values(
     return vals_filtered
 
 
-@table_combined_ex.capture
+@combined_ex.capture
 def latex_table(
     vals_filtered: ValsFiltered,
     pretty_models: Mapping[str, common_config.RewardCfg],
@@ -593,7 +595,7 @@ def latex_table(
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration has the associated short label.
 
-    For other arguments, see `table_combined`.
+    For other arguments, see `combined`.
     """
     for k, v in vals_filtered.items():
         v = vals_filtered[k]
@@ -646,7 +648,7 @@ def _timeseries_distances(
     return df
 
 
-class CustomCILinePlotter(sns.relational._LinePlotter):
+class CustomCILinePlotter(sns.relational._LinePlotter):  # pylint:disable=protected-access
     """
     LinePlotter supporting custom confidence interval width.
 
@@ -669,7 +671,7 @@ class CustomCILinePlotter(sns.relational._LinePlotter):
         return grouper, vals, y_ci
 
 
-@table_combined_ex.capture
+@combined_ex.capture
 def distance_over_time(
     vals_filtered: ValsFiltered,
     pretty_models: Mapping[str, common_config.RewardCfg],
@@ -688,7 +690,7 @@ def distance_over_time(
 
     with stylesheets.setup_styles(styles):
         fig, ax = plt.subplots(1, 1)
-        variables = sns.relational._LinePlotter.get_semantics(
+        variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
             dict(x="Progress", y="Distance", hue="Label", style="Algorithm", size=None, units=None),
         )
         plotter = CustomCILinePlotter(
@@ -698,10 +700,10 @@ def distance_over_time(
             upper=upper,
             legend="auto",
         )
-        plotter.map_hue(palette=None, order=None, norm=None)
-        plotter.map_size(sizes=None, order=None, norm=None)
-        plotter.map_style(markers=True, dashes=True, order=None)
-        plotter._attach(ax)
+        plotter.map_hue(palette=None, order=None, norm=None)  # pylint:disable=no-member
+        plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member
+        plotter.map_style(markers=True, dashes=True, order=None)  # pylint:disable=no-member
+        plotter._attach(ax)  # pylint:disable=protected-access
         plotter.plot(ax, {})
 
         plt.xlabel("Training Progress (%)")
@@ -710,8 +712,8 @@ def distance_over_time(
         visualize.save_fig(os.path.join(log_dir, "timeseries"), fig)
 
 
-@table_combined_ex.main
-def table_combined(
+@combined_ex.main
+def combined(
     vals_paths: Sequence[str],
     log_dir: str,
     distance_kinds: Tuple[str],
@@ -772,4 +774,4 @@ def table_combined(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(table_combined_ex, "table_combined")
+    script_utils.experiment_main(combined_ex, "combined")

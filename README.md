@@ -108,7 +108,7 @@ section 6.3 "Sensitivity of reward distance to visitation state distribution", y
 
 ```bash
 ./runners/transfer_point_maze.sh
-python -m evaluating_rewards.analysis.dissimilarity_heatmaps.table_combined with point_maze_learned high_precision
+python -m evaluating_rewards.analysis.dissimilarity_heatmaps.combined with point_maze_learned high_precision
 ```
 
 The first script, `transfer_point_maze.sh`, 0) trains a synthetic expert policy using RL on the
@@ -117,7 +117,7 @@ via preference comparison and regression with labels from the ground-truth rewar
 NPEC distance of these rewards from the ground-truth; 2b) trains policies using RL on the learned
 reward models; 3) evaluates the resulting policies.
 
-The second script, `table_combined`, generates a table and also computes the EPIC and ERC distances
+The second script, `combined`, generates a table and also computes the EPIC and ERC distances
 of the learned reward models from the ground truth.
 
 ## License

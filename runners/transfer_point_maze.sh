@@ -72,7 +72,7 @@ wait
 
 # Step 2) Evaluate Reward Models with Distance Metrics
 
-python -m evaluating_rewards.scripts.distances.table_combined with point_maze_learned_good high_precision
+python -m evaluating_rewards.scripts.distances.combined with point_maze_learned_good high_precision
 
 # Step 3) Train Policies on Learnt Reward Models
 
