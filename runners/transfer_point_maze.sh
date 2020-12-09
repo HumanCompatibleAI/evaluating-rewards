@@ -72,10 +72,7 @@ wait
 
 # Step 2) Evaluate Reward Models with Distance Metrics
 
-for cmd in epic npec erc; do
-  python -m evaluating_rewards.scripts.distances.${cmd} with \
-      ${NAMED_CONFIG} ${COMPARISON_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/distance/${cmd}
-done
+python -m evaluating_rewards.scripts.distances.table_combined with point_maze_learned_good high_precision
 
 # Step 3) Train Policies on Learnt Reward Models
 
