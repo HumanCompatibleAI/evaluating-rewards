@@ -314,9 +314,14 @@ def _filter_key(k: str) -> Optional[str]:
 def tabulate_stats(stats: Mapping[str, Sequence[Mapping[str, Any]]]) -> str:
     """Pretty-prints the statistics in `stats` in a table."""
     res = []
-    for (env_name, reward_type), vs in stats.items():
+    for (env_name, (reward_type, reward_path)), vs in stats.items():
         for seed, x in enumerate(vs):
-            row = {"env_name": env_name, "reward_type": reward_type, "seed": seed}
+            row = {
+                "env_name": env_name,
+                "reward_type": reward_type,
+                "reward_path": reward_path,
+                "seed": seed,
+            }
             row.update(x)
 
             filtered_row = {}
