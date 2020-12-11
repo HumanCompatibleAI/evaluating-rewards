@@ -75,7 +75,7 @@ def point_maze_learned_checkpoint_cfgs(
         cfgs = [(kind, path) for path in paths]
 
         if target_num and len(cfgs) > target_num:
-            subsample = max(1, math.floor(len(cfgs) / target_num))
+            subsample = math.floor(len(cfgs) / target_num)
             cfgs = cfgs[::subsample]
             assert target_num <= len(cfgs) <= 2 * target_num
 

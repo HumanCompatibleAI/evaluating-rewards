@@ -47,10 +47,9 @@ def logging_config(log_root, env_name):
     del _
 
 
-Callback = Callable[[int], None]
 MakeModelFn = Callable[[vec_env.VecEnv], T]
 MakeTrainerFn = Callable[[base.RewardModel, tf.VariableScope, base.RewardModel], T]
-DoTrainingFn = Callable[[base.RewardModel, T, Optional[Callback]], V]
+DoTrainingFn = Callable[[base.RewardModel, T, Optional[base.Callback]], V]
 
 
 def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> base.RewardModel:

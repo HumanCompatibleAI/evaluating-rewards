@@ -20,7 +20,18 @@ import abc
 import itertools
 import os
 import pickle
-from typing import Dict, Iterable, Mapping, NamedTuple, Optional, Sequence, Tuple, Type, TypeVar
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 import gym
 from imitation.data import rollout, types
@@ -31,6 +42,7 @@ import scipy.optimize
 from stable_baselines.common import input as env_in  # avoid name clash
 import tensorflow as tf
 
+Callback = Callable[[int], None]
 K = TypeVar("K")
 
 

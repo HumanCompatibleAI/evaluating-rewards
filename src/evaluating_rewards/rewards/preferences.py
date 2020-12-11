@@ -24,7 +24,7 @@ regularization based on validation accuracy.
 
 import logging
 import math
-from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Sequence, Type
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Sequence, Type
 
 from imitation.data import rollout, types
 import numpy as np
@@ -338,7 +338,7 @@ class PreferenceComparisonTrainer:
         target: base.RewardModel,
         trajectory_length: int,
         total_comparisons: int,
-        callback: Optional[Callable[[int], None]] = None,
+        callback: Optional[base.Callback] = None,
     ) -> pd.DataFrame:
         """Trains using synthetic comparisons from target.
 

@@ -123,7 +123,7 @@ def fit_models(
     total_timesteps: int,
     batch_size: int,
     log_interval: int = 10,
-    callback: Optional[Callable[[int], None]] = None,
+    callback: Optional[base.Callback] = None,
 ) -> Mapping[str, List[Mapping[K, Any]]]:
     """Regresses model(s).
 

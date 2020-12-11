@@ -101,7 +101,7 @@ def train_regress(
             del model_scope
             return comparisons.RegressModel(model, target, learning_rate=learning_rate)
 
-        def do_training(target, trainer, callback: Optional[regress_utils.Callback]):
+        def do_training(target, trainer, callback: Optional[base.Callback]):
             del target
             return trainer.fit(
                 dataset_generator,
