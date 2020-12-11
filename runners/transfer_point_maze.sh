@@ -73,3 +73,5 @@ wait
 
 python -m evaluating_rewards.scripts.pipeline.combined with point_maze_learned_good high_precision \
     log_dir=${PM_OUTPUT}/distances/
+python -m evaluating_rewards.scripts.pipeline.combined with point_maze_learned_pathological high_precision \
+    log_dir=${PM_OUTPUT}/distances_pathological/
