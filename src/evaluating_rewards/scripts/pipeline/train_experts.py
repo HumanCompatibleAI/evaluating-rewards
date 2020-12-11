@@ -28,7 +28,6 @@ import sacred
 import tabulate
 
 from evaluating_rewards import serialize
-from evaluating_rewards.distances import common_config
 from evaluating_rewards.experiments import env_rewards
 from evaluating_rewards.scripts import script_utils
 from evaluating_rewards.scripts.rl import rl_common
@@ -90,60 +89,20 @@ def ground_truth():
     del _
 
 
-# TODO(adam): remove except for WrongTarget? this is redundant with table_combined?
 @experts_ex.named_config
-def point_maze_pathologicals():
-    """Train RL policies on the "wrong" rewards in PointMaze."""
+def point_maze_wrong_target():
+    """Train RL policies on a "wrong" reward in PointMaze to get a bad visitation distribution."""
     configs = {
         env: {
-            reward: {"dummy": dict(rl_common.CONFIG_BY_ENV[env])}
-            for reward in (
-                # Repellent and BetterGoal we just want to report the policy return
-                "evaluating_rewards/PointMazeRepellentWithCtrl-v0",
-                "evaluating_rewards/PointMazeBetterGoalWithCtrl-v0",
-                # We use WrongTarget expert for a visitation distribution
-                "evaluating_rewards/PointMazeWrongTargetWithCtrl-v0",
-            )
+            "evaluating_rewards/PointMazeWrongTargetWithCtrl-v0": {
+                "dummy": dict(rl_common.CONFIG_BY_ENV[env])
+            }
         }
         for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0")
     }
-    run_tag = "point_maze_pathologicals"
+    run_tag = "point_maze_wrong_target"
     _ = locals()
     del _
-
-
-# TODO(adam): remove? this is redundant with distances.rollout?
-def _point_maze_learned(fast_config: bool):
-    """Train RL policies on learned rewards in PointMaze."""
-    suffix = "_fast" if fast_config else ""
-    configs = {}
-    for env in ("imitation/PointMazeLeftVel-v0", "imitation/PointMazeRightVel-v0"):
-        configs[env] = {}
-        for reward_type, reward_path in common_config.point_maze_learned_cfgs(
-            f"transfer_point_maze{suffix}"
-        ):
-            configs[env].setdefault(reward_type, {})[reward_path] = dict(
-                rl_common.CONFIG_BY_ENV[env]
-            )
-
-    return dict(
-        configs=configs,
-        # Increase from default number of evaluation episodes since we actually report statistics,
-        # not just use them to pick the best seed. (Note there may be a slight optimizer's curse
-        # here biasing these numbers upward, since we report numbers from the best seed and do not
-        # re-evaluate, but it should be small given large number of episodes plus the fact we pick
-        # seed with best learned reward but report the ground-truth reward.)
-        global_configs={
-            "config_updates": {
-                "n_episodes_eval": 1000,
-            }
-        },
-        run_tag=f"point_maze_learned{suffix}",
-    )
-
-
-experts_ex.add_named_config("point_maze_learned", _point_maze_learned(fast_config=False))
-experts_ex.add_named_config("point_maze_learned_fast", _point_maze_learned(fast_config=True))
 
 
 @experts_ex.named_config
