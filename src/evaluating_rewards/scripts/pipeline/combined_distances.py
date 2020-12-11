@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to analyse combined EPIC, NPEC and ERC distances from a reward model.
+"""
+CLI script to compute EPIC, NPEC and ERC distances from a reward model.
 
-Can output a table (all cases), or a lineplot (for timeseries over checkpoints)."""
+Writes raw distances to a pickle file. Also supports summmarizing to a LaTeX table (default),
+or a lineplot (only for timeseries over checkpoints).
+"""
 
 import copy
 import functools
@@ -23,7 +26,7 @@ import logging
 import os
 import pickle
 import re
-from typing import Any, Callable, Iterable, Mapping, Sequence, Tuple, TypeVar
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from imitation.util import util as imit_util
 import matplotlib.pyplot as plt
@@ -36,22 +39,30 @@ from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.distances import aggregated
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.distances import epic, erc, npec
+from evaluating_rewards.scripts.distances import epic, erc, npec, rollout_return
 
 Vals = Mapping[Tuple[str, str], Any]
 ValsFiltered = Mapping[str, Mapping[Tuple[str, str], pd.Series]]
+DistanceFnMapping = Mapping[str, Callable[..., sacred.run.Run]]
 
-combined_ex = sacred.Experiment("combined")
-logger = logging.getLogger("evaluating_rewards.analysis.distances.combined")
+combined_distances_ex = sacred.Experiment("combined_distances")
+logger = logging.getLogger("evaluating_rewards.scripts.pipeline.combined_distances")
+
+DISTANCE_EXS = {
+    "npec": npec.npec_distance_ex,
+    "epic": epic.epic_distance_ex,
+    "erc": erc.erc_distance_ex,
+    "rl": rollout_return.rollout_distance_ex,
+}
 
 
-@combined_ex.config
+@combined_distances_ex.config
 def default_config():
     """Default configuration for combined."""
     vals_paths = []
     log_root = serialize.get_output_dir()  # where results are read from/written to
-    distance_kinds = ("epic", "npec", "erc")
-    experiment_kinds = ()
+    experiment_kinds = {}
+    distance_kinds_order = ("epic", "npec", "erc", "rl")
     config_updates = {}  # config updates applied to all subcommands
     named_configs = {}
     skip = {}
@@ -66,12 +77,12 @@ def default_config():
     del _
 
 
-@combined_ex.config
+@combined_distances_ex.config
 def logging_config(log_root, tag):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
-        "combined",
+        "combined_distances",
         tag,
         imit_util.make_unique_timestamp(),
     )
@@ -119,11 +130,12 @@ def _make_visitations_config_updates(method):
 
 _POINT_MAZE_EXPERT = (
     f"{serialize.get_output_dir()}/train_experts/ground_truth/20201203_105631_297835/"
-    "imitation_PointMazeLeftVel-v0/evaluating_rewards_PointMazeGroundTruthWithCtrl-v0/best/"
+    "imitation_PointMazeLeftVel-v0/evaluating_rewards_PointMazeGroundTruthWithCtrl-v0/"
+    "best/policies/final/"
 )
 
 
-@combined_ex.named_config
+@combined_distances_ex.named_config
 def point_maze_learned_good():
     """Compare rewards learned in PointMaze to the ground-truth reward.
 
@@ -133,7 +145,8 @@ def point_maze_learned_good():
     # SOMEDAY(adam): this ignores `log_root` and uses `serialize.get_output_dir()`
     # No way to get `log_root` in a named config due to Sacred config limitations.
     locals().update(**POINT_MAZE_LEARNED_COMMON)
-    experiment_kinds = ("random", "expert", "mixture")
+    experiment_kinds = {k: ("random", "expert", "mixture") for k in ("epic", "npec", "erc")}
+    experiment_kinds["rl"] = ("train", "test")
     config_updates = _make_visitations_config_updates(
         {
             "random": {
@@ -151,16 +164,23 @@ def point_maze_learned_good():
             "global": {"env_name": "imitation/PointMazeLeftVel-v0"},
         }
     )
+    config_updates["rl"] = {
+        "train": {"env_name": "imitation/PointMazeLeftVel-v0"},
+        "test": {"env_name": "imitation/PointMazeRightVel-v0"},
+    }
     tag = "point_maze_learned"
     _ = locals()
     del _
 
 
-@combined_ex.named_config
+@combined_distances_ex.named_config
 def point_maze_learned_pathological():
     """Compare PointMaze rewards under pathological distributions."""
     locals().update(**POINT_MAZE_LEARNED_COMMON)
-    experiment_kinds = ("random_policy_permuted", "iid", "small", "wrong")
+    distance_kinds_order = ("epic", "npec", "erc")
+    experiment_kinds = {
+        k: ("random_policy_permuted", "iid", "small", "wrong") for k in distance_kinds_order
+    }
     config_updates = _make_visitations_config_updates(
         {
             "random_policy_permuted": {
@@ -209,7 +229,7 @@ def point_maze_learned_pathological():
     del _
 
 
-@combined_ex.named_config
+@combined_distances_ex.named_config
 def point_maze_checkpoints():
     """Compare rewards learned in PointMaze to the ground-truth reward over time.
 
@@ -224,7 +244,8 @@ def point_maze_checkpoints():
             "global": ("point_maze_checkpoints",),
         }
     }
-    experiment_kinds = ("mixture",)
+    experiment_kinds = {k: ("mixture",) for k in ("epic", "npec", "erc")}
+    experiment_kinds["rl"] = ("train", "test")
     config_updates = _make_visitations_config_updates(
         {
             "mixture": {
@@ -234,13 +255,17 @@ def point_maze_checkpoints():
             "global": {"env_name": "imitation/PointMazeLeftVel-v0"},
         }
     )
+    config_updates["rl"] = {
+        "train": {"env_name": "imitation/PointMazeLeftVel-v0"},
+        "test": {"env_name": "imitation/PointMazeRightVel-v0"},
+    }
     tag = "point_maze_checkpoints"
     output_fn = distance_over_time
     _ = locals()
     del _
 
 
-@combined_ex.named_config
+@combined_distances_ex.named_config
 def high_precision():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
         "precision": {
@@ -249,10 +274,10 @@ def high_precision():
     }
 
 
-@combined_ex.named_config
+@combined_distances_ex.named_config
 def test():
     """Simple, quick config for unit testing."""
-    experiment_kinds = ("test",)
+    experiment_kinds = {k: ("test",) for k in ("epic", "npec", "erc", "rl")}
     target_reward_type = "evaluating_rewards/PointMassGroundTruth-v0"
     target_reward_path = "dummy"
     named_configs = {
@@ -263,7 +288,7 @@ def test():
             k: {
                 "test": ("test",),
             }
-            for k in ("epic", "npec", "erc")
+            for k in ("epic", "npec", "erc", "rl")
         },
     }
     pretty_models = {
@@ -277,22 +302,7 @@ def test():
     del _
 
 
-@combined_ex.named_config
-def epic_only():
-    distance_kinds = ("epic",)  # noqa: F841  pylint:disable=unused-variable
-
-
-@combined_ex.named_config
-def npec_only():
-    distance_kinds = ("npec",)  # noqa: F841  pylint:disable=unused-variable
-
-
-@combined_ex.named_config
-def erc_only():
-    distance_kinds = ("erc",)  # noqa: F841  pylint:disable=unused-variable
-
-
-@combined_ex.named_config
+@combined_distances_ex.named_config
 def fast():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
         "precision": {"global": ("fast",)}
@@ -376,8 +386,7 @@ def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
     pretty_models: Mapping[str, common_config.RewardCfg],
-    distance_kinds: Tuple[str],
-    experiment_kinds: Tuple[str],
+    experiment_kinds: Mapping[str, Tuple[str]],
 ) -> str:
     """Generate LaTeX table.
 
@@ -386,7 +395,6 @@ def make_table(
         vals: A Mapping from (distance, visitation) to a Series of values.
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration is given the associated short label.
-        distance_kinds: The distance metrics to compare with.
         experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
     """
     y_reward_cfgs = common_keys(vals.values())
@@ -396,8 +404,8 @@ def make_table(
         cols = []
         label = _pretty_label(model, pretty_models)
         row = f"{label} & & "
-        for distance in distance_kinds:
-            for visitation in experiment_kinds:
+        for distance, experiments in experiment_kinds.items():
+            for visitation in experiments:
                 k = (distance, visitation)
                 if k in vals:
                     val = vals[k].loc[model]
@@ -422,11 +430,10 @@ def make_table(
     return " \\\\\n".join(rows)
 
 
-@combined_ex.capture
+@combined_distances_ex.capture
 def _input_validation(
-    experiments: Mapping[str, sacred.Experiment],
-    experiment_kinds: Tuple[str],
-    distance_kinds: Tuple[str],
+    experiment_kinds: Mapping[str, Tuple[str]],
+    distance_kinds_order: Optional[Sequence[str]],
     config_updates: Mapping[str, Any],
     named_configs: Mapping[str, Mapping[str, Any]],
     skip: Mapping[str, Mapping[str, bool]],
@@ -436,20 +443,38 @@ def _input_validation(
     See `combined` for args definition."""
     if not experiment_kinds:
         raise ValueError("Empty `experiment_kinds`.")
-    if not distance_kinds:
-        raise ValueError("Empty `distance_kinds`.")
 
-    for ex_key in experiments.keys():
-        for kind in experiment_kinds:
-            skipped = kind in skip.get(ex_key, ())
-            update_local = config_updates.get(ex_key, {}).get(kind, {})
-            named_local = named_configs.get(ex_key, {}).get(kind, ())
+    if distance_kinds_order:
+        if len(distance_kinds_order) != len(experiment_kinds):
+            raise ValueError(
+                f"Order '{distance_kinds_order}' is different length"
+                f" to keys '{experiment_kinds.keys()}"
+            )
+
+        if set(distance_kinds_order) != set(experiment_kinds.keys()):
+            raise ValueError(
+                f"Order '{distance_kinds_order}' is different set"
+                f" to keys '{experiment_kinds.keys()}"
+            )
+
+        experiment_kinds = {k: experiment_kinds[k] for k in distance_kinds_order}
+
+    for dist_key, experiments in experiment_kinds.items():
+        if dist_key not in DISTANCE_EXS:
+            raise ValueError(f"Unrecognized distance '{dist_key}'.")
+
+        for kind in experiments:
+            skipped = kind in skip.get(dist_key, ())
+            update_local = config_updates.get(dist_key, {}).get(kind, {})
+            named_local = named_configs.get(dist_key, {}).get(kind, ())
             configured = update_local or named_local
 
             if configured and skipped:
-                raise ValueError(f"Skipping ({ex_key}, {kind}) that is configured.")
+                raise ValueError(f"Skipping ({dist_key}, {kind}) that is configured.")
             if not configured and not skipped:
-                raise ValueError(f"({ex_key}, {kind}) unconfigured but not skipped.")
+                raise ValueError(f"({dist_key}, {kind}) unconfigured but not skipped.")
+
+    return experiment_kinds
 
 
 def load_vals(vals_paths: Sequence[str]) -> Vals:
@@ -479,10 +504,9 @@ def load_vals(vals_paths: Sequence[str]) -> Vals:
     return vals
 
 
-@combined_ex.capture
+@combined_distances_ex.capture
 def compute_vals(
-    experiments: Mapping[str, sacred.Experiment],
-    experiment_kinds: Tuple[str],
+    experiment_kinds: Mapping[str, Tuple[str]],
     config_updates: Mapping[str, Any],
     named_configs: Mapping[str, Mapping[str, Any]],
     skip: Mapping[str, Mapping[str, bool]],
@@ -492,7 +516,6 @@ def compute_vals(
     Run experiments to compute distance values.
 
     Args:
-        experiments: Mapping from an experiment kind to a sacred.Experiment to run.
         experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
         config_updates: Config updates to apply. Hierarchically specified by algorithm and
             experiment kind. "global" may be specified at top-level (applies to all algorithms)
@@ -506,17 +529,18 @@ def compute_vals(
             does not support a particular configuration).
         log_dir: The directory to write tables and other logging to.
     """
-    runs = {}
-    for ex_key, ex in experiments.items():
-        for kind in experiment_kinds:
-            if kind in skip.get(ex_key, ()):
-                logging.info(f"Skipping ({ex_key}, {kind})")
+    res = {}
+    for dist_key, experiments in experiment_kinds.items():
+        dist_ex = DISTANCE_EXS[dist_key]
+        for kind in experiments:
+            if kind in skip.get(dist_key, ()):
+                logging.info(f"Skipping ({dist_key}, {kind})")
                 continue
 
             local_updates = [
                 config_updates.get("global", {}),
-                config_updates.get(ex_key, {}).get("global", {}),
-                config_updates.get(ex_key, {}).get(kind, {}),
+                config_updates.get(dist_key, {}).get("global", {}),
+                config_updates.get(dist_key, {}).get(kind, {}),
             ]
             local_updates = [copy.deepcopy(cfg) for cfg in local_updates]
             local_updates = functools.reduce(
@@ -526,15 +550,17 @@ def compute_vals(
 
             if "log_dir" in local_updates:
                 raise ValueError("Cannot override `log_dir`.")
-            local_updates["log_dir"] = os.path.join(log_dir, ex_key, kind)
+            local_updates["log_dir"] = os.path.join(log_dir, dist_key, kind)
 
             local_named = tuple(named_configs.get("global", ()))
-            local_named += tuple(named_configs.get(ex_key, {}).get("global", ()))
-            local_named += tuple(named_configs.get(ex_key, {}).get(kind, ()))
+            local_named += tuple(named_configs.get(dist_key, {}).get("global", ()))
+            local_named += tuple(named_configs.get(dist_key, {}).get(kind, ()))
 
-            logger.info(f"Running ({ex_key}, {kind}): {local_updates} plus {local_named}")
-            runs[(ex_key, kind)] = ex.run(config_updates=local_updates, named_configs=local_named)
-    return {k: run.result for k, run in runs.items()}
+            logger.info(f"Running ({dist_key}, {kind}): {local_updates} plus {local_named}")
+            run = dist_ex.run(config_updates=local_updates, named_configs=local_named)
+            res[(dist_key, kind)] = run.result
+
+    return res
 
 
 def _canonicalize_cfg(cfg: common_config.RewardCfg) -> common_config.RewardCfg:
@@ -542,7 +568,7 @@ def _canonicalize_cfg(cfg: common_config.RewardCfg) -> common_config.RewardCfg:
     return kind, results.canonicalize_data_root(path)
 
 
-@combined_ex.capture
+@combined_distances_ex.capture
 def filter_values(
     vals: Vals,
     target_reward_type: str,
@@ -579,13 +605,12 @@ def filter_values(
     return vals_filtered
 
 
-@combined_ex.capture
+@combined_distances_ex.capture
 def latex_table(
     vals_filtered: ValsFiltered,
     pretty_models: Mapping[str, common_config.RewardCfg],
     log_dir: str,
-    distance_kinds: Tuple[str],
-    experiment_kinds: Tuple[str],
+    experiment_kinds: Mapping[str, Tuple[str]],
 ) -> None:
     """
     Writes tables of data from `vals_filtered`.
@@ -602,7 +627,7 @@ def latex_table(
         path = os.path.join(log_dir, f"{k}.csv")
         logger.info(f"Writing table to '{path}'")
         with open(path, "wb") as f:
-            table = make_table(k, v, pretty_models, distance_kinds, experiment_kinds)
+            table = make_table(k, v, pretty_models, experiment_kinds)
             f.write(table.encode())
 
 
@@ -671,7 +696,7 @@ class CustomCILinePlotter(sns.relational._LinePlotter):  # pylint:disable=protec
         return grouper, vals, y_ci
 
 
-@combined_ex.capture
+@combined_distances_ex.capture
 def distance_over_time(
     vals_filtered: ValsFiltered,
     pretty_models: Mapping[str, common_config.RewardCfg],
@@ -712,12 +737,11 @@ def distance_over_time(
         visualize.save_fig(os.path.join(log_dir, "timeseries"), fig)
 
 
-@combined_ex.main
-def combined(
+@combined_distances_ex.main
+def combined_distances(
     vals_paths: Sequence[str],
     log_dir: str,
-    distance_kinds: Tuple[str],
-    experiment_kinds: Tuple[str],
+    experiment_kinds: Mapping[str, Tuple[str]],
     named_configs: Mapping[str, Mapping[str, Any]],
     output_fn: Callable[[ValsFiltered], None],
 ) -> None:
@@ -728,7 +752,6 @@ def combined(
             if non-empty. This is useful for regenerating tables in a new style from old data,
             including combining results from multiple previous runs.
         log_dir: The directory to write tables and other logging to.
-        distance_kinds: The distance metrics to compare with.
         experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
         named_configs: Named configs to apply. First key is a namespace which has no semantic
             meaning, but should be unique for each Sacred config scope. Second key is the algorithm
@@ -737,22 +760,13 @@ def combined(
             using `recursive_dict_merge`.
         output_fn: Function to call to generate saved output.
     """
-    experiments = {
-        "npec": npec.npec_distance_ex,
-        "epic": epic.epic_distance_ex,
-        "erc": erc.erc_distance_ex,
-    }
-    experiments = {k: experiments[k] for k in distance_kinds}
-
     # Merge named_configs. We have a faux top-level layer to workaround Sacred being unable to
     # have named configs build on top of each others definitions in a particular order.
     named_configs = [copy.deepcopy(cfg) for cfg in named_configs.values()]
     named_configs = functools.reduce(script_utils.recursive_dict_merge, named_configs)
 
-    _input_validation(  # pylint:disable=no-value-for-parameter
-        experiments,
+    experiment_kinds = _input_validation(  # pylint:disable=no-value-for-parameter
         experiment_kinds,
-        distance_kinds,
         named_configs=named_configs,
     )
 
@@ -760,7 +774,7 @@ def combined(
         vals = load_vals(vals_paths)
     else:
         vals = compute_vals(  # pylint:disable=no-value-for-parameter
-            experiments=experiments, named_configs=named_configs
+            experiment_kinds=experiment_kinds, named_configs=named_configs
         )
 
         with open(os.path.join(log_dir, "vals.pkl"), "wb") as f:
@@ -774,4 +788,4 @@ def combined(
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(combined_ex, "combined")
+    script_utils.experiment_main(combined_distances_ex, "combined_distances")

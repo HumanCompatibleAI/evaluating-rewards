@@ -71,12 +71,5 @@ wait
 
 # Step 2) Evaluate Reward Models with Distance Metrics
 
-python -m evaluating_rewards.analysis.distances.combined with point_maze_learned_good high_precision \
+python -m evaluating_rewards.scripts.pipeline.combined with point_maze_learned_good high_precision \
     log_dir=${PM_OUTPUT}/distances/
-
-# Step 3) Train Policies on Learnt Reward Models
-
-python -m evaluating_rewards.scripts.pipeline.train_experts with \
-    ${NAMED_CONFIG} ${TRAIN_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/policy_learned
-
-wait
