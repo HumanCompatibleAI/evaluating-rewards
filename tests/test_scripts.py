@@ -23,7 +23,7 @@ import xarray as xr
 
 from evaluating_rewards.analysis.distances import plot_gridworld_heatmap, plot_heatmap
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
-from evaluating_rewards.scripts.distances import epic, erc, npec
+from evaluating_rewards.scripts.distances import epic, erc, npec, rollout_return
 from evaluating_rewards.scripts.pipeline import combined_distances, train_experts
 from evaluating_rewards.scripts.rewards import train_preferences, train_regress
 from tests import common
@@ -68,6 +68,7 @@ EXPERIMENTS = {
     ),
     "erc_distance": (erc.erc_distance_ex, dict, [], {}, _check_distance_return),
     "npec_distance": (npec.npec_distance_ex, dict, [], {}, _check_distance_return),
+    "rollout_distance": (rollout_return.rollout_distance_ex, dict, [], {}, _check_distance_return),
     "npec_distance_alternating": (
         npec.npec_distance_ex,
         dict,

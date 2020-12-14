@@ -151,20 +151,26 @@ def compute_returns(
 
 @rollout_distance_ex.capture
 def compute_vals(
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
     aggregate_fns: Mapping[str, common.AggregateFn],
     log_dir: str,
 ) -> common_config.AggregatedDistanceReturn:
     """Computes mean returns for policies trained on `y_reward_cfgs` evaluated on `x_reward_cfgs`.
 
     Args:
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
         aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
         log_dir: directory to save data to.
 
     Returns:
         Nested dictionary of aggregated return values.
     """
-    stats = do_training()  # pylint:disable=no-value-for-parameter
-    dissimilarities = compute_returns(stats)  # pylint:disable=no-value-for-parameter
+    stats = do_training(y_reward_cfgs=y_reward_cfgs)  # pylint:disable=no-value-for-parameter
+    dissimilarities = compute_returns(  # pylint:disable=no-value-for-parameter
+        stats, x_reward_cfgs=x_reward_cfgs, y_reward_cfgs=y_reward_cfgs
+    )
     logger.info("Saving raw dissimilarities")
     with open(os.path.join(log_dir, "dissimilarities.pkl"), "wb") as f:
         pickle.dump(dissimilarities, f)
