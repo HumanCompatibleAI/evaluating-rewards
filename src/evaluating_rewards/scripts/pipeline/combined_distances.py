@@ -49,16 +49,16 @@ combined_distances_ex = sacred.Experiment("combined_distances")
 logger = logging.getLogger("evaluating_rewards.scripts.pipeline.combined_distances")
 
 DISTANCE_EXS = {
-    "npec": npec.npec_distance_ex,
     "epic": epic.epic_distance_ex,
     "erc": erc.erc_distance_ex,
+    "npec": npec.npec_distance_ex,
     "rl": rollout_return.rollout_distance_ex,
 }
 
 
 @combined_distances_ex.config
 def default_config():
-    """Default configuration for combined."""
+    """Default configuration for combined_distances."""
     vals_paths = []
     log_root = serialize.get_output_dir()  # where results are read from/written to
     experiment_kinds = {}
@@ -104,16 +104,16 @@ POINT_MAZE_LEARNED_COMMON = {
         ),
         r"\preferencesmethod{}": (
             "evaluating_rewards/RewardModel-v0",
-            "(.*/)?transfer_point_maze(_fast)?/reward/preferences/checkpoints/(final|[0-9]+)",
+            r"(.*/)?transfer_point_maze(_fast)?/reward/preferences/checkpoints/(final|[0-9]+)",
         ),
         r"\airlstateonlymethod{}": (
             "imitation/RewardNet_unshaped-v0",
-            "(.*/)?transfer_point_maze(_fast)?/reward/irl_state_only/checkpoints/(final|[0-9]+)"
+            r"(.*/)?transfer_point_maze(_fast)?/reward/irl_state_only/checkpoints/(final|[0-9]+)"
             "/discrim/reward_net",
         ),
         r"\airlstateactionmethod{}": (
             "imitation/RewardNet_unshaped-v0",
-            "(.*/)?transfer_point_maze(_fast)?/reward/irl_state_action/checkpoints/(final|[0-9]+)"
+            r"(.*/)?transfer_point_maze(_fast)?/reward/irl_state_action/checkpoints/(final|[0-9]+)"
             "/discrim/reward_net",
         ),
     },
@@ -249,10 +249,10 @@ def point_maze_checkpoints():
     config_updates = _make_visitations_config_updates(
         {
             "mixture": {
+                "env_name": "imitation/PointMazeLeftVel-v0",
                 "policy_type": "mixture",
                 "policy_path": f"0.05:random:dummy:ppo2:{_POINT_MAZE_EXPERT}",
             },
-            "global": {"env_name": "imitation/PointMazeLeftVel-v0"},
         }
     )
     config_updates["rl"] = {
@@ -375,7 +375,8 @@ def _pretty_label(
     label = None
     for search_label, (search_kind, search_pattern) in pretty_models.items():
         if kind == search_kind and re.match(search_pattern, path):
-            assert label is None
+            if label is not None:
+                raise ValueError(f"Duplicate match for '{cfg}' in '{pretty_models}'")
             label = search_label
     if label is None:
         raise ValueError(f"Did not find '{cfg}' in '{pretty_models}'")
@@ -461,13 +462,13 @@ def _get_sorted_experiment_kinds(
         if len(distance_kinds_order) != len(experiment_kinds):
             raise ValueError(
                 f"Order '{distance_kinds_order}' is different length"
-                f" to keys '{experiment_kinds.keys()}"
+                f" to keys '{experiment_kinds.keys()}'."
             )
 
         if set(distance_kinds_order) != set(experiment_kinds.keys()):
             raise ValueError(
                 f"Order '{distance_kinds_order}' is different set"
-                f" to keys '{experiment_kinds.keys()}"
+                f" to keys '{experiment_kinds.keys()}'."
             )
 
         experiment_kinds = {k: experiment_kinds[k] for k in distance_kinds_order}
@@ -558,7 +559,7 @@ def compute_vals(
         dist_ex = DISTANCE_EXS[dist_key]
         for kind in experiments:
             if kind in skip.get(dist_key, ()):
-                logging.info(f"Skipping ({dist_key}, {kind})")
+                logger.info(f"Skipping ({dist_key}, {kind})")
                 continue
 
             local_updates = [
@@ -642,8 +643,7 @@ def latex_table(
         vals_filtered: Filtered values returned by `filter_values`.
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration has the associated short label.
-
-    For other arguments, see `combined`.
+        log_dir: Directory to write table to.
     """
     for k, v in vals_filtered.items():
         v = vals_filtered[k]
