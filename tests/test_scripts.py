@@ -105,7 +105,7 @@ EXPERIMENTS = {
         None,
     ),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}, None),
-    "combined": (combined_distances.combined_distances_ex, type(None), [], {}, None),
+    "combined_distances": (combined_distances.combined_distances_ex, type(None), [], {}, None),
     "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}, None),
     "regress": (train_regress.train_regress_ex, dict, [], {}, None),
     "train_experts": (train_experts.experts_ex, dict, [], {}, None),

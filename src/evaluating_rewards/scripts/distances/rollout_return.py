@@ -43,7 +43,7 @@ rl_common.make_config(rollout_distance_ex)
 @rollout_distance_ex.config
 def default_config():
     """Default configuration values."""
-    discount = 0.99  # discount rate for shaping
+    discount = 0.99  # discount rate when calculating return
     _ = locals()
     del _
 
@@ -53,7 +53,7 @@ def logging_config(env_name, discount, log_root):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
-        "epic",
+        "rollout_distance",
         env_name,
         f"discount{discount}",
         imit_util.make_unique_timestamp(),
@@ -83,27 +83,22 @@ def do_training(
 
     Args:
         ray_kwargs: Passed through to `ray.init`.
-        num_cpus_fudge_factor: factor by which to scale `num_vec` to compute CPU requirements.
-        global_configs: configuration to apply to all environment-reward pairs.
-        log_dir: directory to save data to.
-        env_name: the name of the environment to compare rewards for.
-        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        num_cpus_fudge_factor: Factor by which to scale `num_vec` to compute CPU requirements.
+        global_configs: Configuration to apply to all environment-reward pairs.
+        log_dir: Directory to save data to.
+        env_name: The name of the environment to compare rewards for.
+        y_reward_cfgs: Tuples of reward_type and reward_path for y-axis.
 
     Returns:
         Training statistics, including log directories.
     """
+    configs = {}
+    for reward_type, reward_path in y_reward_cfgs:
+        configs.setdefault(reward_type, {})[reward_path] = dict(rl_common.CONFIG_BY_ENV[env_name])
+    configs = {env_name: configs}
+
     ray.init(**ray_kwargs)
-
-    # Step 1: for each reward in y_reward_cfgs, train a policy for the specified
-    # number of seeds, and collect rollouts from it.
     try:
-        configs = {}
-        for reward_type, reward_path in y_reward_cfgs:
-            configs.setdefault(reward_type, {})[reward_path] = dict(
-                rl_common.CONFIG_BY_ENV[env_name]
-            )
-        configs = {env_name: configs}
-
         return rl_common.parallel_training(
             global_configs=global_configs,
             configs=configs,
@@ -126,16 +121,16 @@ def compute_returns(
 
     Args:
         stats: Training statistics, including log directory containing rollouts.
-        env_name: the name of the environment to compare rewards for.
-        discount: discount to use for reward models (mostly for shaping).
-        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
-        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        env_name: The name of the environment to compare rewards for.
+        discount: Discount to use for reward models (mostly for shaping).
+        x_reward_cfgs: Tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: Tuples of reward_type and reward_path for y-axis.
 
     Returns:
         Return of rollouts for each (x,y) reward configuration pair for each seed.
     """
     models, _g, sess = common.load_models_create_sess(env_name, discount, x_reward_cfgs)
-    dissimilarities = {}
+    mean_returns = {}
     for y_cfg in y_reward_cfgs:
         for _metrics, run_dir in stats[(env_name, y_cfg)]:
             rollout_path = os.path.join(run_dir, "rollouts", "final.pkl")
@@ -143,9 +138,9 @@ def compute_returns(
             with sess.as_default():
                 returns = base.compute_return_of_models(models, trajs, discount)
             for x_cfg, ret in returns.items():
-                mean_ret = np.mean(ret)
-                dissimilarities.setdefault((x_cfg, y_cfg), []).append(mean_ret)
-    return dissimilarities
+                mean_ret = float(np.mean(ret))
+                mean_returns.setdefault((x_cfg, y_cfg), []).append(mean_ret)
+    return mean_returns
 
 
 @rollout_distance_ex.capture
@@ -158,10 +153,10 @@ def compute_vals(
     """Computes mean returns for policies trained on `y_reward_cfgs` evaluated on `x_reward_cfgs`.
 
     Args:
-        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
-        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+        x_reward_cfgs: Tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: Tuples of reward_type and reward_path for y-axis.
         aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
-        log_dir: directory to save data to.
+        log_dir: Directory to save data to.
 
     Returns:
         Nested dictionary of aggregated return values.

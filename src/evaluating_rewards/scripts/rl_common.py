@@ -97,9 +97,9 @@ def make_config(experiment: sacred.Experiment) -> None:
     """Adds configs and named configs to `experiment`.
 
     The standard config parameters it defines are:
-        - ray_kwargs (dict): passed to `ray.init`.
-        - num_cpus_fudge_factor (float): used by `parallel_training` to calculate CPU reservation.
-        - global_configs (dict): used as a basis for `expert_demos_ex.run` keyword arguments.
+        - ray_kwargs (dict): Passed to `ray.init`.
+        - num_cpus_fudge_factor (float): Used by `parallel_training` to calculate CPU reservation.
+        - global_configs (dict): Used as a basis for `expert_demos_ex.run` keyword arguments.
     """
 
     # pylint: disable=unused-variable
@@ -117,8 +117,8 @@ def make_config(experiment: sacred.Experiment) -> None:
                 # Save a very large rollout so that:
                 # (a) IRL algorithms will have plenty of data.
                 # (We can always truncate later if we want to consider data-limited setting.)
-                # (b) So that `evaluating_rewards.scripts.rl.rollout` will have sufficient
-                # data for its evaluation.
+                # (b) So that `evaluating_rewards.scripts.distances.rollout_return`
+                # will have sufficient data for its evaluation.
                 "rollout_save_n_timesteps": 100000,
                 # Set some reasonable default hyperparameters for continuous control tasks.
                 "num_vec": 8,
@@ -150,20 +150,22 @@ def rl_worker(
     """Trains an RL policy.
 
     Args:
-        env_name: the name of the environment to train a policy in.
-        reward_type: the reward type to load and train a policy on;
+        env_name: The name of the environment to train a policy in.
+        reward_type: The reward type to load and train a policy on;
                      if None, use original environment reward.
-        reward_path: the path to load the reward from. (Ignored if
+        reward_path: The path to load the reward from. (Ignored if
             `reward_type` is None.)
-        seed: seed for RL algorithm.
-        log_root: the root logging directory for this experiment.
+        seed: Seed for RL algorithm.
+        log_root: The root logging directory for this experiment.
             Each RL policy will have a subdirectory created:
             `{env_name}/{reward_type}/{seed}`.
         updates: Configuration updates to pass to `expert_demos_ex.run`.
 
     Returns:
-        Training statistics returned by `expert_demos.rollouts_and_policy`.
+        Tuple of `(stats, log_dir)` where `stats` is training statistics returned by
+        `expert_demos.rollouts_and_policy` and `log_dir` is directory results are saved to.
     """
+    # Configure logging, since Ray children do not by default inherit logging configs.
     script_utils.configure_logging()
 
     updates = dict(updates)
@@ -219,15 +221,16 @@ def parallel_training(
                 updates = copy.deepcopy(dict(global_configs))
                 script_utils.recursive_dict_merge(updates, cfg, overwrite=True)
                 n_seeds = updates.pop("n_seeds", 1)
-                for seed in range(n_seeds):
-                    # Infer the number of parallel environments being run and reserve that many CPUs
-                    config_updates = updates.get("config_updates", {})
-                    num_vec = config_updates.get("num_vec", 8)  # 8 is default in expert_demos
-                    parallel = config_updates.get("parallel", True)
-                    num_cpus = math.ceil(num_vec * num_cpus_fudge_factor) if parallel else 1
 
-                    rl_worker_tagged = rl_worker.options(num_cpus=num_cpus)
-                    # Now execute RL training
+                # Infer the number of parallel environments being run and reserve that many CPUs
+                config_updates = updates.get("config_updates", {})
+                num_vec = config_updates.get("num_vec", 8)  # 8 is default in expert_demos
+                parallel = config_updates.get("parallel", True)
+                num_cpus = math.ceil(num_vec * num_cpus_fudge_factor) if parallel else 1
+                rl_worker_tagged = rl_worker.options(num_cpus=num_cpus)
+
+                # Now execute RL training
+                for seed in range(n_seeds):
                     obj_ref = rl_worker_tagged.remote(
                         env_name=env_name,
                         reward_type=reward_type,

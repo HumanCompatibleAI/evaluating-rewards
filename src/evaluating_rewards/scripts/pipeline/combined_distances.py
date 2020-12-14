@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-CLI script to compute EPIC, NPEC and ERC distances from a reward model.
+CLI script to compute EPIC, NPEC and ERC distances and policy returns for a reward model.
 
 Writes raw distances to a pickle file. Also supports summmarizing to a LaTeX table (default),
 or a lineplot (only for timeseries over checkpoints).
