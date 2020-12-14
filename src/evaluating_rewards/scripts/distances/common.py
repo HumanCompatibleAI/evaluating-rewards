@@ -33,6 +33,7 @@ from evaluating_rewards.distances import common_config
 from evaluating_rewards.rewards import base
 
 AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
+Dissimilarities = Mapping[Tuple[common_config.RewardCfg, common_config.RewardCfg], Sequence[float]]
 
 logger = logging.getLogger("evaluating_rewards.scripts.distances.common")
 
@@ -258,9 +259,7 @@ def _visitation_config(env_name, visitations_factory_kwargs):
 
 def aggregate_seeds(
     aggregate_fns: Mapping[str, AggregateFn],
-    dissimilarities: Mapping[
-        Tuple[common_config.RewardCfg, common_config.RewardCfg], Sequence[float]
-    ],
+    dissimilarities: Dissimilarities,
 ) -> common_config.AggregatedDistanceReturn:
     """Use `aggregate_fns` to aggregate sequences of data in `dissimilarities`.
 

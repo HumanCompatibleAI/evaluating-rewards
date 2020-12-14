@@ -19,6 +19,7 @@ Baseline "distance" between reward functions.
 
 import logging
 import os
+import pickle
 from typing import Any, Iterable, Mapping
 
 from imitation.data import types
@@ -71,18 +72,15 @@ def test():
 
 
 @rollout_distance_ex.capture
-def compute_vals(
+def do_training(
     ray_kwargs: Mapping[str, Any],
     num_cpus_fudge_factor: float,
     global_configs: Mapping[str, Any],
     log_dir: str,
     env_name: str,
-    discount: float,
-    x_reward_cfgs: Iterable[common_config.RewardCfg],
     y_reward_cfgs: Iterable[common_config.RewardCfg],
-    aggregate_fns: Mapping[str, common.AggregateFn],
-) -> common_config.AggregatedDistanceReturn:
-    """Computes mean returns for policies trained on `y_reward_cfgs` evaluated on `x_reward_cfgs`.
+) -> rl_common.Stats:
+    """For each reward in `y_reward_cfgs`, train policies and collect rollouts.
 
     Args:
         ray_kwargs: Passed through to `ray.init`.
@@ -90,13 +88,10 @@ def compute_vals(
         global_configs: configuration to apply to all environment-reward pairs.
         log_dir: directory to save data to.
         env_name: the name of the environment to compare rewards for.
-        discount: discount to use for reward models (mostly for shaping).
-        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
         y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
-        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
 
     Returns:
-        Nested dictionary of aggregated return values.
+        Training statistics, including log directories.
     """
     ray.init(**ray_kwargs)
 
@@ -110,7 +105,7 @@ def compute_vals(
             )
         configs = {env_name: configs}
 
-        stats = rl_common.parallel_training(
+        return rl_common.parallel_training(
             global_configs=global_configs,
             configs=configs,
             num_cpus_fudge_factor=num_cpus_fudge_factor,
@@ -119,7 +114,27 @@ def compute_vals(
     finally:
         ray.shutdown()
 
-    # Step 2: for each rollout, compute returns under each reward in x_reward_cfgs.
+
+@rollout_distance_ex.capture
+def compute_returns(
+    stats: rl_common.Stats,
+    env_name: str,
+    discount: float,
+    x_reward_cfgs: Iterable[common_config.RewardCfg],
+    y_reward_cfgs: Iterable[common_config.RewardCfg],
+) -> common.Dissimilarities:
+    """For each rollout, compute returns under each reward in x_reward_cfgs.
+
+    Args:
+        stats: Training statistics, including log directory containing rollouts.
+        env_name: the name of the environment to compare rewards for.
+        discount: discount to use for reward models (mostly for shaping).
+        x_reward_cfgs: tuples of reward_type and reward_path for x-axis.
+        y_reward_cfgs: tuples of reward_type and reward_path for y-axis.
+
+    Returns:
+        Return of rollouts for each (x,y) reward configuration pair for each seed.
+    """
     models, _g, sess = common.load_models_create_sess(env_name, discount, x_reward_cfgs)
     dissimilarities = {}
     for y_cfg in y_reward_cfgs:
@@ -131,8 +146,28 @@ def compute_vals(
             for x_cfg, ret in returns.items():
                 mean_ret = np.mean(ret)
                 dissimilarities.setdefault((x_cfg, y_cfg), []).append(mean_ret)
+    return dissimilarities
 
-    # Step 3: Aggregate across seeds for each (x_reward_cfg,y_reward_cfg) pair.
+
+@rollout_distance_ex.capture
+def compute_vals(
+    aggregate_fns: Mapping[str, common.AggregateFn],
+    log_dir: str,
+) -> common_config.AggregatedDistanceReturn:
+    """Computes mean returns for policies trained on `y_reward_cfgs` evaluated on `x_reward_cfgs`.
+
+    Args:
+        aggregate_fns: Mapping from strings to aggregators to be applied on sequences of floats.
+        log_dir: directory to save data to.
+
+    Returns:
+        Nested dictionary of aggregated return values.
+    """
+    stats = do_training()  # pylint:disable=no-value-for-parameter
+    dissimilarities = compute_returns(stats)  # pylint:disable=no-value-for-parameter
+    logger.info("Saving raw dissimilarities")
+    with open(os.path.join(log_dir, "dissimilarities.pkl"), "wb") as f:
+        pickle.dump(dissimilarities, f)
     return common.aggregate_seeds(aggregate_fns, dissimilarities)
 
 

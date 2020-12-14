@@ -414,7 +414,12 @@ def make_table(
                 k = (distance, visitation)
                 if k in vals:
                     val = vals[k].loc[model]
-                    multiplier = 100 if key.endswith("relative") else 1000
+                    if distance == "rl":
+                        multiplier = 1
+                    elif key.endswith("relative"):
+                        multiplier = 100
+                    else:
+                        multiplier = 1000
                     val = val * multiplier
 
                     col = _fixed_width_format(val)  # fit as many SFs as we can into 4 characters
