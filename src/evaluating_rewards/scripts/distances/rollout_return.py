@@ -30,9 +30,8 @@ import sacred
 
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.rewards import base
-from evaluating_rewards.scripts import script_utils
+from evaluating_rewards.scripts import rl_common, script_utils
 from evaluating_rewards.scripts.distances import common
-from evaluating_rewards.scripts.rl import rl_common
 
 rollout_distance_ex = sacred.Experiment("rollout_distance")
 logger = logging.getLogger("evaluating_rewards.scripts.distances.rollout_return")

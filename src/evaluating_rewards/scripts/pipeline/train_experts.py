@@ -29,8 +29,7 @@ import tabulate
 
 from evaluating_rewards import serialize
 from evaluating_rewards.experiments import env_rewards
-from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.rl import rl_common
+from evaluating_rewards.scripts import rl_common, script_utils
 
 experts_ex = sacred.Experiment("train_experts")
 rl_common.make_config(experts_ex)
