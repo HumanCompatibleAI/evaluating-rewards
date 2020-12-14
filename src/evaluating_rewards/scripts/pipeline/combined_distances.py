@@ -399,7 +399,13 @@ def make_table(
     """
     y_reward_cfgs = common_keys(vals.values())
 
-    rows = []
+    first_row = ""
+    second_row = ""
+    for distance, experiments in experiment_kinds.items():
+        first_row += r" & & \multicolumn{" + str(len(experiments)) + "}{c}{" + distance + "}"
+        second_row += " & & " + " & ".join(experiments)
+    rows = [first_row, second_row]
+
     for model in y_reward_cfgs:
         cols = []
         label = _pretty_label(model, pretty_models)
@@ -411,9 +417,8 @@ def make_table(
                     val = vals[k].loc[model]
                     multiplier = 100 if key.endswith("relative") else 1000
                     val = val * multiplier
-                    # Fit as many SFs as we can into 4 characters
 
-                    col = _fixed_width_format(val)
+                    col = _fixed_width_format(val)  # fit as many SFs as we can into 4 characters
                     try:
                         float(col)
                         # If we're here, then col is numeric
