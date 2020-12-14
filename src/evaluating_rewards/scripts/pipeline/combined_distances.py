@@ -386,7 +386,6 @@ def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
     pretty_models: Mapping[str, common_config.RewardCfg],
-    experiment_kinds: Mapping[str, Tuple[str]],
 ) -> str:
     """Generate LaTeX table.
 
@@ -395,9 +394,9 @@ def make_table(
         vals: A Mapping from (distance, visitation) to a Series of values.
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration is given the associated short label.
-        experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
     """
     y_reward_cfgs = common_keys(vals.values())
+    experiment_kinds = _get_sorted_experiment_kinds()  # pylint:disable=no-value-for-parameter
 
     first_row = ""
     second_row = ""
@@ -436,16 +435,20 @@ def make_table(
 
 
 @combined_distances_ex.capture
-def _input_validation(
+def _get_sorted_experiment_kinds(
     experiment_kinds: Mapping[str, Tuple[str]],
     distance_kinds_order: Optional[Sequence[str]],
-    config_updates: Mapping[str, Any],
-    named_configs: Mapping[str, Mapping[str, Any]],
-    skip: Mapping[str, Mapping[str, bool]],
-):
-    """Validate input.
+) -> Mapping[str, Tuple[str]]:
+    """Sorts experiment_kinds` in order of `distance_kinds_order`, if specified.
 
-    See `combined` for args definition."""
+    Args:
+        experiment_kinds: Different subsets of data to tabulate, e.g. visitation distributions.
+        distance_kinds_order: The order in which to run and present the distance algorithms,
+            which are keys of `experiment_kinds`.
+
+    Returns:
+        `experiment_kinds` sorted according to `distance_kinds_order`.
+    """
     if not experiment_kinds:
         raise ValueError("Empty `experiment_kinds`.")
 
@@ -464,6 +467,20 @@ def _input_validation(
 
         experiment_kinds = {k: experiment_kinds[k] for k in distance_kinds_order}
 
+    return experiment_kinds
+
+
+@combined_distances_ex.capture
+def _input_validation(
+    experiment_kinds: Mapping[str, Tuple[str]],
+    config_updates: Mapping[str, Any],
+    named_configs: Mapping[str, Mapping[str, Any]],
+    skip: Mapping[str, Mapping[str, bool]],
+) -> None:
+    """Validate input.
+
+    See `combined` for args definition."""
+
     for dist_key, experiments in experiment_kinds.items():
         if dist_key not in DISTANCE_EXS:
             raise ValueError(f"Unrecognized distance '{dist_key}'.")
@@ -478,8 +495,6 @@ def _input_validation(
                 raise ValueError(f"Skipping ({dist_key}, {kind}) that is configured.")
             if not configured and not skipped:
                 raise ValueError(f"({dist_key}, {kind}) unconfigured but not skipped.")
-
-    return experiment_kinds
 
 
 def load_vals(vals_paths: Sequence[str]) -> Vals:
@@ -511,7 +526,6 @@ def load_vals(vals_paths: Sequence[str]) -> Vals:
 
 @combined_distances_ex.capture
 def compute_vals(
-    experiment_kinds: Mapping[str, Tuple[str]],
     config_updates: Mapping[str, Any],
     named_configs: Mapping[str, Mapping[str, Any]],
     skip: Mapping[str, Mapping[str, bool]],
@@ -521,7 +535,6 @@ def compute_vals(
     Run experiments to compute distance values.
 
     Args:
-        experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
         config_updates: Config updates to apply. Hierarchically specified by algorithm and
             experiment kind. "global" may be specified at top-level (applies to all algorithms)
             or at first-level (applies to particular algorithm, all experiment kinds).
@@ -534,6 +547,7 @@ def compute_vals(
             does not support a particular configuration).
         log_dir: The directory to write tables and other logging to.
     """
+    experiment_kinds = _get_sorted_experiment_kinds()  # pylint:disable=no-value-for-parameter
     res = {}
     for dist_key, experiments in experiment_kinds.items():
         dist_ex = DISTANCE_EXS[dist_key]
@@ -615,7 +629,6 @@ def latex_table(
     vals_filtered: ValsFiltered,
     pretty_models: Mapping[str, common_config.RewardCfg],
     log_dir: str,
-    experiment_kinds: Mapping[str, Tuple[str]],
 ) -> None:
     """
     Writes tables of data from `vals_filtered`.
@@ -632,7 +645,7 @@ def latex_table(
         path = os.path.join(log_dir, f"{k}.csv")
         logger.info(f"Writing table to '{path}'")
         with open(path, "wb") as f:
-            table = make_table(k, v, pretty_models, experiment_kinds)
+            table = make_table(k, v, pretty_models)
             f.write(table.encode())
 
 
@@ -651,7 +664,6 @@ def _add_label_and_progress(
 ) -> pd.DataFrame:
     """Add pretty label and checkpoint progress to reward distances."""
     labels = s.index.map(functools.partial(_pretty_label, pretty_models=pretty_models))
-    # TODO(adam): get LaTeX labels to work.
     df = s.reset_index(name="Distance")
 
     regex = ".*/checkpoints/(?P<Checkpoint>final|[0-9]+)(?:/.*)?$"
@@ -746,7 +758,6 @@ def distance_over_time(
 def combined_distances(
     vals_paths: Sequence[str],
     log_dir: str,
-    experiment_kinds: Mapping[str, Tuple[str]],
     named_configs: Mapping[str, Mapping[str, Any]],
     output_fn: Callable[[ValsFiltered], None],
 ) -> None:
@@ -757,7 +768,6 @@ def combined_distances(
             if non-empty. This is useful for regenerating tables in a new style from old data,
             including combining results from multiple previous runs.
         log_dir: The directory to write tables and other logging to.
-        experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
         named_configs: Named configs to apply. First key is a namespace which has no semantic
             meaning, but should be unique for each Sacred config scope. Second key is the algorithm
             scope and third key the experiment kind, like with config_updates. Values at the leaf
@@ -770,17 +780,12 @@ def combined_distances(
     named_configs = [copy.deepcopy(cfg) for cfg in named_configs.values()]
     named_configs = functools.reduce(script_utils.recursive_dict_merge, named_configs)
 
-    experiment_kinds = _input_validation(  # pylint:disable=no-value-for-parameter
-        experiment_kinds,
-        named_configs=named_configs,
-    )
+    _input_validation(named_configs=named_configs)  # pylint:disable=no-value-for-parameter
 
     if vals_paths:
         vals = load_vals(vals_paths)
     else:
-        vals = compute_vals(  # pylint:disable=no-value-for-parameter
-            experiment_kinds=experiment_kinds, named_configs=named_configs
-        )
+        vals = compute_vals(named_configs=named_configs)  # pylint:disable=no-value-for-parameter
 
         with open(os.path.join(log_dir, "vals.pkl"), "wb") as f:
             pickle.dump(vals, f)
