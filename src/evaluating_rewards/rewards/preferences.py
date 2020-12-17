@@ -24,7 +24,7 @@ regularization based on validation accuracy.
 
 import logging
 import math
-from typing import Any, Dict, Iterable, List, NamedTuple, Sequence, Type
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Sequence, Type
 
 from imitation.data import rollout, types
 import numpy as np
@@ -338,6 +338,7 @@ class PreferenceComparisonTrainer:
         target: base.RewardModel,
         trajectory_length: int,
         total_comparisons: int,
+        callback: Optional[base.Callback] = None,
     ) -> pd.DataFrame:
         """Trains using synthetic comparisons from target.
 
@@ -352,6 +353,7 @@ class PreferenceComparisonTrainer:
             trajectory_length: The length of each trajectory to compare.
                 The episodes must be at least as long as this.
             total_comparisons: The total number of trajectory *pairs* to compare.
+            callback: If not None, called each epoch with the current epoch number.
 
         Returns:
             A dataframe containing training statistics.
@@ -380,6 +382,10 @@ class PreferenceComparisonTrainer:
             res = self.train_one_batch(batch)
             for k, v in res.items():
                 stats.setdefault(k, []).append(v)
+
+            if callback:
+                callback(epoch)
+
             # TODO(): better logging, e.g. TensorBoard summaries
             logging.info(f"Epoch {epoch}: {res}")
 

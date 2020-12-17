@@ -16,7 +16,7 @@
 
 import os
 import pickle
-from typing import Callable, TypeVar
+from typing import Callable, Optional, TypeVar
 
 import gym
 from imitation.util import networks, util
@@ -49,7 +49,7 @@ def logging_config(log_root, env_name):
 
 MakeModelFn = Callable[[vec_env.VecEnv], T]
 MakeTrainerFn = Callable[[base.RewardModel, tf.VariableScope, base.RewardModel], T]
-DoTrainingFn = Callable[[base.RewardModel, T], V]
+DoTrainingFn = Callable[[base.RewardModel, T, Optional[base.Callback]], V]
 
 
 def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> base.RewardModel:
@@ -58,15 +58,20 @@ def make_model(model_reward_type: EnvRewardFactory, venv: vec_env.VecEnv) -> bas
 
 def regress(
     seed: int,
+    # Dataset
     env_name: str,
     discount: float,
+    # Target specification
+    target_reward_type: str,
+    target_reward_path: str,
+    # Model parameters
     make_source: MakeModelFn,
     source_init: bool,
     make_trainer: MakeTrainerFn,
     do_training: DoTrainingFn,
-    target_reward_type: str,
-    target_reward_path: str,
+    # Logging
     log_dir: str,
+    checkpoint_interval: int,
 ) -> V:
     """Train a model on target and save the results, reporting training stats."""
     # This venv is needed by serialize.load_reward, but is never stepped.
@@ -91,11 +96,15 @@ def regress(
             init_vars += model_scope.global_variables()
         sess.run(tf.initializers.variables(init_vars))
 
-        stats = do_training(target, trainer)
+        def callback(epoch: int) -> None:
+            if checkpoint_interval > 0 and epoch % checkpoint_interval == 0:
+                trainer.model.save(os.path.join(log_dir, "checkpoints", f"{epoch:05d}"))
 
-        # Trainer may wrap source, so save trainer.source not source directly
+        stats = do_training(target, trainer, callback)
+
+        # Trainer may wrap source, so save `trainer.model` not source directly
         # (see e.g. RegressWrappedModel).
-        trainer.model.save(os.path.join(log_dir, "model"))
+        trainer.model.save(os.path.join(log_dir, "checkpoints", "final"))
 
         with open(os.path.join(log_dir, "stats.pkl"), "wb") as f:
             pickle.dump(stats, f)

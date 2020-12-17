@@ -15,14 +15,13 @@
 """CLI script to fit a model to synthetically generated preferences."""
 
 import functools
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 from imitation.policies import serialize as policies_serialize
 from imitation.util import util
 import sacred
 
-from evaluating_rewards import preferences
-from evaluating_rewards.rewards import base
+from evaluating_rewards.rewards import base, preferences
 from evaluating_rewards.scripts import regress_utils, script_utils
 
 train_preferences_ex = sacred.Experiment("train_preferences")
@@ -33,6 +32,7 @@ def default_config():
     """Default configuration values."""
     locals().update(**regress_utils.DEFAULT_CONFIG)
     num_vec = 8  # number of environments in VecEnv
+    checkpoint_interval = 10  # save every checkpoint_interval epochs
 
     # Trajectory specification
     policy_type = "random"  # type of policy to generate comparison trajectories
@@ -84,6 +84,7 @@ def train_preferences(
     accuracy_threshold: float,
     # Logging
     log_dir: str,
+    checkpoint_interval: int,
 ) -> Mapping[str, Any]:
     """Entry-point into script for synthetic preference comparisons."""
     venv = util.make_vec_env(env_name, n_envs=num_vec, seed=_seed)
@@ -107,16 +108,18 @@ def train_preferences(
 
     with policies_serialize.load_policy(policy_type, policy_path, venv) as policy:
 
-        def do_training(target, trainer):
+        def do_training(target, trainer, callback: Optional[base.Callback]):
             # Specify in terms of total_timesteps so longer trajectory_length
             # does not give model more data.
             total_comparisons = total_timesteps // trajectory_length
+
             return trainer.fit_synthetic(
                 venv,
                 policy=policy,
                 target=target,
                 trajectory_length=trajectory_length,
                 total_comparisons=total_comparisons,
+                callback=callback,
             )
 
         return regress_utils.regress(
@@ -130,6 +133,7 @@ def train_preferences(
             target_reward_type=target_reward_type,
             target_reward_path=target_reward_path,
             log_dir=log_dir,
+            checkpoint_interval=checkpoint_interval,
         )
 
 

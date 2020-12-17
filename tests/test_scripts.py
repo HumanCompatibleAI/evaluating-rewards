@@ -21,14 +21,10 @@ import pandas as pd
 import sacred
 import xarray as xr
 
-from evaluating_rewards.analysis.distances import (
-    plot_gridworld_heatmap,
-    plot_heatmap,
-    table_combined,
-)
+from evaluating_rewards.analysis.distances import plot_gridworld_heatmap, plot_heatmap
 from evaluating_rewards.analysis.reward_figures import plot_gridworld_reward, plot_pm_reward
-from evaluating_rewards.scripts.distances import epic, erc, npec
-from evaluating_rewards.scripts.pipeline import train_experts
+from evaluating_rewards.scripts.distances import epic, erc, npec, rollout_return
+from evaluating_rewards.scripts.pipeline import combined_distances, train_experts
 from evaluating_rewards.scripts.rewards import train_preferences, train_regress
 from tests import common
 
@@ -72,6 +68,7 @@ EXPERIMENTS = {
     ),
     "erc_distance": (erc.erc_distance_ex, dict, [], {}, _check_distance_return),
     "npec_distance": (npec.npec_distance_ex, dict, [], {}, _check_distance_return),
+    "rollout_distance": (rollout_return.rollout_distance_ex, dict, [], {}, _check_distance_return),
     "npec_distance_alternating": (
         npec.npec_distance_ex,
         dict,
@@ -108,7 +105,7 @@ EXPERIMENTS = {
         None,
     ),
     "plot_pm_reward": (plot_pm_reward.plot_pm_reward_ex, xr.DataArray, [], {}, None),
-    "table_combined": (table_combined.table_combined_ex, type(None), [], {}, None),
+    "combined_distances": (combined_distances.combined_distances_ex, type(None), [], {}, None),
     "preferences": (train_preferences.train_preferences_ex, pd.DataFrame, [], {}, None),
     "regress": (train_regress.train_regress_ex, dict, [], {}, None),
     "train_experts": (train_experts.experts_ex, dict, [], {}, None),

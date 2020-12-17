@@ -45,7 +45,7 @@ def default_config(env_name):
     """Default configuration values."""
     computation_kind = "sample"  # either "sample" or "mesh"
     corr_kind = "pearson"  # either "pearson" or "spearman"
-    discount = 0.99  # discount rate for shaping
+    discount = 0.99  # discount rate when calculating return
     n_episodes = 1024  # number of episodes to compute correlation w.r.t.
 
     # n_samples and n_mean_samples only applicable for sample approach

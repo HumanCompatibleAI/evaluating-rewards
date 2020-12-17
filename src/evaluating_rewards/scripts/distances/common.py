@@ -33,21 +33,22 @@ from evaluating_rewards.distances import common_config
 from evaluating_rewards.rewards import base
 
 AggregateFn = Callable[[Sequence[float]], Mapping[str, float]]
+Dissimilarities = Mapping[Tuple[common_config.RewardCfg, common_config.RewardCfg], Sequence[float]]
 
 logger = logging.getLogger("evaluating_rewards.scripts.distances.common")
 
 
 def load_models(
     env_name: str,
-    reward_cfgs: Iterable[common_config.RewardCfg],
     discount: float,
+    reward_cfgs: Iterable[common_config.RewardCfg],
 ) -> Mapping[common_config.RewardCfg, base.RewardModel]:
     """Load models specified by the `reward_cfgs`.
 
     Args:
         - env_name: The environment name in the Gym registry of the rewards to compare.
-        - reward_cfgs: Iterable of reward configurations.
         - discount: Discount to use for reward models (mostly for shaping).
+        - reward_cfgs: Iterable of reward configurations.
 
     Returns:
          A mapping from reward configurations to the loaded reward model.
@@ -70,7 +71,7 @@ def load_models_create_sess(
     with g.as_default():
         sess = tf.Session()
         with sess.as_default():
-            models = load_models(env_name, reward_cfgs, discount)
+            models = load_models(env_name, discount, reward_cfgs)
     return models, g, sess
 
 
@@ -122,13 +123,10 @@ def sample_mean_sd(vals: Sequence[float]) -> Mapping[str, float]:
     return {"mean": np.mean(vals), "sd": np.std(vals, ddof=1)}
 
 
-def make_config(
-    experiment: sacred.Experiment,
-):  # pylint: disable=unused-variable,too-many-statements
+def make_config(experiment: sacred.Experiment) -> None:
     """Adds configs and named configs to `experiment`.
 
     The standard config parameters it defines are:
-        - vals_path (Optional[str]): path to precomputed values to plot.
         - env_name (str): The environment name in the Gym registry of the rewards to compare.
         - x_reward_cfgs (Iterable[common_config.RewardCfg]): tuples of reward_type and reward_path
             for x-axis.
@@ -143,6 +141,7 @@ def make_config(
         - styles (Iterable[str]): styles to apply from `evaluating_rewards.analysis.stylesheets`.
         - save_kwargs (dict): passed through to `analysis.save_figs`.
     """
+    # pylint: disable=unused-variable,too-many-statements
 
     @experiment.config
     def default_config():
@@ -152,21 +151,15 @@ def make_config(
         n_bootstrap = 1000  # number of bootstrap samples
         alpha = 95  # percentile confidence interval
         aggregate_kinds = ("bootstrap", "studentt", "sample")
-        vals_path = None
 
         _ = locals()
         del _
 
     @experiment.config
-    def point_mass_as_default():
-        """Default to PointMass as environment so scripts work out-of-the-box."""
-        locals().update(**common_config.COMMON_CONFIGS["point_mass"])
-
-    @experiment.config
     def aggregate_fns(aggregate_kinds, n_bootstrap, alpha):
         """Make a mapping of aggregate functions of kinds `subset` with specified parameters.
 
-        Used in plot_{canon,epic}_heatmap; currently ignored by plot_return_heatmap since
+        Used in scripts.distances.{epic,npec}; currently ignored by erc since
         it does not use multiple seeds and instead bootstraps over samples.
         """
         aggregate_fns = {}
@@ -178,6 +171,11 @@ def make_config(
             aggregate_fns["studentt"] = functools.partial(studentt_ci, alpha=alpha)
         if "sample" in aggregate_kinds:
             aggregate_fns["sample"] = sample_mean_sd
+
+    @experiment.config
+    def point_mass_as_default():
+        """Default to PointMass as environment so scripts work out-of-the-box."""
+        locals().update(**common_config.COMMON_CONFIGS["point_mass"])
 
     for name, cfg in common_config.COMMON_CONFIGS.items():
         experiment.add_named_config(name, cfg)
@@ -261,9 +259,7 @@ def _visitation_config(env_name, visitations_factory_kwargs):
 
 def aggregate_seeds(
     aggregate_fns: Mapping[str, AggregateFn],
-    dissimilarities: Mapping[
-        Tuple[common_config.RewardCfg, common_config.RewardCfg], Sequence[float]
-    ],
+    dissimilarities: Dissimilarities,
 ) -> common_config.AggregatedDistanceReturn:
     """Use `aggregate_fns` to aggregate sequences of data in `dissimilarities`.
 

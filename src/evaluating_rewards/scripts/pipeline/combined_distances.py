@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CLI script to make table of EPIC, NPEC and ERC distances from a reward model."""
+"""
+CLI script to compute EPIC, NPEC and ERC distances and policy returns for a reward model.
+
+Writes raw distances to a pickle file. Also supports summmarizing to a LaTeX table (default),
+or a lineplot (only for timeseries over checkpoints).
+"""
 
 import copy
 import functools
@@ -20,49 +25,64 @@ import glob
 import logging
 import os
 import pickle
-from typing import Any, Iterable, Mapping, Sequence, Tuple, TypeVar
+import re
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from imitation.util import util as imit_util
+import matplotlib.pyplot as plt
 import pandas as pd
 import sacred
+import seaborn as sns
 
 from evaluating_rewards import serialize
-from evaluating_rewards.analysis import results
+from evaluating_rewards.analysis import results, stylesheets, visualize
 from evaluating_rewards.analysis.distances import aggregated
 from evaluating_rewards.distances import common_config
 from evaluating_rewards.scripts import script_utils
-from evaluating_rewards.scripts.distances import epic, erc, npec
+from evaluating_rewards.scripts.distances import epic, erc, npec, rollout_return
 
 Vals = Mapping[Tuple[str, str], Any]
+ValsFiltered = Mapping[str, Mapping[Tuple[str, str], pd.Series]]
+DistanceFnMapping = Mapping[str, Callable[..., sacred.run.Run]]
 
-table_combined_ex = sacred.Experiment("table_combined")
-logger = logging.getLogger("evaluating_rewards.analysis.distances.table_combined")
+combined_distances_ex = sacred.Experiment("combined_distances")
+logger = logging.getLogger("evaluating_rewards.scripts.pipeline.combined_distances")
+
+DISTANCE_EXS = {
+    "epic": epic.epic_distance_ex,
+    "erc": erc.erc_distance_ex,
+    "npec": npec.npec_distance_ex,
+    "rl": rollout_return.rollout_distance_ex,
+}
 
 
-@table_combined_ex.config
+@combined_distances_ex.config
 def default_config():
-    """Default configuration for table_combined."""
+    """Default configuration for combined_distances."""
     vals_paths = []
     log_root = serialize.get_output_dir()  # where results are read from/written to
-    distance_kinds = ("epic", "npec", "erc")
-    experiment_kinds = ()
+    experiment_kinds = {}
+    distance_kinds_order = ("epic", "npec", "erc", "rl")
     config_updates = {}  # config updates applied to all subcommands
     named_configs = {}
     skip = {}
     target_reward_type = None
     target_reward_path = None
     pretty_models = {}
+    # Output formats
+    output_fn = latex_table
+    styles = ["paper", "tex"]
     tag = "default"
     _ = locals()
     del _
 
 
-@table_combined_ex.config
+@combined_distances_ex.config
 def logging_config(log_root, tag):
     """Default logging configuration: hierarchical directory structure based on config."""
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
-        "table_combined",
+        "combined_distances",
         tag,
         imit_util.make_unique_timestamp(),
     )
@@ -80,19 +100,21 @@ POINT_MAZE_LEARNED_COMMON = {
         r"\bettergoalmethod{}": ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
         r"\regressionmethod{}": (
             "evaluating_rewards/RewardModel-v0",
-            "transfer_point_maze/reward/regress/model",
+            r"(.*/)?transfer_point_maze(_fast)?/reward/regress/checkpoints/(final|[0-9]+)",
         ),
         r"\preferencesmethod{}": (
             "evaluating_rewards/RewardModel-v0",
-            "transfer_point_maze/reward/preferences/model",
+            r"(.*/)?transfer_point_maze(_fast)?/reward/preferences/checkpoints/(final|[0-9]+)",
         ),
         r"\airlstateonlymethod{}": (
             "imitation/RewardNet_unshaped-v0",
-            "transfer_point_maze/reward/irl_state_only/checkpoints/final/discrim/reward_net",
+            r"(.*/)?transfer_point_maze(_fast)?/reward/irl_state_only/checkpoints/(final|[0-9]+)"
+            "/discrim/reward_net",
         ),
         r"\airlstateactionmethod{}": (
             "imitation/RewardNet_unshaped-v0",
-            "transfer_point_maze/reward/irl_state_action/checkpoints/final/discrim/reward_net",
+            r"(.*/)?transfer_point_maze(_fast)?/reward/irl_state_action/checkpoints/(final|[0-9]+)"
+            "/discrim/reward_net",
         ),
     },
 }
@@ -106,7 +128,14 @@ def _make_visitations_config_updates(method):
     }
 
 
-@table_combined_ex.named_config
+_POINT_MAZE_EXPERT = (
+    f"{serialize.get_output_dir()}/train_experts/ground_truth/20201203_105631_297835/"
+    "imitation_PointMazeLeftVel-v0/evaluating_rewards_PointMazeGroundTruthWithCtrl-v0/"
+    "best/policies/final/"
+)
+
+
+@combined_distances_ex.named_config
 def point_maze_learned_good():
     """Compare rewards learned in PointMaze to the ground-truth reward.
 
@@ -116,7 +145,8 @@ def point_maze_learned_good():
     # SOMEDAY(adam): this ignores `log_root` and uses `serialize.get_output_dir()`
     # No way to get `log_root` in a named config due to Sacred config limitations.
     locals().update(**POINT_MAZE_LEARNED_COMMON)
-    experiment_kinds = ("random", "expert", "mixture")
+    experiment_kinds = {k: ("random", "expert", "mixture") for k in ("epic", "npec", "erc")}
+    experiment_kinds["rl"] = ("train", "test")
     config_updates = _make_visitations_config_updates(
         {
             "random": {
@@ -125,31 +155,32 @@ def point_maze_learned_good():
             },
             "expert": {
                 "policy_type": "ppo2",
-                "policy_path": (
-                    f"{serialize.get_output_dir()}/transfer_point_maze/"
-                    "expert/train/policies/final/"
-                ),
+                "policy_path": _POINT_MAZE_EXPERT,
             },
             "mixture": {
                 "policy_type": "mixture",
-                "policy_path": (
-                    f"0.05:random:dummy:ppo2:{serialize.get_output_dir()}/"
-                    "transfer_point_maze/expert/train/policies/final/"
-                ),
+                "policy_path": f"0.05:random:dummy:ppo2:{_POINT_MAZE_EXPERT}",
             },
             "global": {"env_name": "imitation/PointMazeLeftVel-v0"},
         }
     )
+    config_updates["rl"] = {
+        "train": {"env_name": "imitation/PointMazeLeftVel-v0"},
+        "test": {"env_name": "imitation/PointMazeRightVel-v0"},
+    }
     tag = "point_maze_learned"
     _ = locals()
     del _
 
 
-@table_combined_ex.named_config
+@combined_distances_ex.named_config
 def point_maze_learned_pathological():
     """Compare PointMaze rewards under pathological distributions."""
     locals().update(**POINT_MAZE_LEARNED_COMMON)
-    experiment_kinds = ("random_policy_permuted", "iid", "small", "wrong")
+    distance_kinds_order = ("epic", "npec", "erc")
+    experiment_kinds = {
+        k: ("random_policy_permuted", "iid", "small", "wrong") for k in distance_kinds_order
+    }
     config_updates = _make_visitations_config_updates(
         {
             "random_policy_permuted": {
@@ -198,7 +229,43 @@ def point_maze_learned_pathological():
     del _
 
 
-@table_combined_ex.named_config
+@combined_distances_ex.named_config
+def point_maze_checkpoints():
+    """Compare rewards learned in PointMaze to the ground-truth reward over time.
+
+    Use sensible ("good") visitation distributions.
+    """
+    # Analyzes models generated by `runners/transfer_point_maze.sh`.
+    # SOMEDAY(adam): this ignores `log_root` and uses `serialize.get_output_dir()`
+    # No way to get `log_root` in a named config due to Sacred config limitations.
+    locals().update(**POINT_MAZE_LEARNED_COMMON)
+    named_configs = {
+        "point_maze_learned": {
+            "global": ("point_maze_checkpoints",),
+        }
+    }
+    experiment_kinds = {k: ("mixture",) for k in ("epic", "npec", "erc")}
+    experiment_kinds["rl"] = ("train", "test")
+    config_updates = _make_visitations_config_updates(
+        {
+            "mixture": {
+                "env_name": "imitation/PointMazeLeftVel-v0",
+                "policy_type": "mixture",
+                "policy_path": f"0.05:random:dummy:ppo2:{_POINT_MAZE_EXPERT}",
+            },
+        }
+    )
+    config_updates["rl"] = {
+        "train": {"env_name": "imitation/PointMazeLeftVel-v0"},
+        "test": {"env_name": "imitation/PointMazeRightVel-v0"},
+    }
+    tag = "point_maze_checkpoints"
+    output_fn = distance_over_time
+    _ = locals()
+    del _
+
+
+@combined_distances_ex.named_config
 def high_precision():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
         "precision": {
@@ -207,10 +274,10 @@ def high_precision():
     }
 
 
-@table_combined_ex.named_config
+@combined_distances_ex.named_config
 def test():
     """Simple, quick config for unit testing."""
-    experiment_kinds = ("test",)
+    experiment_kinds = {k: ("test",) for k in ("epic", "npec", "erc", "rl")}
     target_reward_type = "evaluating_rewards/PointMassGroundTruth-v0"
     target_reward_path = "dummy"
     named_configs = {
@@ -221,7 +288,7 @@ def test():
             k: {
                 "test": ("test",),
             }
-            for k in ("epic", "npec", "erc")
+            for k in ("epic", "npec", "erc", "rl")
         },
     }
     pretty_models = {
@@ -235,25 +302,10 @@ def test():
     del _
 
 
-@table_combined_ex.named_config
-def epic_only():
-    distance_kinds = ("epic",)  # noqa: F841  pylint:disable=unused-variable
-
-
-@table_combined_ex.named_config
-def npec_only():
-    distance_kinds = ("npec",)  # noqa: F841  pylint:disable=unused-variable
-
-
-@table_combined_ex.named_config
-def erc_only():
-    distance_kinds = ("erc",)  # noqa: F841  pylint:disable=unused-variable
-
-
-@table_combined_ex.named_config
-def quick():
+@combined_distances_ex.named_config
+def fast():
     named_configs = {  # noqa: F841  pylint:disable=unused-variable
-        "precision": {"global": ("test",)}
+        "precision": {"global": ("fast",)}
     }
 
 
@@ -311,12 +363,30 @@ def _fixed_width_format(x: float, figs: int = 3) -> str:
     return res
 
 
+def _pretty_label(
+    cfg: common_config.RewardCfg, pretty_models: Mapping[str, common_config.RewardCfg]
+) -> str:
+    """Map `cfg` to a more readable label in `pretty_models`.
+
+    Raises:
+        ValueError if `cfg` does not match any label in `pretty_models`.
+    """
+    kind, path = cfg
+    label = None
+    for search_label, (search_kind, search_pattern) in pretty_models.items():
+        if kind == search_kind and re.match(search_pattern, path):
+            if label is not None:
+                raise ValueError(f"Duplicate match for '{cfg}' in '{pretty_models}'")
+            label = search_label
+    if label is None:
+        raise ValueError(f"Did not find '{cfg}' in '{pretty_models}'")
+    return label
+
+
 def make_table(
     key: str,
     vals: Mapping[Tuple[str, str], pd.Series],
     pretty_models: Mapping[str, common_config.RewardCfg],
-    distance_kinds: Tuple[str],
-    experiment_kinds: Tuple[str],
 ) -> str:
     """Generate LaTeX table.
 
@@ -325,34 +395,35 @@ def make_table(
         vals: A Mapping from (distance, visitation) to a Series of values.
         pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
             A model matching that reward configuration is given the associated short label.
-        distance_kinds: The distance metrics to compare with.
-        experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
     """
     y_reward_cfgs = common_keys(vals.values())
+    experiment_kinds = _get_sorted_experiment_kinds()  # pylint:disable=no-value-for-parameter
 
-    rows = []
+    first_row = ""
+    second_row = ""
+    for distance, experiments in experiment_kinds.items():
+        first_row += r" & & \multicolumn{" + str(len(experiments)) + "}{c}{" + distance + "}"
+        second_row += " & & " + " & ".join(experiments)
+    rows = [first_row, second_row]
+
     for model in y_reward_cfgs:
         cols = []
-        kind, path = model
-
-        label = None
-        for search_label, (search_kind, search_path) in pretty_models.items():
-            if kind == search_kind and path.endswith(search_path):
-                assert label is None
-                label = search_label
-        assert label is not None
-
+        label = _pretty_label(model, pretty_models)
         row = f"{label} & & "
-        for distance in distance_kinds:
-            for visitation in experiment_kinds:
+        for distance, experiments in experiment_kinds.items():
+            for visitation in experiments:
                 k = (distance, visitation)
                 if k in vals:
                     val = vals[k].loc[model]
-                    multiplier = 100 if key.endswith("relative") else 1000
+                    if distance == "rl":
+                        multiplier = 1
+                    elif key.endswith("relative"):
+                        multiplier = 100
+                    else:
+                        multiplier = 1000
                     val = val * multiplier
-                    # Fit as many SFs as we can into 4 characters
 
-                    col = _fixed_width_format(val)
+                    col = _fixed_width_format(val)  # fit as many SFs as we can into 4 characters
                     try:
                         float(col)
                         # If we're here, then col is numeric
@@ -369,34 +440,67 @@ def make_table(
     return " \\\\\n".join(rows)
 
 
-@table_combined_ex.capture
+@combined_distances_ex.capture
+def _get_sorted_experiment_kinds(
+    experiment_kinds: Mapping[str, Tuple[str]],
+    distance_kinds_order: Optional[Sequence[str]],
+) -> Mapping[str, Tuple[str]]:
+    """Sorts experiment_kinds` in order of `distance_kinds_order`, if specified.
+
+    Args:
+        experiment_kinds: Different subsets of data to tabulate, e.g. visitation distributions.
+        distance_kinds_order: The order in which to run and present the distance algorithms,
+            which are keys of `experiment_kinds`.
+
+    Returns:
+        `experiment_kinds` sorted according to `distance_kinds_order`.
+    """
+    if not experiment_kinds:
+        raise ValueError("Empty `experiment_kinds`.")
+
+    if distance_kinds_order:
+        if len(distance_kinds_order) != len(experiment_kinds):
+            raise ValueError(
+                f"Order '{distance_kinds_order}' is different length"
+                f" to keys '{experiment_kinds.keys()}'."
+            )
+
+        if set(distance_kinds_order) != set(experiment_kinds.keys()):
+            raise ValueError(
+                f"Order '{distance_kinds_order}' is different set"
+                f" to keys '{experiment_kinds.keys()}'."
+            )
+
+        experiment_kinds = {k: experiment_kinds[k] for k in distance_kinds_order}
+
+    return experiment_kinds
+
+
+@combined_distances_ex.capture
 def _input_validation(
-    experiments: Mapping[str, sacred.Experiment],
-    experiment_kinds: Tuple[str],
-    distance_kinds: Tuple[str],
+    experiment_kinds: Mapping[str, Tuple[str]],
     config_updates: Mapping[str, Any],
     named_configs: Mapping[str, Mapping[str, Any]],
     skip: Mapping[str, Mapping[str, bool]],
-):
+) -> None:
     """Validate input.
 
-    See `table_combined` for args definition."""
-    if not experiment_kinds:
-        raise ValueError("Empty `experiment_kinds`.")
-    if not distance_kinds:
-        raise ValueError("Empty `distance_kinds`.")
+    See `combined` for args definition."""
 
-    for ex_key in experiments.keys():
-        for kind in experiment_kinds:
-            skipped = kind in skip.get(ex_key, ())
-            update_local = config_updates.get(ex_key, {}).get(kind, {})
-            named_local = named_configs.get(ex_key, {}).get(kind, ())
+    for dist_key, experiments in experiment_kinds.items():
+        if dist_key not in DISTANCE_EXS:
+            raise ValueError(f"Unrecognized distance '{dist_key}'.")
+
+        for kind in experiments:
+            skipped = kind in skip.get(dist_key, ())
+            update_local = config_updates.get(dist_key, {}).get(kind, {})
+            named_local = named_configs.get(dist_key, {}).get(kind, ())
             configured = update_local or named_local
 
             if configured and skipped:
-                raise ValueError(f"Skipping ({ex_key}, {kind}) that is configured.")
+                raise ValueError(f"Skipping ({dist_key}, {kind}) that is configured.")
             if not configured and not skipped:
-                raise ValueError(f"({ex_key}, {kind}) unconfigured but not skipped.")
+                raise ValueError(f"({dist_key}, {kind}) unconfigured but not skipped.")
 
 
 def load_vals(vals_paths: Sequence[str]) -> Vals:
@@ -426,10 +530,8 @@ def load_vals(vals_paths: Sequence[str]) -> Vals:
     return vals
 
 
-@table_combined_ex.capture
+@combined_distances_ex.capture
 def compute_vals(
-    experiments: Mapping[str, sacred.Experiment],
-    experiment_kinds: Tuple[str],
     config_updates: Mapping[str, Any],
     named_configs: Mapping[str, Mapping[str, Any]],
     skip: Mapping[str, Mapping[str, bool]],
@@ -439,8 +541,6 @@ def compute_vals(
     Run experiments to compute distance values.
 
     Args:
-        experiments: Mapping from an experiment kind to a sacred.Experiment to run.
-        experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
         config_updates: Config updates to apply. Hierarchically specified by algorithm and
             experiment kind. "global" may be specified at top-level (applies to all algorithms)
             or at first-level (applies to particular algorithm, all experiment kinds).
@@ -453,17 +553,19 @@ def compute_vals(
             does not support a particular configuration).
         log_dir: The directory to write tables and other logging to.
     """
-    runs = {}
-    for ex_key, ex in experiments.items():
-        for kind in experiment_kinds:
-            if kind in skip.get(ex_key, ()):
-                logging.info(f"Skipping ({ex_key}, {kind})")
+    experiment_kinds = _get_sorted_experiment_kinds()  # pylint:disable=no-value-for-parameter
+    res = {}
+    for dist_key, experiments in experiment_kinds.items():
+        dist_ex = DISTANCE_EXS[dist_key]
+        for kind in experiments:
+            if kind in skip.get(dist_key, ()):
+                logger.info(f"Skipping ({dist_key}, {kind})")
                 continue
 
             local_updates = [
                 config_updates.get("global", {}),
-                config_updates.get(ex_key, {}).get("global", {}),
-                config_updates.get(ex_key, {}).get(kind, {}),
+                config_updates.get(dist_key, {}).get("global", {}),
+                config_updates.get(dist_key, {}).get(kind, {}),
             ]
             local_updates = [copy.deepcopy(cfg) for cfg in local_updates]
             local_updates = functools.reduce(
@@ -473,15 +575,17 @@ def compute_vals(
 
             if "log_dir" in local_updates:
                 raise ValueError("Cannot override `log_dir`.")
-            local_updates["log_dir"] = os.path.join(log_dir, ex_key, kind)
+            local_updates["log_dir"] = os.path.join(log_dir, dist_key, kind)
 
             local_named = tuple(named_configs.get("global", ()))
-            local_named += tuple(named_configs.get(ex_key, {}).get("global", ()))
-            local_named += tuple(named_configs.get(ex_key, {}).get(kind, ()))
+            local_named += tuple(named_configs.get(dist_key, {}).get("global", ()))
+            local_named += tuple(named_configs.get(dist_key, {}).get(kind, ()))
 
-            logger.info(f"Running ({ex_key}, {kind}): {local_updates} plus {local_named}")
-            runs[(ex_key, kind)] = ex.run(config_updates=local_updates, named_configs=local_named)
-    return {k: run.result for k, run in runs.items()}
+            logger.info(f"Running ({dist_key}, {kind}): {local_updates} plus {local_named}")
+            run = dist_ex.run(config_updates=local_updates, named_configs=local_named)
+            res[(dist_key, kind)] = run.result
+
+    return res
 
 
 def _canonicalize_cfg(cfg: common_config.RewardCfg) -> common_config.RewardCfg:
@@ -489,12 +593,12 @@ def _canonicalize_cfg(cfg: common_config.RewardCfg) -> common_config.RewardCfg:
     return kind, results.canonicalize_data_root(path)
 
 
-@table_combined_ex.capture
+@combined_distances_ex.capture
 def filter_values(
     vals: Vals,
     target_reward_type: str,
     target_reward_path: str,
-) -> Mapping[str, Mapping[Tuple[str, str], pd.Series]]:
+) -> ValsFiltered:
     """
     Extract values for the target reward from `vals`.
 
@@ -526,14 +630,141 @@ def filter_values(
     return vals_filtered
 
 
-@table_combined_ex.main
-def table_combined(
+@combined_distances_ex.capture
+def latex_table(
+    vals_filtered: ValsFiltered,
+    pretty_models: Mapping[str, common_config.RewardCfg],
+    log_dir: str,
+) -> None:
+    """
+    Writes tables of data from `vals_filtered`.
+
+    Args:
+        vals_filtered: Filtered values returned by `filter_values`.
+        pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
+            A model matching that reward configuration has the associated short label.
+        log_dir: Directory to write table to.
+    """
+    for k, v in vals_filtered.items():
+        v = vals_filtered[k]
+        path = os.path.join(log_dir, f"{k}.csv")
+        logger.info(f"Writing table to '{path}'")
+        with open(path, "wb") as f:
+            table = make_table(k, v, pretty_models)
+            f.write(table.encode())
+
+
+def _checkpoint_to_progress(df: pd.DataFrame) -> pd.DataFrame:
+    ckpts = df["Checkpoint"].astype("int")
+    if len(ckpts) == 1:
+        progress = ckpts * 0.0
+    else:
+        progress = ckpts * 100 / ckpts.max()
+
+    return progress
+
+
+def _add_label_and_progress(
+    s: pd.Series, pretty_models: Mapping[str, common_config.RewardCfg]
+) -> pd.DataFrame:
+    """Add pretty label and checkpoint progress to reward distances."""
+    labels = s.index.map(functools.partial(_pretty_label, pretty_models=pretty_models))
+    df = s.reset_index(name="Distance")
+
+    regex = ".*/checkpoints/(?P<Checkpoint>final|[0-9]+)(?:/.*)?$"
+    match = df["source_reward_path"].str.extract(regex)
+    match["Label"] = labels
+
+    grp = match.groupby("Label")
+    progress = grp.apply(_checkpoint_to_progress)
+    progress = progress.reset_index("Label", drop=True)
+    df["Progress"] = progress
+    df["Label"] = labels
+
+    return df
+
+
+def _timeseries_distances(
+    vals: Mapping[Tuple[str, str], pd.Series], pretty_models: Mapping[str, common_config.RewardCfg]
+) -> pd.DataFrame:
+    """Merge vals into a single DataFrame, adding label and progress."""
+    vals = {k: _add_label_and_progress(v, pretty_models) for k, v in vals.items()}
+    df = pd.concat(vals, names=("Algorithm", "Distribution", "Original"))
+    df = df.reset_index().drop(columns=["Original"])
+    df["Algorithm"] = df["Algorithm"].str.upper()
+    return df
+
+
+class CustomCILinePlotter(sns.relational._LinePlotter):  # pylint:disable=protected-access
+    """
+    LinePlotter supporting custom confidence interval width.
+
+    This is unfortunately entangled with seaborn internals so may break with seaborn upgrades.
+    """
+
+    def __init__(self, lower, upper, **kwargs):
+        super().__init__(**kwargs)
+        self.lower = lower
+        self.upper = upper
+        self.estimator = "dummy"
+
+    def aggregate(self, vals, grouper, units=None):
+        y_ci = pd.DataFrame(
+            {
+                "low": self.lower.loc[vals.index, "Distance"],
+                "high": self.upper.loc[vals.index, "Distance"],
+            }
+        )
+        return grouper, vals, y_ci
+
+
+@combined_distances_ex.capture
+def distance_over_time(
+    vals_filtered: ValsFiltered,
+    pretty_models: Mapping[str, common_config.RewardCfg],
+    log_dir: str,
+    styles: Iterable[str],
+    prefix: str = "bootstrap",
+) -> None:
+    """
+    Plots timeseries of distances.
+
+    Only works with certain configs, like `point_maze_checkpoints`.
+    """
+    lower = _timeseries_distances(vals_filtered[f"{prefix}_lower"], pretty_models)
+    mid = _timeseries_distances(vals_filtered[f"{prefix}_middle"], pretty_models)
+    upper = _timeseries_distances(vals_filtered[f"{prefix}_upper"], pretty_models)
+
+    with stylesheets.setup_styles(styles):
+        fig, ax = plt.subplots(1, 1)
+        variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
+            dict(x="Progress", y="Distance", hue="Label", style="Algorithm", size=None, units=None),
+        )
+        plotter = CustomCILinePlotter(
+            variables=variables,
+            data=mid,
+            lower=lower,
+            upper=upper,
+            legend="auto",
+        )
+        plotter.map_hue(palette=None, order=None, norm=None)  # pylint:disable=no-member
+        plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member
+        plotter.map_style(markers=True, dashes=True, order=None)  # pylint:disable=no-member
+        plotter._attach(ax)  # pylint:disable=protected-access
+        plotter.plot(ax, {})
+
+        plt.xlabel("Training Progress (%)")
+        plt.ylabel("Distance")
+
+        visualize.save_fig(os.path.join(log_dir, "timeseries"), fig)
+
+
+@combined_distances_ex.main
+def combined_distances(
     vals_paths: Sequence[str],
     log_dir: str,
-    distance_kinds: Tuple[str],
-    experiment_kinds: Tuple[str],
     named_configs: Mapping[str, Mapping[str, Any]],
-    pretty_models: Mapping[str, common_config.RewardCfg],
+    output_fn: Callable[[ValsFiltered], None],
 ) -> None:
     """Entry-point into CLI script.
 
@@ -542,41 +773,24 @@ def table_combined(
             if non-empty. This is useful for regenerating tables in a new style from old data,
             including combining results from multiple previous runs.
         log_dir: The directory to write tables and other logging to.
-        distance_kinds: The distance metrics to compare with.
-        experiment_kinds: Different subsets of data to plot, e.g. visitation distributions.
         named_configs: Named configs to apply. First key is a namespace which has no semantic
             meaning, but should be unique for each Sacred config scope. Second key is the algorithm
             scope and third key the experiment kind, like with config_updates. Values at the leaf
             are tuples of named configs. The dicts across namespaces are recursively merged
             using `recursive_dict_merge`.
-        pretty_models: A Mapping from short-form ("pretty") labels to reward configurations.
-            A model matching that reward configuration has the associated short label.
+        output_fn: Function to call to generate saved output.
     """
-    experiments = {
-        "npec": npec.npec_distance_ex,
-        "epic": epic.epic_distance_ex,
-        "erc": erc.erc_distance_ex,
-    }
-    experiments = {k: experiments[k] for k in distance_kinds}
-
     # Merge named_configs. We have a faux top-level layer to workaround Sacred being unable to
     # have named configs build on top of each others definitions in a particular order.
     named_configs = [copy.deepcopy(cfg) for cfg in named_configs.values()]
     named_configs = functools.reduce(script_utils.recursive_dict_merge, named_configs)
 
-    _input_validation(  # pylint:disable=no-value-for-parameter
-        experiments,
-        experiment_kinds,
-        distance_kinds,
-        named_configs=named_configs,
-    )
+    _input_validation(named_configs=named_configs)  # pylint:disable=no-value-for-parameter
 
     if vals_paths:
         vals = load_vals(vals_paths)
     else:
-        vals = compute_vals(  # pylint:disable=no-value-for-parameter
-            experiments=experiments, named_configs=named_configs
-        )
+        vals = compute_vals(named_configs=named_configs)  # pylint:disable=no-value-for-parameter
 
         with open(os.path.join(log_dir, "vals.pkl"), "wb") as f:
             pickle.dump(vals, f)
@@ -585,14 +799,8 @@ def table_combined(
     # or separate script, which you could potentially combine here.
     vals_filtered = filter_values(vals)  # pylint:disable=no-value-for-parameter
 
-    for k, v in vals_filtered.items():
-        v = vals_filtered[k]
-        path = os.path.join(log_dir, f"{k}.csv")
-        logger.info(f"Writing table to '{path}'")
-        with open(path, "wb") as f:
-            table = make_table(k, v, pretty_models, distance_kinds, experiment_kinds)
-            f.write(table.encode())
+    output_fn(vals_filtered)
 
 
 if __name__ == "__main__":
-    script_utils.experiment_main(table_combined_ex, "table_combined")
+    script_utils.experiment_main(combined_distances_ex, "combined_distances")

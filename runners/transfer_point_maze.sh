@@ -56,15 +56,14 @@ $(call_script "rewards.train_regress" "with") env_name=${ENV_TRAIN} seed=${SEED}
     ${TRAIN_TIMESTEPS_MODIFIER} dataset_factory_kwargs.policy_type=mixture \
     dataset_factory_kwargs.policy_path=${MIXED_POLICY_PATH}&
 
-for state_only in True False; do
-  if [[ ${state_only} == "True" ]]; then
-    name="state_only"
-  else
+for use_action in True False; do
+  if [[ ${use_action} == "True" ]]; then
     name="state_action"
+  else
+    name="state_only"
   fi
-  $(call_script "rewards.train_adversarial" "with") airl env_name=${ENV_TRAIN} seed=${SEED} \
-      init_trainer_kwargs.reward_kwargs.state_only=${state_only} \
-      rollout_path=${TRAIN_ENV_RL}/rollouts/final.pkl \
+  $(call_script "rewards.train_adversarial" "with") airl point_maze checkpoint_interval=1 \
+      seed=${SEED} algorithm_kwargs.airl.reward_net_kwargs.use_action=${use_action} \
       ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
 done
 
@@ -72,14 +71,7 @@ wait
 
 # Step 2) Evaluate Reward Models with Distance Metrics
 
-for cmd in epic npec erc; do
-  python -m evaluating_rewards.scripts.distances.${cmd} with \
-      ${NAMED_CONFIG} ${COMPARISON_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/distance/${cmd}
-done
-
-# Step 3) Train Policies on Learnt Reward Models
-
-python -m evaluating_rewards.scripts.pipeline.train_experts with \
-    ${NAMED_CONFIG} ${TRAIN_TIMESTEPS_MODIFIER} log_dir=${PM_OUTPUT}/policy_learned
-
-wait
+python -m evaluating_rewards.scripts.pipeline.combined with point_maze_learned_good high_precision \
+    log_dir=${PM_OUTPUT}/distances/
+python -m evaluating_rewards.scripts.pipeline.combined with point_maze_learned_pathological high_precision \
+    log_dir=${PM_OUTPUT}/distances_pathological/

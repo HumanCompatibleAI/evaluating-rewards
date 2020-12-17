@@ -15,7 +15,7 @@
 """CLI script to regress a model onto another, pre-loaded model."""
 
 import functools
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 import sacred
 
@@ -30,6 +30,7 @@ train_regress_ex = sacred.Experiment("train_regress")
 def default_config():
     """Default configuration values."""
     locals().update(**regress_utils.DEFAULT_CONFIG)
+    checkpoint_interval = 50  # save every checkpoint_interval epochs
     dataset_factory = datasets.transitions_factory_from_serialized_policy
     dataset_factory_kwargs = dict()
 
@@ -89,6 +90,7 @@ def train_regress(
     batch_size: int,
     learning_rate: float,
     # Logging
+    checkpoint_interval: int,
     log_dir: str,
 ) -> Mapping[str, Any]:
     """Entry-point into script to regress source onto target reward model."""
@@ -99,10 +101,13 @@ def train_regress(
             del model_scope
             return comparisons.RegressModel(model, target, learning_rate=learning_rate)
 
-        def do_training(target, trainer):
+        def do_training(target, trainer, callback: Optional[base.Callback]):
             del target
             return trainer.fit(
-                dataset_generator, total_timesteps=total_timesteps, batch_size=batch_size
+                dataset_generator,
+                total_timesteps=total_timesteps,
+                batch_size=batch_size,
+                callback=callback,
             )
 
         return regress_utils.regress(
@@ -116,6 +121,7 @@ def train_regress(
             target_reward_type=target_reward_type,
             target_reward_path=target_reward_path,
             log_dir=log_dir,
+            checkpoint_interval=checkpoint_interval,
         )
 
 

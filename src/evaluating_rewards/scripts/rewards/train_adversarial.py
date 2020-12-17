@@ -14,9 +14,27 @@
 
 """Thin wrapper around imitation.scripts.train_adversarial."""
 
+import os
+
 from imitation.scripts import train_adversarial
 
+from evaluating_rewards import serialize
 from evaluating_rewards.scripts import script_utils
+
+
+@train_adversarial.train_ex.named_config
+def point_maze():
+    """IRL config for PointMaze environment."""
+    env_name = "imitation/PointMazeLeftVel-v0"
+    rollout_path = os.path.join(
+        serialize.get_output_dir(),
+        "train_experts/ground_truth/20201203_105631_297835/imitation_PointMazeLeftVel-v0",
+        "evaluating_rewards_PointMazeGroundTruthWithCtrl-v0/best/rollouts/final.pkl",
+    )
+    total_timesteps = 1e6
+    _ = locals()
+    del _
+
 
 if __name__ == "__main__":
     script_utils.add_logging_config(train_adversarial.train_ex, "train_adversarial")

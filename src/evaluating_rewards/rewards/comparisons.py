@@ -15,7 +15,7 @@
 """Methods to compare reward models."""
 
 import logging
-from typing import Any, Callable, List, Mapping, Tuple, Type, TypeVar
+from typing import Any, Callable, List, Mapping, Optional, Tuple, Type, TypeVar
 
 from imitation.data import types
 import tensorflow as tf
@@ -89,7 +89,7 @@ class RegressModel:
         dataset: datasets.TransitionsCallable,
         total_timesteps: int = int(1e6),
         batch_size: int = 4096,
-        log_interval: int = 10,
+        **kwargs,
     ) -> FitStats:
         """Fits shaping to target.
 
@@ -97,7 +97,7 @@ class RegressModel:
             dataset: a callable returning batches of the specified size.
             total_timesteps: the total number of timesteps to train for.
             batch_size: the number of timesteps in each training batch.
-            log_interval: reports statistics every log_interval batches.
+            kwargs: passed through to `fit_models`.
 
         Returns:
             Training statistics.
@@ -107,7 +107,7 @@ class RegressModel:
             dataset=dataset,
             total_timesteps=total_timesteps,
             batch_size=batch_size,
-            log_interval=log_interval,
+            **kwargs,
         )
 
 
@@ -123,6 +123,7 @@ def fit_models(
     total_timesteps: int,
     batch_size: int,
     log_interval: int = 10,
+    callback: Optional[base.Callback] = None,
 ) -> Mapping[str, List[Mapping[K, Any]]]:
     """Regresses model(s).
 
@@ -135,6 +136,7 @@ def fit_models(
         total_timesteps: the total number of timesteps to train for.
         batch_size: the number of timesteps in each training batch.
         log_interval: The frequency with which to print.
+        callback: If not None, called each epoch with the current epoch number.
 
     Returns:
         Metrics from training.
@@ -165,6 +167,9 @@ def fit_models(
 
         if i % log_interval == 0:
             logging.info(f"{i}: loss = {loss}, " f"metrics = {metric}")
+
+        if callback:
+            callback(i)
 
     # TODO(): better logging method, e.g. TensorBoard summaries?
     return {"loss": losses, "metrics": metrics}
