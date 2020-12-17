@@ -241,7 +241,7 @@ def point_maze_checkpoints():
     locals().update(**POINT_MAZE_LEARNED_COMMON)
     named_configs = {
         "point_maze_learned": {
-            "global": ("point_maze_checkpoints",),
+            "global": ("point_maze_checkpoints_50",),
         }
     }
     experiment_kinds = {k: ("mixture",) for k in ("epic", "npec", "erc")}

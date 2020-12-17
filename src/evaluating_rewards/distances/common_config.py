@@ -69,7 +69,7 @@ def point_maze_learned_checkpoint_cfgs(
     res = {}
     for kind, fstr_path in _POINT_MAZE_CFG:
         glob_path = os.path.join(
-            serialize.get_output_dir(), prefix, "reward", fstr_path.format("[0-9].*")
+            serialize.get_output_dir(), prefix, "reward", fstr_path.format("[0-9]*")
         )
         paths = sorted(glob.glob(glob_path))
         cfgs = [(kind, path) for path in paths]
@@ -79,7 +79,7 @@ def point_maze_learned_checkpoint_cfgs(
             cfgs = cfgs[::subsample]
             assert target_num <= len(cfgs) <= 2 * target_num
 
-        res[kind] = cfgs
+        res[(kind, fstr_path)] = cfgs
 
     empty = {k: bool(v) for k, v in res.items()}
     if any(empty) and not all(empty):
@@ -152,9 +152,10 @@ def _update_common_configs() -> None:
             + std_cfgs,
         )
 
-        chk_key = f"point_maze_checkpoints{suffix}"
-        chk_cfgs = point_maze_learned_checkpoint_cfgs(prefix)
-        COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
+        for target_num in [5, 50, None]:
+            chk_key = f"point_maze_checkpoints{suffix}_{target_num}"
+            chk_cfgs = point_maze_learned_checkpoint_cfgs(prefix, target_num=target_num)
+            COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
 
 
 _update_common_configs()
