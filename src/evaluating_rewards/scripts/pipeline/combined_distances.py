@@ -241,7 +241,7 @@ def point_maze_checkpoints():
     locals().update(**POINT_MAZE_LEARNED_COMMON)
     named_configs = {
         "point_maze_learned": {
-            "global": ("point_maze_checkpoints_50",),
+            "global": ("point_maze_checkpoints_100",),
         }
     }
     experiment_kinds = {k: ("mixture",) for k in ("epic", "npec", "erc")}
@@ -255,6 +255,9 @@ def point_maze_checkpoints():
             },
         }
     )
+    config_updates["epic"]["global"] = {
+        "num_cpus": 8,  # more computationally expensive with large # of checkpoints
+    }
     config_updates["rl"] = {
         "train": {"env_name": "imitation/PointMazeLeftVel-v0"},
         "test": {"env_name": "imitation/PointMazeRightVel-v0"},
@@ -746,6 +749,7 @@ def distance_over_time(
             lower=lower,
             upper=upper,
             legend="auto",
+            err_style="band",
         )
         plotter.map_hue(palette=None, order=None, norm=None)  # pylint:disable=no-member
         plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member

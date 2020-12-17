@@ -71,7 +71,7 @@ wait
 
 # Step 2) Evaluate Reward Models with Distance Metrics
 
-python -m evaluating_rewards.scripts.pipeline.combined with point_maze_learned_good high_precision \
+python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_learned_good high_precision \
     log_dir=${PM_OUTPUT}/distances/
-python -m evaluating_rewards.scripts.pipeline.combined with point_maze_learned_pathological high_precision \
+python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_learned_pathological high_precision \
     log_dir=${PM_OUTPUT}/distances_pathological/
