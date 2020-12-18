@@ -144,6 +144,20 @@ COMMON_CONFIGS = {
 }
 
 
+def _bisect_nbits(nbits):
+    """Permutation of range(2**nbits) based on repeated bisection.
+
+    The idea is to approximate uniform sampling of the entire range for each
+    slice, so that you can incrementally gain resolution as you go through the range."""
+    if nbits == 1:
+        return [0, 1]
+    else:
+        smaller = _bisect_nbits(nbits - 1)
+        incr = 2 ** (nbits - 1)
+        larger = [x + incr for x in smaller]
+        return list(itertools.chain(*zip(smaller, larger)))
+
+
 def _update_common_configs() -> None:
     base_cfg = {
         "env_name": "imitation/PointMazeLeftVel-v0",
@@ -167,12 +181,12 @@ def _update_common_configs() -> None:
             chk_cfgs = point_maze_learned_checkpoint_cfgs(prefix, target_num=target_num)
             COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
 
-            total_shards = 10
+            nbits = 4
+            total_shards = 2 ** nbits
             if target_num > total_shards:
-                for shard_num in range(total_shards):
-                    chk_key = (
-                        f"point_maze_checkpoints{suffix}_{target_num}_{shard_num}of{total_shards}"
-                    )
+                shards = _bisect_nbits(nbits)
+                for i, shard_num in zip(range(total_shards), shards):
+                    chk_key = f"point_maze_checkpoints{suffix}_{target_num}_{i}of{total_shards}"
                     chk_cfgs = point_maze_learned_checkpoint_cfgs(
                         prefix, target_num=target_num, shard=(shard_num, total_shards)
                     )

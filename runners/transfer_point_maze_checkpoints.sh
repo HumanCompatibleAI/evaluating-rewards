@@ -15,9 +15,9 @@
 
 # Run `runners/transfer_point_maze.sh` before this script to create the reward models.
 
-for shard_num in {0..9}; do
-  echo "Running shard ${shard_num} of 10"
+for shard_num in {0..15}; do
+  echo "Running shard ${shard_num} of 16"
   python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_checkpoints high_precision \
       "named_configs.point_maze_learned.global=('point_maze_checkpoints_100_${shard_num}of10',)" \
-      log_dir=${PM_OUTPUT}/distances_checkpoints/${i}
+      log_dir=${PM_OUTPUT}/distances_checkpoints/${shard_num}/
 done
