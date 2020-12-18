@@ -19,9 +19,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${DIR}/common.sh
 PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze
 
-for shard_num in {0..15}; do
-  echo "Running shard ${shard_num} of 16"
+TOTAL_SHARDS=16
+for shard_num in $(seq 0 $((${TOTAL_SHARDS} - 1))); do
+  echo "Running shard ${shard_num} of ${TOTAL_SHARDS}"
   python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_checkpoints high_precision \
-      "named_configs.point_maze_learned.global=('point_maze_checkpoints_100_${shard_num}of10',)" \
+      "named_configs.point_maze_learned.global=('point_maze_checkpoints_100_${shard_num}of${TOTAL_SHARDS}',)" \
       log_dir=${PM_OUTPUT}/distances_checkpoints/${shard_num}/
 done
