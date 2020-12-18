@@ -15,6 +15,10 @@
 
 # Run `runners/transfer_point_maze.sh` before this script to create the reward models.
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. ${DIR}/common.sh
+PM_OUTPUT=${EVAL_OUTPUT_ROOT}/transfer_point_maze
+
 for shard_num in {0..15}; do
   echo "Running shard ${shard_num} of 16"
   python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_checkpoints high_precision \
