@@ -22,6 +22,7 @@ or a lineplot (only for timeseries over checkpoints).
 import copy
 import functools
 import glob
+import itertools
 import logging
 import os
 import pickle
@@ -69,6 +70,7 @@ def default_config():
     target_reward_type = None
     target_reward_path = None
     pretty_models = {}
+    pretty_algorithms = {}
     # Output formats
     output_fn = latex_table
     styles = ["paper", "tex"]
@@ -262,6 +264,13 @@ def point_maze_checkpoints():
         "train": {"env_name": "imitation/PointMazeLeftVel-v0"},
         "test": {"env_name": "imitation/PointMazeRightVel-v0"},
     }
+    pretty_algorithms = {
+        "EPIC": ("epic", "mixture"),
+        "NPEC": ("npec", "mixture"),
+        "ERC": ("erc", "mixture"),
+        "RL Train": ("rl", "train"),
+        "RL Test": ("rl", "test"),
+    }
     tag = "point_maze_checkpoints"
     output_fn = distance_over_time
     _ = locals()
@@ -382,7 +391,7 @@ def _fixed_width_format(x: float, figs: int = 3) -> str:
 
 
 def _pretty_label(
-    cfg: common_config.RewardCfg, pretty_models: Mapping[str, common_config.RewardCfg]
+    cfg: common_config.RewardCfg, pretty_mapping: Mapping[str, common_config.RewardCfg]
 ) -> str:
     """Map `cfg` to a more readable label in `pretty_models`.
 
@@ -391,13 +400,13 @@ def _pretty_label(
     """
     kind, path = cfg
     label = None
-    for search_label, (search_kind, search_pattern) in pretty_models.items():
+    for search_label, (search_kind, search_pattern) in pretty_mapping.items():
         if kind == search_kind and re.match(search_pattern, path):
             if label is not None:
-                raise ValueError(f"Duplicate match for '{cfg}' in '{pretty_models}'")
+                raise ValueError(f"Duplicate match for '{cfg}' in '{pretty_mapping}'")
             label = search_label
     if label is None:
-        raise ValueError(f"Did not find '{cfg}' in '{pretty_models}'")
+        raise ValueError(f"Did not find '{cfg}' in '{pretty_mapping}'")
     return label
 
 
@@ -686,30 +695,53 @@ def _add_label_and_progress(
     s: pd.Series, pretty_models: Mapping[str, common_config.RewardCfg]
 ) -> pd.DataFrame:
     """Add pretty label and checkpoint progress to reward distances."""
-    labels = s.index.map(functools.partial(_pretty_label, pretty_models=pretty_models))
+    labels = s.index.map(functools.partial(_pretty_label, pretty_mapping=pretty_models))
     df = s.reset_index(name="Distance")
 
     regex = ".*/checkpoints/(?P<Checkpoint>final|[0-9]+)(?:/.*)?$"
     match = df["source_reward_path"].str.extract(regex)
-    match["Label"] = labels
+    match["Reward"] = labels
 
-    grp = match.groupby("Label")
+    grp = match.groupby("Reward")
     progress = grp.apply(_checkpoint_to_progress)
-    progress = progress.reset_index("Label", drop=True)
+    progress = progress.reset_index("Reward", drop=True)
     df["Progress"] = progress
-    df["Label"] = labels
+    df["Reward"] = labels
 
     return df
 
 
+def _make_cat_type(s: pd.Series, cat_order: Sequence[str]) -> pd.Series:
+    """Convert `s` to categorical data type based on `cat_order`.
+
+    Omits any values not present in `s` from the data type.
+    """
+    labels = set(s)
+    label_cats = [cat for cat in cat_order if cat in labels]
+    label_cat_type = pd.CategoricalDtype(label_cats)
+    return s.astype(label_cat_type)
+
+
 def _timeseries_distances(
-    vals: Mapping[Tuple[str, str], pd.Series], pretty_models: Mapping[str, common_config.RewardCfg]
+    vals: Mapping[Tuple[str, str], pd.Series],
+    pretty_algorithms: Mapping[str, common_config.RewardCfg],
+    pretty_models: Mapping[str, common_config.RewardCfg],
 ) -> pd.DataFrame:
     """Merge vals into a single DataFrame, adding label and progress."""
-    vals = {k: _add_label_and_progress(v, pretty_models) for k, v in vals.items()}
-    df = pd.concat(vals, names=("Algorithm", "Distribution", "Original"))
+    vals = {
+        _pretty_label(k, pretty_algorithms): _add_label_and_progress(v, pretty_models)
+        for k, v in vals.items()
+    }
+    df = pd.concat(vals, names=("Algorithm", "Original"))
     df = df.reset_index().drop(columns=["Original"])
-    df["Algorithm"] = df["Algorithm"].str.upper()
+
+    # Assign labels and algorithms a categorical data type. This makes sense
+    # semantically -- they take on only a small, finite number of data points.
+    # Moreover, it helps Seaborn plot things with consistent colours/markers
+    # when only a subset are present in a given plot.
+    df["Algorithm"] = _make_cat_type(df["Algorithm"], pretty_algorithms.keys())
+    df["Reward"] = _make_cat_type(df["Reward"], pretty_models.keys())
+
     return df
 
 
@@ -736,9 +768,82 @@ class CustomCILinePlotter(sns.relational._LinePlotter):  # pylint:disable=protec
         return grouper, vals, y_ci
 
 
+def flip(items, ncol):
+    return itertools.chain(*[items[i::ncol] for i in range(ncol)])
+
+
+# Use different color palettes for each key to make plots more visually distinct.
+_COLOR_PALETTES = {
+    "Algorithm": "Set2",
+    "Reward": "deep",
+}
+
+
+def _make_distance_over_time_plot(
+    mid: pd.DataFrame,
+    lower: pd.DataFrame,
+    upper: pd.DataFrame,
+    filter_col: str,
+    filter_val: str,
+    group_col: str,
+):
+    # TODO(adam): dual axis for returns vs distances
+    # TODO(adam): RL -- separate train and test
+    # TODO(adam): may want to split this up into two
+    # TODO(adam): locate legend somewhere saner. Maybe just save it externally?
+    vals = [mid, lower, upper]
+    vals = [df.loc[df[filter_col] == filter_val] for df in vals]
+    mid, lower, upper = vals
+
+    fig, ax = plt.subplots(1, 1)
+    variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
+        dict(x="Progress", y="Distance", hue=group_col, style=group_col, size=None, units=None),
+    )
+    plotter = CustomCILinePlotter(
+        variables=variables,
+        data=mid,
+        lower=lower,
+        upper=upper,
+        legend=None,
+        err_style="band",
+    )
+    palette = sns.color_palette(_COLOR_PALETTES[group_col], len(mid[group_col].dtype.categories))
+    plotter.map_hue(palette=palette, order=None, norm=None)  # pylint:disable=no-member
+    plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member
+    plotter.map_style(markers=False, dashes=True, order=None)  # pylint:disable=no-member
+    plotter._attach(ax)  # pylint:disable=protected-access
+    plotter.plot(ax, {})
+
+    # Plot the legend in a separate figure
+    legend_fig, legend_ax = plt.subplots(1, 1)
+    legend_ax.axis("off")
+    plotter.add_legend_data(legend_ax)
+    handles, labels = legend_ax.get_legend_handles_labels()
+    if handles:
+        bbox = (0, 0, 2, 0.5)
+        ncol = 6
+        legend = legend_ax.legend(
+            flip(handles, ncol),
+            flip(labels, ncol),
+            title=plotter.legend_title,
+            loc="lower center",
+            ncol=ncol,
+            bbox_to_anchor=bbox,
+            mode="expand",
+            borderaxespad=0,
+            frameon=True,
+        )
+        sns.relational.adjust_legend_subtitles(legend)
+
+    plt.xlabel("Training Progress (%)")
+    plt.ylabel("Distance")
+    return fig, legend_fig, plotter
+
+
 @combined_distances_ex.capture
 def distance_over_time(
     vals_filtered: ValsFiltered,
+    pretty_algorithms: Mapping[str, common_config.RewardCfg],
     pretty_models: Mapping[str, common_config.RewardCfg],
     log_dir: str,
     styles: Iterable[str],
@@ -749,33 +854,21 @@ def distance_over_time(
 
     Only works with certain configs, like `point_maze_checkpoints`.
     """
-    lower = _timeseries_distances(vals_filtered[f"{prefix}_lower"], pretty_models)
-    mid = _timeseries_distances(vals_filtered[f"{prefix}_middle"], pretty_models)
-    upper = _timeseries_distances(vals_filtered[f"{prefix}_upper"], pretty_models)
+    _timeseries_distances_curried = functools.partial(
+        _timeseries_distances, pretty_algorithms=pretty_algorithms, pretty_models=pretty_models
+    )
+    lower = _timeseries_distances_curried(vals_filtered[f"{prefix}_lower"])
+    mid = _timeseries_distances_curried(vals_filtered[f"{prefix}_middle"])
+    upper = _timeseries_distances_curried(vals_filtered[f"{prefix}_upper"])
 
     with stylesheets.setup_styles(styles):
-        fig, ax = plt.subplots(1, 1)
-        variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
-            dict(x="Progress", y="Distance", hue="Label", style="Algorithm", size=None, units=None),
-        )
-        plotter = CustomCILinePlotter(
-            variables=variables,
-            data=mid,
-            lower=lower,
-            upper=upper,
-            legend="auto",
-            err_style="band",
-        )
-        plotter.map_hue(palette=None, order=None, norm=None)  # pylint:disable=no-member
-        plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member
-        plotter.map_style(markers=True, dashes=True, order=None)  # pylint:disable=no-member
-        plotter._attach(ax)  # pylint:disable=protected-access
-        plotter.plot(ax, {})
+        for algorithm in mid["Algorithm"].dtype.categories:
+            fig = _make_distance_over_time_plot(mid, lower, upper, "Algorithm", algorithm, "Reward")
+            visualize.save_fig(os.path.join(log_dir, "timeseries", f"algorithm_{algorithm}"), fig)
 
-        plt.xlabel("Training Progress (%)")
-        plt.ylabel("Distance")
-
-        visualize.save_fig(os.path.join(log_dir, "timeseries"), fig)
+        for reward in mid["Reward"].dtype.categories:
+            fig = _make_distance_over_time_plot(mid, lower, upper, "Reward", reward, "Algorithm")
+            visualize.save_fig(os.path.join(log_dir, "timeseries", f"reward_{reward}"), fig)
 
 
 @combined_distances_ex.main
