@@ -24,5 +24,5 @@ for shard_num in $(seq 0 $((${TOTAL_SHARDS} - 1))); do
   echo "Running shard ${shard_num} of ${TOTAL_SHARDS}"
   python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_checkpoints high_precision \
       "named_configs.point_maze_learned.global=('point_maze_checkpoints_100_${shard_num}of${TOTAL_SHARDS}',)" \
-      log_dir=${PM_OUTPUT}/distances_checkpoints/${shard_num}/
+      log_dir=${PM_OUTPUT}/distances_checkpoints/${shard_num}/ suppress_output
 done

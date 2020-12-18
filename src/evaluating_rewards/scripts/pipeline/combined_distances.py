@@ -312,6 +312,21 @@ def fast():
     }
 
 
+def _no_op(vals: ValsFiltered) -> None:
+    """Do nothing (no-op) output_fn."""
+    del vals
+
+
+@combined_distances_ex.named_config
+def suppress_output():
+    """Suppress human-readable output. Still saves the raw values.
+
+    Useful to avoid saving unnecessary output when running script multiple times,
+    with the intention of combining the raw values using `vals_paths` configuration.
+    """
+    output_fn = _no_op  # noqa: F841  pylint:disable=unused-variable
+
+
 K = TypeVar("K")
 
 
