@@ -73,7 +73,7 @@ def default_config():
     pretty_algorithms = {}
     # Output formats
     output_fn = latex_table
-    styles = ["paper", "tex"]
+    styles = ["paper", "tex", "training-curve", "training-curve-1col"]
     tag = "default"
     _ = locals()
     del _
@@ -772,6 +772,38 @@ def flip(items, ncol):
     return itertools.chain(*[items[i::ncol] for i in range(ncol)])
 
 
+def outside_legend(
+    fig: plt.Figure,
+    ax: plt.Axes,
+    legend_padding: float = 0.04,
+    legend_height: float = 0.3,
+    **kwargs,
+) -> None:
+    """Plots a legend immediately above the figure axes.
+
+    Args:
+        fig: The figure to plot the legend on.
+        ax: The axes to plot the legend above.
+        legend_padding: Padding between top of axes and bottom of legend, in inches.
+        legend_height: Height of legend, in inches.
+        **kwargs: Passed through to `fig.legend`."""
+    _width, height = fig.get_size_inches()
+    pos = ax.get_position()
+    legend_left = pos.x0
+    legend_right = pos.x0 + pos.width
+    legend_width = legend_right - legend_left
+    legend_bottom = pos.y0 + pos.height + legend_padding / height
+    legend_height = legend_height / height
+    bbox = (legend_left, legend_bottom, legend_width, legend_height)
+    fig.legend(
+        loc="lower left",
+        bbox_to_anchor=bbox,
+        bbox_transform=fig.transFigure,
+        mode="expand",
+        **kwargs,
+    )
+
+
 # Use different color palettes for each key to make plots more visually distinct.
 _COLOR_PALETTES = {
     "Algorithm": "Set2",
@@ -779,23 +811,21 @@ _COLOR_PALETTES = {
 }
 
 
-def _make_distance_over_time_plot(
-    mid: pd.DataFrame,
-    lower: pd.DataFrame,
-    upper: pd.DataFrame,
-    filter_col: str,
-    filter_val: str,
-    group_col: str,
-):
-    # TODO(adam): dual axis for returns vs distances
-    # TODO(adam): RL -- separate train and test
-    # TODO(adam): may want to split this up into two
-    # TODO(adam): locate legend somewhere saner. Maybe just save it externally?
-    vals = [mid, lower, upper]
-    vals = [df.loc[df[filter_col] == filter_val] for df in vals]
-    mid, lower, upper = vals
+def custom_ci_line_plot(
+    mid: pd.DataFrame, lower: pd.DataFrame, upper: pd.DataFrame, group_col: str, ax: plt.Axes
+) -> CustomCILinePlotter:
+    """Like `sns.lineplot`, but supporting custom confidence intervals.
 
-    fig, ax = plt.subplots(1, 1)
+    Args:
+        mid: Data of mid point.
+        lower: Data of lower point.
+        upper: Data of upper point.
+        group_col: Column in data to group with (in hue and style).
+        ax: Axes to plot on.
+
+    Returns:
+        The plotter object.
+    """
     variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
         dict(x="Progress", y="Distance", hue=group_col, style=group_col, size=None, units=None),
     )
@@ -813,31 +843,46 @@ def _make_distance_over_time_plot(
     plotter.map_style(markers=False, dashes=True, order=None)  # pylint:disable=no-member
     plotter._attach(ax)  # pylint:disable=protected-access
     plotter.plot(ax, {})
+    return plotter
 
-    # Plot the legend in a separate figure
-    legend_fig, legend_ax = plt.subplots(1, 1)
-    legend_ax.axis("off")
-    plotter.add_legend_data(legend_ax)
-    handles, labels = legend_ax.get_legend_handles_labels()
-    if handles:
-        bbox = (0, 0, 2, 0.5)
-        ncol = 6
-        legend = legend_ax.legend(
-            flip(handles, ncol),
-            flip(labels, ncol),
-            title=plotter.legend_title,
-            loc="lower center",
-            ncol=ncol,
-            bbox_to_anchor=bbox,
-            mode="expand",
-            borderaxespad=0,
-            frameon=True,
-        )
-        sns.relational.adjust_legend_subtitles(legend)
 
-    plt.xlabel("Training Progress (%)")
-    plt.ylabel("Distance")
-    return fig, legend_fig, plotter
+def _make_distance_over_time_plot(
+    mid: pd.DataFrame,
+    lower: pd.DataFrame,
+    upper: pd.DataFrame,
+    filter_col: str,
+    filter_val: str,
+    group_col: str,
+):
+    vals = [mid, lower, upper]
+    vals = [df.loc[df[filter_col] == filter_val] for df in vals]
+    vals_distance = [df.loc[~df["Algorithm"].str.startswith("RL")] for df in vals]
+    vals_rl = [df.loc[df["Algorithm"].str.startswith("RL")] for df in vals]
+    mid_dist, lower_dist, upper_dist = vals_distance
+    mid_rl, lower_rl, upper_rl = vals_rl
+
+    fig, ax = plt.subplots(1, 1)
+    if not mid_dist.empty:
+        plotter = custom_ci_line_plot(mid_dist, lower_dist, upper_dist, group_col, ax)
+        ax.set_ylabel("Distance")
+    if not mid_rl.empty:
+        if mid_dist.empty:
+            rl_ax = ax
+        else:
+            rl_ax = ax.twinx()
+        plotter = custom_ci_line_plot(mid_rl, lower_rl, upper_rl, group_col, rl_ax)
+        rl_ax.set_ylabel("Mean Return")
+
+    plotter.add_legend_data(ax)  # doesn't matter which plotter this is from
+    handles, _ = ax.get_legend_handles_labels()
+    outside_legend(
+        ncol=len(handles),
+        fig=fig,
+        ax=ax,
+    )
+
+    ax.set_xlabel("Training Progress (%)")
+    return fig
 
 
 @combined_distances_ex.capture

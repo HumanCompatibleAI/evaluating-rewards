@@ -66,6 +66,21 @@ STYLES = {
         "figure.figsize": (2.10, 1.43),
         "figure.subplot.right": 0.84,
     },
+    "training-curve": {
+        "legend.columnspacing": 1.0,
+        "legend.handletextpad": 0.4,
+        "legend.handleheight": 0.1,
+        "legend.borderpad": 0.4,
+        "legend.borderaxespad": 0.1,
+        "legend.labelspacing": 0.0,
+    },
+    "training-curve-1col": {
+        "figure.figsize": (5.5, 1.5),
+        "figure.subplot.top": 0.99,
+        "figure.subplot.right": 0.92,
+        "figure.subplot.left": 0.08,
+        "figure.subplot.bottom": 0.09,
+    },
     "small-labels": {"xtick.labelsize": 8, "ytick.labelsize": 8},
     "tiny-font": {"font.size": 6, "xtick.labelsize": 6, "ytick.labelsize": 6},
     "gridworld-heatmap": {
