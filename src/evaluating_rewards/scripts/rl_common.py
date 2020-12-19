@@ -108,7 +108,7 @@ def make_config(experiment: sacred.Experiment) -> None:
     def default_config():
         """Default configuration."""
         ray_kwargs = {}
-        num_cpus_fudge_factor = 0.5  # we can usually run 2 environments per CPU for MuJoCo
+        num_cpus_fudge_factor = 0.75  # we can usually run 2 environments per CPU for MuJoCo
         global_configs = {
             "n_seeds": 9,
             "config_updates": {
