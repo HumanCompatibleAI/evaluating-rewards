@@ -37,6 +37,7 @@ def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
 
 
 _POINT_MAZE_CFG = [
+    ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
     ("evaluating_rewards/RewardModel-v0", "regress/checkpoints/{}"),
     ("evaluating_rewards/RewardModel-v0", "preferences/checkpoints/{}"),
     ("imitation/RewardNet_unshaped-v0", "irl_state_only/checkpoints/{}/discrim/reward_net"),
