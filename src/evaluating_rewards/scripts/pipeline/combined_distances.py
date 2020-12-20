@@ -386,10 +386,12 @@ def _fixed_width_format(x: float, figs: int = 3) -> str:
     fstr = "{:." + str(max(0, figs - num_leading_zeros)) + "g}"
     res = fstr.format(x)
 
-    if "." in res:
-        delta = (figs + 1) - len(res)
-        if delta > 0:  # g drops trailing zeros, add them back
-            res += "0" * delta
+    delta = (figs + 1) - len(res)
+    # g drops trailing zeros, add them back
+    if delta > 0 and "." in res:
+        res += "0" * delta
+    if delta > 1 and "." not in res:
+        res += "." + "0" * (delta - 1)
 
     return res
 
