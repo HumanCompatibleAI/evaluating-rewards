@@ -549,16 +549,10 @@ def load_vals(vals_paths: Sequence[str]) -> Vals:
             pickle_paths.append(path)
 
     vals = {}
-    keys_to_path = {}
     for path in pickle_paths:
         with open(path, "rb") as f:
             val = pickle.load(f)
-        for k, v in val.items():
-            keys_to_path.setdefault(k, []).append(path)
-            if k in vals:
-                logger.info(f"Duplicate key {k} present in {keys_to_path[k]}")
-            else:
-                vals[k] = v
+        script_utils.recursive_dict_merge(vals, val)
 
     return vals
 
@@ -858,7 +852,6 @@ def custom_ci_line_plot(
 
 
 def _make_distance_over_time_plot_legend(
-    mid: pd.DataFrame,
     plotter: CustomCILinePlotter,
     fig: plt.Figure,
     ax: plt.Axes,
@@ -875,8 +868,8 @@ def _make_distance_over_time_plot_legend(
         # Different keys. Legend needs two rows.
 
         # Make number of columns large enough to fit hue and style each in one row.
-        n_hue = len(mid[hue_col].dtype.categories)
-        n_style = len(mid[style_col].dtype.categories)
+        n_hue = len(plotter.lower[hue_col].dtype.categories)
+        n_style = len(plotter.lower[style_col].dtype.categories)
         ncol = max(n_hue, n_style)
 
         del handles[0], labels[0]  # delete hue subtitle
@@ -948,7 +941,7 @@ def _make_distance_over_time_plot(
         rl_ax.set_ylabel("Mean Return")
     ax.set_xlabel("Training Progress (%)")
 
-    _make_distance_over_time_plot_legend(mid, plotter, fig, ax, hue_col, style_col)
+    _make_distance_over_time_plot_legend(plotter, fig, ax, hue_col, style_col)
 
     return fig
 
