@@ -19,6 +19,7 @@ import logging
 import os
 import pickle
 from typing import Callable, Iterable, Mapping, Sequence, Tuple
+import warnings
 
 import gym
 import numpy as np
@@ -84,8 +85,14 @@ def relative_error(
 
     Since this may be asymmetric between lower and upper, returns the maximum of
     upper / mean - 1 (relative upper bound) and 1 - lower / mean (relative lower bound).
+
+    To handle negative numbers, returns the absolute value of this.
     """
-    return max(upper / mean - 1, 1 - lower / mean)
+    if lower * upper < 0:
+        warnings.warn(f"lower = '{lower}' different sign to upper = '{upper}'", UserWarning)
+        return np.nan
+    else:
+        return abs(max(upper / mean - 1, 1 - lower / mean))
 
 
 def bootstrap_ci(vals: Iterable[float], n_bootstrap: int, alpha: float) -> Mapping[str, float]:

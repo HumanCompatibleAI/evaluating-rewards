@@ -168,11 +168,17 @@ def compute_vals(
     logger.info("Saving raw dissimilarities")
     with open(os.path.join(log_dir, "dissimilarities.pkl"), "wb") as f:
         pickle.dump(dissimilarities, f)
+
     # Lower return = higher distance, higher return = lower distance.
     # So flip the signs for CI calculation, then flip it back.
     dissimilarities = {k: [-x for x in v] for k, v in dissimilarities.items()}
     aggregated = common.aggregate_seeds(aggregate_fns, dissimilarities)
-    return {k1: {k2: -v2 for k2, v2 in v1.items()} for k1, v1 in aggregated.items()}
+    aggregated = dict(aggregated)
+    keys = aggregated.keys()
+    for k in keys:
+        if not (k.endswith("relative") or k.endswith("width")):
+            aggregated[k] = {k2: -v2 for k2, v2 in aggregated[k].items()}
+    return aggregated
 
 
 common.make_main(rollout_distance_ex, compute_vals)
