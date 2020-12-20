@@ -19,6 +19,8 @@ Writes raw distances to a pickle file. Also supports summmarizing to a LaTeX tab
 or a lineplot (only for timeseries over checkpoints).
 """
 
+# pylint:disable=too-many-lines
+
 import copy
 import functools
 import glob
@@ -30,6 +32,7 @@ import re
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from imitation.util import util as imit_util
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import pandas as pd
 import sacred
@@ -813,7 +816,12 @@ _COLOR_PALETTES = {
 
 
 def custom_ci_line_plot(
-    mid: pd.DataFrame, lower: pd.DataFrame, upper: pd.DataFrame, group_col: str, ax: plt.Axes
+    mid: pd.DataFrame,
+    lower: pd.DataFrame,
+    upper: pd.DataFrame,
+    hue_col: str,
+    style_col: str,
+    ax: plt.Axes,
 ) -> CustomCILinePlotter:
     """Like `sns.lineplot`, but supporting custom confidence intervals.
 
@@ -821,14 +829,14 @@ def custom_ci_line_plot(
         mid: Data of mid point.
         lower: Data of lower point.
         upper: Data of upper point.
-        group_col: Column in data to group with (in hue and style).
+        hue_col: Column in data to group with (in hue and style).
         ax: Axes to plot on.
 
     Returns:
         The plotter object.
     """
     variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
-        dict(x="Progress", y="Distance", hue=group_col, style=group_col, size=None, units=None),
+        dict(x="Progress", y="Distance", hue=hue_col, style=style_col, size=None, units=None),
     )
     plotter = CustomCILinePlotter(
         variables=variables,
@@ -838,13 +846,66 @@ def custom_ci_line_plot(
         legend=None,
         err_style="band",
     )
-    palette = sns.color_palette(_COLOR_PALETTES[group_col], len(mid[group_col].dtype.categories))
+    palette = sns.color_palette(_COLOR_PALETTES[hue_col], len(mid[hue_col].dtype.categories))
     plotter.map_hue(palette=palette, order=None, norm=None)  # pylint:disable=no-member
     plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member
     plotter.map_style(markers=False, dashes=True, order=None)  # pylint:disable=no-member
     plotter._attach(ax)  # pylint:disable=protected-access
     plotter.plot(ax, {})
     return plotter
+
+
+def _make_distance_over_time_plot_legend(
+    mid: pd.DataFrame,
+    plotter: CustomCILinePlotter,
+    fig: plt.Figure,
+    ax: plt.Axes,
+    hue_col: str,
+    style_col: str,
+) -> None:
+    """Add legend to distance over time plot."""
+    plotter.add_legend_data(ax)  # doesn't matter which plotter this is from
+    handles, labels = ax.get_legend_handles_labels()
+    if hue_col == style_col:
+        # Only one key, so legend can fit into one row.
+        ncol = len(handles)
+    else:
+        # Different keys. Legend needs two rows.
+
+        # Make number of columns large enough to fit hue and style each in one row.
+        n_hue = len(mid[hue_col].dtype.categories)
+        n_style = len(mid[style_col].dtype.categories)
+        ncol = max(n_hue, n_style)
+
+        del handles[0], labels[0]  # delete hue subtitle
+        del handles[n_hue], labels[n_hue]  # delete style subtitle
+
+        # Pad the smaller row, if they're different length, so its entries are centered
+        if n_hue > n_style:
+            larger_handles, larger_labels = handles[:n_hue], labels[:n_hue]
+            smaller_handles, smaller_labels = handles[n_hue:], labels[n_hue:]
+        else:
+            larger_handles, larger_labels = handles[n_hue:], labels[n_hue:]
+            smaller_handles, smaller_labels = handles[:n_hue], labels[:n_hue]
+
+        delta = len(larger_handles) - len(smaller_handles)
+        pad_start = delta // 2 + (delta % 2)
+        pad_end = delta // 2
+        empty = mpatches.Patch(color="white")
+        smaller_handles = [empty] * pad_start + smaller_handles + [empty] * pad_end
+        smaller_labels = [""] * pad_start + smaller_labels + [""] * pad_end
+
+        # Reassemble. Note that matplotlib fills column by column, so we zip to "transpose".
+        handles = list(itertools.chain(*zip(larger_handles, smaller_handles)))
+        labels = list(itertools.chain(*zip(larger_labels, smaller_labels)))
+
+    outside_legend(
+        handles=handles,
+        labels=labels,
+        ncol=ncol,
+        fig=fig,
+        ax=ax,
+    )
 
 
 def _make_distance_over_time_plot(
@@ -856,33 +917,37 @@ def _make_distance_over_time_plot(
     group_col: str,
 ):
     vals = [mid, lower, upper]
-    vals = [df.loc[df[filter_col] == filter_val] for df in vals]
-    vals_distance = [df.loc[~df["Algorithm"].str.startswith("RL")] for df in vals]
+    hue_col = group_col
+    if filter_val == "RL *":
+        vals_distance = [pd.DataFrame() for _ in vals]
+        style_col = filter_col
+    else:
+        vals = [df.loc[df[filter_col] == filter_val] for df in vals]
+        vals_distance = [df.loc[~df["Algorithm"].str.startswith("RL")] for df in vals]
+        style_col = group_col
     vals_rl = [df.loc[df["Algorithm"].str.startswith("RL")] for df in vals]
+    if filter_val == "RL *":
+        vals_rl = [df.copy() for df in vals_rl]
+        for df in vals_rl:
+            df["Algorithm"] = _make_cat_type(df["Algorithm"], ["RL Train", "RL Test"])
     mid_dist, lower_dist, upper_dist = vals_distance
     mid_rl, lower_rl, upper_rl = vals_rl
 
     fig, ax = plt.subplots(1, 1)
     if not mid_dist.empty:
-        plotter = custom_ci_line_plot(mid_dist, lower_dist, upper_dist, group_col, ax)
+        plotter = custom_ci_line_plot(mid_dist, lower_dist, upper_dist, hue_col, style_col, ax)
         ax.set_ylabel("Distance")
     if not mid_rl.empty:
         if mid_dist.empty:
             rl_ax = ax
         else:
             rl_ax = ax.twinx()
-        plotter = custom_ci_line_plot(mid_rl, lower_rl, upper_rl, group_col, rl_ax)
+        plotter = custom_ci_line_plot(mid_rl, lower_rl, upper_rl, hue_col, style_col, rl_ax)
         rl_ax.set_ylabel("Mean Return")
-
-    plotter.add_legend_data(ax)  # doesn't matter which plotter this is from
-    handles, _ = ax.get_legend_handles_labels()
-    outside_legend(
-        ncol=len(handles),
-        fig=fig,
-        ax=ax,
-    )
-
     ax.set_xlabel("Training Progress (%)")
+
+    _make_distance_over_time_plot_legend(mid, plotter, fig, ax, hue_col, style_col)
+
     return fig
 
 
@@ -907,12 +972,19 @@ def distance_over_time(
     mid = _timeseries_distances_curried(vals_filtered[f"{prefix}_middle"])
     upper = _timeseries_distances_curried(vals_filtered[f"{prefix}_upper"])
 
-    with stylesheets.setup_styles(styles):
-        for algorithm in mid["Algorithm"].dtype.categories:
+    algo_categories = list(mid["Algorithm"].dtype.categories) + ["RL *"]
+    for algorithm in algo_categories:
+        custom_styles = []
+        if algorithm == "RL *":
+            custom_styles = [style + "-tall-legend" for style in styles]
+            custom_styles = [style for style in custom_styles if style in stylesheets.STYLES]
+
+        with stylesheets.setup_styles(list(styles) + custom_styles):
             fig = _make_distance_over_time_plot(mid, lower, upper, "Algorithm", algorithm, "Reward")
             visualize.save_fig(os.path.join(log_dir, "timeseries", f"algorithm_{algorithm}"), fig)
 
-        for reward in mid["Reward"].dtype.categories:
+    for reward in mid["Reward"].dtype.categories:
+        with stylesheets.setup_styles(styles):
             fig = _make_distance_over_time_plot(mid, lower, upper, "Reward", reward, "Algorithm")
             visualize.save_fig(os.path.join(log_dir, "timeseries", f"reward_{reward}"), fig)
 
