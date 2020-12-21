@@ -276,9 +276,10 @@ def point_maze_checkpoints():
         "RL Test": ("rl", "test"),
     }
     expert_returns = {
-        # From best policies in data/train_experts/ground_truth/20201203_105631_297835/
-        # Note this is higher than the mean (across seeds) reported in paper for GT, which
-        # is good since otherwise the regret would sometimes be negative!
+        # `monitor_return_mean` from best policies in:
+        # data/train_experts/ground_truth/20201203_105631_297835/
+        # Note this is higher than the mean (across seeds) which is what we report in paper for GT.
+        # Indeed, this is necessary otherwise the regret would sometimes be negative!
         "RL Train": -4.86,  # PointMazeLeftVel-v0
         "RL Test": -4.38,  # PointMazeRightVel-v0
     }
@@ -793,7 +794,8 @@ def outside_legend(
         ax: The axes to plot the legend above.
         legend_padding: Padding between top of axes and bottom of legend, in inches.
         legend_height: Height of legend, in inches.
-        **kwargs: Passed through to `fig.legend`."""
+        **kwargs: Passed through to `fig.legend`.
+    """
     _width, height = fig.get_size_inches()
     pos = ax.get_position()
     legend_left = pos.x0
@@ -832,7 +834,8 @@ def custom_ci_line_plot(
         mid: Data of mid point.
         lower: Data of lower point.
         upper: Data of upper point.
-        hue_col: Column in data to group with (in hue and style).
+        hue_col: Column to group with (by hue, i.e. line color).
+        style_col: Column to group with (by linestyle).
         ax: Axes to plot on.
 
     Returns:
@@ -866,7 +869,7 @@ def _make_distance_over_time_plot_legend(
     style_col: str,
 ) -> None:
     """Add legend to distance over time plot."""
-    plotter.add_legend_data(ax)  # doesn't matter which plotter this is from
+    plotter.add_legend_data(ax)
     handles, labels = ax.get_legend_handles_labels()
     if hue_col == style_col:
         # Only one key, so legend can fit into one row.
@@ -879,6 +882,7 @@ def _make_distance_over_time_plot_legend(
         n_style = len(plotter.lower[style_col].dtype.categories)
         ncol = max(n_hue, n_style)
 
+        # Delete subtitles
         del handles[0], labels[0]  # delete hue subtitle
         del handles[n_hue], labels[n_hue]  # delete style subtitle
 
@@ -912,6 +916,7 @@ def _make_distance_over_time_plot_legend(
 
 @combined_distances_ex.capture
 def _return_to_regret(df: pd.DataFrame, expert_returns: Mapping[str, float]) -> pd.DataFrame:
+    """Subtracts return from expert return to get an (estimate of) policy regret."""
     df = df.copy()
     for algo in df["Algorithm"].dtype.categories:
         if algo.startswith("RL"):
@@ -929,6 +934,7 @@ def _make_distance_over_time_plot(
     filter_val: str,
     group_col: str,
 ):
+    """Plots timeseries of distance, filtering by `df[filter_col] == filter_val`."""
     vals = [mid, lower, upper]
     vals = [_return_to_regret(df) for df in vals]  # pylint:disable=no-value-for-parameter
     hue_col = group_col

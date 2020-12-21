@@ -83,9 +83,8 @@ def relative_error(
 ) -> float:
     """Compute relative upper bound rel, which the mean is within +/- rel % of.
 
-    Since this may be asymmetric between lower and upper, returns the maximum of
+    Since this may be asymmetric between lower and upper, computes the maximum of
     upper / mean - 1 (relative upper bound) and 1 - lower / mean (relative lower bound).
-
     To handle negative numbers, returns the absolute value of this.
     """
     if lower * upper < 0:

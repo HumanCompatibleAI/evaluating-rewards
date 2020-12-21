@@ -32,6 +32,6 @@ docstring-min-length=10
 
 # See https://github.com/PyCQA/pylint/issues/2843
 # astroid hits recursion depth sometimes when linting pandas code
-# Increasing recursion limit modestly fixes this.
+# Modestly increasing the recursion limit fixes this.
 [MASTER]
 init-hook='import sys; sys.setrecursionlimit(2 * sys.getrecursionlimit())'

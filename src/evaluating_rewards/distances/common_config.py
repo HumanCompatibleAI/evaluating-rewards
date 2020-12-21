@@ -149,7 +149,8 @@ def _bisect_nbits(nbits):
     """Permutation of range(2**nbits) based on repeated bisection.
 
     The idea is to approximate uniform sampling of the entire range for each
-    slice, so that you can incrementally gain resolution as you go through the range."""
+    slice, so that you can incrementally gain resolution as you go through the range.
+    """
     if nbits == 1:
         return [0, 1]
     else:
