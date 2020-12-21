@@ -37,6 +37,7 @@ def _config_from_kinds(kinds: Iterable[str], **kwargs) -> Mapping[str, Any]:
 
 
 _POINT_MAZE_CFG = [
+    ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
     ("evaluating_rewards/RewardModel-v0", "regress/checkpoints/{}"),
     ("evaluating_rewards/RewardModel-v0", "preferences/checkpoints/{}"),
     ("imitation/RewardNet_unshaped-v0", "irl_state_only/checkpoints/{}/discrim/reward_net"),
@@ -53,7 +54,9 @@ def point_maze_learned_cfgs(prefix: str = "transfer_point_maze") -> List[RewardC
 
 
 def point_maze_learned_checkpoint_cfgs(
-    prefix: str = "transfer_point_maze", target_num: Optional[int] = None
+    prefix: str = "transfer_point_maze",
+    target_num: Optional[int] = None,
+    shard: Optional[Tuple[int, int]] = None,
 ) -> List[RewardCfg]:
     """Configurations for learned rewards in PointMaze for each checkpoint.
 
@@ -62,6 +65,10 @@ def point_maze_learned_checkpoint_cfgs(
         target_num: The target number of checkpoints to return for each algorithm.
             May return less than this if there are fewer checkpoints than `target_num`.
             May return up to twice this number.
+        shard: Optional tuple of `(shard_num, total_shards)`. If specified, partitions
+            checkpoints into `total_shards` of (approximately) equally-spaced checkpoints,
+            returning only the `shard_num`'th partition. This gives a simple way to parallelize,
+            or just run sequentially with increasing levels of resolution but still full coverage.
 
     Returns:
         Reward configurations for checkpoints for each reward model.
@@ -69,7 +76,7 @@ def point_maze_learned_checkpoint_cfgs(
     res = {}
     for kind, fstr_path in _POINT_MAZE_CFG:
         glob_path = os.path.join(
-            serialize.get_output_dir(), prefix, "reward", fstr_path.format("[0-9].*")
+            serialize.get_output_dir(), prefix, "reward", fstr_path.format("[0-9]*")
         )
         paths = sorted(glob.glob(glob_path))
         cfgs = [(kind, path) for path in paths]
@@ -79,7 +86,11 @@ def point_maze_learned_checkpoint_cfgs(
             cfgs = cfgs[::subsample]
             assert target_num <= len(cfgs) <= 2 * target_num
 
-        res[kind] = cfgs
+        if shard:
+            shard_num, total_shards = shard
+            cfgs = cfgs[shard_num::total_shards]
+
+        res[(kind, fstr_path)] = cfgs
 
     empty = {k: bool(v) for k, v in res.items()}
     if any(empty) and not all(empty):
@@ -134,6 +145,21 @@ COMMON_CONFIGS = {
 }
 
 
+def _bisect_nbits(nbits):
+    """Permutation of range(2**nbits) based on repeated bisection.
+
+    The idea is to approximate uniform sampling of the entire range for each
+    slice, so that you can incrementally gain resolution as you go through the range.
+    """
+    if nbits == 1:
+        return [0, 1]
+    else:
+        smaller = _bisect_nbits(nbits - 1)
+        incr = 2 ** (nbits - 1)
+        larger = [x + incr for x in smaller]
+        return list(itertools.chain(*zip(smaller, larger)))
+
+
 def _update_common_configs() -> None:
     base_cfg = {
         "env_name": "imitation/PointMazeLeftVel-v0",
@@ -152,9 +178,21 @@ def _update_common_configs() -> None:
             + std_cfgs,
         )
 
-        chk_key = f"point_maze_checkpoints{suffix}"
-        chk_cfgs = point_maze_learned_checkpoint_cfgs(prefix)
-        COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
+        for target_num in [5, 25, 100]:
+            chk_key = f"point_maze_checkpoints{suffix}_{target_num}"
+            chk_cfgs = point_maze_learned_checkpoint_cfgs(prefix, target_num=target_num)
+            COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
+
+            nbits = 4
+            total_shards = 2 ** nbits
+            if target_num > total_shards:
+                shards = _bisect_nbits(nbits)
+                for i, shard_num in zip(range(total_shards), shards):
+                    chk_key = f"point_maze_checkpoints{suffix}_{target_num}_{i}of{total_shards}"
+                    chk_cfgs = point_maze_learned_checkpoint_cfgs(
+                        prefix, target_num=target_num, shard=(shard_num, total_shards)
+                    )
+                    COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
 
 
 _update_common_configs()

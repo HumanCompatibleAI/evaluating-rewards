@@ -19,9 +19,12 @@ Writes raw distances to a pickle file. Also supports summmarizing to a LaTeX tab
 or a lineplot (only for timeseries over checkpoints).
 """
 
+# pylint:disable=too-many-lines
+
 import copy
 import functools
 import glob
+import itertools
 import logging
 import os
 import pickle
@@ -29,6 +32,7 @@ import re
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from imitation.util import util as imit_util
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import pandas as pd
 import sacred
@@ -69,9 +73,10 @@ def default_config():
     target_reward_type = None
     target_reward_path = None
     pretty_models = {}
+    pretty_algorithms = {}
     # Output formats
     output_fn = latex_table
-    styles = ["paper", "tex"]
+    styles = ["paper", "tex", "training-curve", "training-curve-1col"]
     tag = "default"
     _ = locals()
     del _
@@ -97,6 +102,7 @@ POINT_MAZE_LEARNED_COMMON = {
         }
     },
     "pretty_models": {
+        r"\groundtruthmethod{}": ("evaluating_rewards/PointMazeGroundTruthWithCtrl-v0", "dummy"),
         r"\bettergoalmethod{}": ("evaluating_rewards/PointMazeBetterGoalWithCtrl-v0", "dummy"),
         r"\regressionmethod{}": (
             "evaluating_rewards/RewardModel-v0",
@@ -241,7 +247,7 @@ def point_maze_checkpoints():
     locals().update(**POINT_MAZE_LEARNED_COMMON)
     named_configs = {
         "point_maze_learned": {
-            "global": ("point_maze_checkpoints",),
+            "global": ("point_maze_checkpoints_100",),
         }
     }
     experiment_kinds = {k: ("mixture",) for k in ("epic", "npec", "erc")}
@@ -255,9 +261,27 @@ def point_maze_checkpoints():
             },
         }
     )
+    config_updates["epic"]["global"] = {
+        "num_cpus": 8,  # more computationally expensive with large # of checkpoints
+    }
     config_updates["rl"] = {
         "train": {"env_name": "imitation/PointMazeLeftVel-v0"},
         "test": {"env_name": "imitation/PointMazeRightVel-v0"},
+    }
+    pretty_algorithms = {
+        "EPIC": ("epic", "mixture"),
+        "NPEC": ("npec", "mixture"),
+        "ERC": ("erc", "mixture"),
+        "RL Train": ("rl", "train"),
+        "RL Test": ("rl", "test"),
+    }
+    expert_returns = {
+        # `monitor_return_mean` from best policies in:
+        # data/train_experts/ground_truth/20201203_105631_297835/
+        # Note this is higher than the mean (across seeds) which is what we report in paper for GT.
+        # Indeed, this is necessary otherwise the regret would sometimes be negative!
+        "RL Train": -4.86,  # PointMazeLeftVel-v0
+        "RL Test": -4.38,  # PointMazeRightVel-v0
     }
     tag = "point_maze_checkpoints"
     output_fn = distance_over_time
@@ -309,6 +333,21 @@ def fast():
     }
 
 
+def _no_op(vals: ValsFiltered) -> None:
+    """Do nothing (no-op) output_fn."""
+    del vals
+
+
+@combined_distances_ex.named_config
+def suppress_output():
+    """Suppress human-readable output. Still saves the raw values.
+
+    Useful to avoid saving unnecessary output when running script multiple times,
+    with the intention of combining the raw values using `vals_paths` configuration.
+    """
+    output_fn = _no_op  # noqa: F841  pylint:disable=unused-variable
+
+
 K = TypeVar("K")
 
 
@@ -355,16 +394,18 @@ def _fixed_width_format(x: float, figs: int = 3) -> str:
     fstr = "{:." + str(max(0, figs - num_leading_zeros)) + "g}"
     res = fstr.format(x)
 
-    if "." in res:
-        delta = (figs + 1) - len(res)
-        if delta > 0:  # g drops trailing zeros, add them back
-            res += "0" * delta
+    delta = (figs + 1) - len(res)
+    # g drops trailing zeros, add them back
+    if delta > 0 and "." in res:
+        res += "0" * delta
+    if delta > 1 and "." not in res:
+        res += "." + "0" * (delta - 1)
 
     return res
 
 
 def _pretty_label(
-    cfg: common_config.RewardCfg, pretty_models: Mapping[str, common_config.RewardCfg]
+    cfg: common_config.RewardCfg, pretty_mapping: Mapping[str, common_config.RewardCfg]
 ) -> str:
     """Map `cfg` to a more readable label in `pretty_models`.
 
@@ -373,13 +414,13 @@ def _pretty_label(
     """
     kind, path = cfg
     label = None
-    for search_label, (search_kind, search_pattern) in pretty_models.items():
+    for search_label, (search_kind, search_pattern) in pretty_mapping.items():
         if kind == search_kind and re.match(search_pattern, path):
             if label is not None:
-                raise ValueError(f"Duplicate match for '{cfg}' in '{pretty_models}'")
+                raise ValueError(f"Duplicate match for '{cfg}' in '{pretty_mapping}'")
             label = search_label
     if label is None:
-        raise ValueError(f"Did not find '{cfg}' in '{pretty_models}'")
+        raise ValueError(f"Did not find '{cfg}' in '{pretty_mapping}'")
     return label
 
 
@@ -516,16 +557,10 @@ def load_vals(vals_paths: Sequence[str]) -> Vals:
             pickle_paths.append(path)
 
     vals = {}
-    keys_to_path = {}
     for path in pickle_paths:
         with open(path, "rb") as f:
             val = pickle.load(f)
-        for k, v in val.items():
-            keys_to_path.setdefault(k, []).append(path)
-            if k in vals:
-                logger.info(f"Duplicate key {k} present in {keys_to_path[k]}")
-            else:
-                vals[k] = v
+        script_utils.recursive_dict_merge(vals, val)
 
     return vals
 
@@ -668,30 +703,53 @@ def _add_label_and_progress(
     s: pd.Series, pretty_models: Mapping[str, common_config.RewardCfg]
 ) -> pd.DataFrame:
     """Add pretty label and checkpoint progress to reward distances."""
-    labels = s.index.map(functools.partial(_pretty_label, pretty_models=pretty_models))
+    labels = s.index.map(functools.partial(_pretty_label, pretty_mapping=pretty_models))
     df = s.reset_index(name="Distance")
 
     regex = ".*/checkpoints/(?P<Checkpoint>final|[0-9]+)(?:/.*)?$"
     match = df["source_reward_path"].str.extract(regex)
-    match["Label"] = labels
+    match["Reward"] = labels
 
-    grp = match.groupby("Label")
+    grp = match.groupby("Reward")
     progress = grp.apply(_checkpoint_to_progress)
-    progress = progress.reset_index("Label", drop=True)
+    progress = progress.reset_index("Reward", drop=True)
     df["Progress"] = progress
-    df["Label"] = labels
+    df["Reward"] = labels
 
     return df
 
 
+def _make_cat_type(s: pd.Series, cat_order: Sequence[str]) -> pd.Series:
+    """Convert `s` to categorical data type based on `cat_order`.
+
+    Omits any values not present in `s` from the data type.
+    """
+    labels = set(s)
+    label_cats = [cat for cat in cat_order if cat in labels]
+    label_cat_type = pd.CategoricalDtype(label_cats)
+    return s.astype(label_cat_type)
+
+
 def _timeseries_distances(
-    vals: Mapping[Tuple[str, str], pd.Series], pretty_models: Mapping[str, common_config.RewardCfg]
+    vals: Mapping[Tuple[str, str], pd.Series],
+    pretty_algorithms: Mapping[str, common_config.RewardCfg],
+    pretty_models: Mapping[str, common_config.RewardCfg],
 ) -> pd.DataFrame:
     """Merge vals into a single DataFrame, adding label and progress."""
-    vals = {k: _add_label_and_progress(v, pretty_models) for k, v in vals.items()}
-    df = pd.concat(vals, names=("Algorithm", "Distribution", "Original"))
+    vals = {
+        _pretty_label(k, pretty_algorithms): _add_label_and_progress(v, pretty_models)
+        for k, v in vals.items()
+    }
+    df = pd.concat(vals, names=("Algorithm", "Original"))
     df = df.reset_index().drop(columns=["Original"])
-    df["Algorithm"] = df["Algorithm"].str.upper()
+
+    # Assign labels and algorithms a categorical data type. This makes sense
+    # semantically -- they take on only a small, finite number of data points.
+    # Moreover, it helps Seaborn plot things with consistent colours/markers
+    # when only a subset are present in a given plot.
+    df["Algorithm"] = _make_cat_type(df["Algorithm"], pretty_algorithms.keys())
+    df["Reward"] = _make_cat_type(df["Reward"], pretty_models.keys())
+
     return df
 
 
@@ -718,9 +776,205 @@ class CustomCILinePlotter(sns.relational._LinePlotter):  # pylint:disable=protec
         return grouper, vals, y_ci
 
 
+def flip(items, ncol):
+    return itertools.chain(*[items[i::ncol] for i in range(ncol)])
+
+
+def outside_legend(
+    fig: plt.Figure,
+    ax: plt.Axes,
+    legend_padding: float = 0.04,
+    legend_height: float = 0.3,
+    **kwargs,
+) -> None:
+    """Plots a legend immediately above the figure axes.
+
+    Args:
+        fig: The figure to plot the legend on.
+        ax: The axes to plot the legend above.
+        legend_padding: Padding between top of axes and bottom of legend, in inches.
+        legend_height: Height of legend, in inches.
+        **kwargs: Passed through to `fig.legend`.
+    """
+    _width, height = fig.get_size_inches()
+    pos = ax.get_position()
+    legend_left = pos.x0
+    legend_right = pos.x0 + pos.width
+    legend_width = legend_right - legend_left
+    legend_bottom = pos.y0 + pos.height + legend_padding / height
+    legend_height = legend_height / height
+    bbox = (legend_left, legend_bottom, legend_width, legend_height)
+    fig.legend(
+        loc="lower left",
+        bbox_to_anchor=bbox,
+        bbox_transform=fig.transFigure,
+        mode="expand",
+        **kwargs,
+    )
+
+
+# Use different color palettes for each key to make plots more visually distinct.
+_COLOR_PALETTES = {
+    "Algorithm": "Set2",
+    "Reward": "deep",
+}
+
+
+def custom_ci_line_plot(
+    mid: pd.DataFrame,
+    lower: pd.DataFrame,
+    upper: pd.DataFrame,
+    hue_col: str,
+    style_col: str,
+    ax: plt.Axes,
+) -> CustomCILinePlotter:
+    """Like `sns.lineplot`, but supporting custom confidence intervals.
+
+    Args:
+        mid: Data of mid point.
+        lower: Data of lower point.
+        upper: Data of upper point.
+        hue_col: Column to group with (by hue, i.e. line color).
+        style_col: Column to group with (by linestyle).
+        ax: Axes to plot on.
+
+    Returns:
+        The plotter object.
+    """
+    variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
+        dict(x="Progress", y="Distance", hue=hue_col, style=style_col, size=None, units=None),
+    )
+    plotter = CustomCILinePlotter(
+        variables=variables,
+        data=mid,
+        lower=lower,
+        upper=upper,
+        legend=None,
+        err_style="band",
+    )
+    palette = sns.color_palette(_COLOR_PALETTES[hue_col], len(mid[hue_col].dtype.categories))
+    plotter.map_hue(palette=palette, order=None, norm=None)  # pylint:disable=no-member
+    plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member
+    plotter.map_style(markers=False, dashes=True, order=None)  # pylint:disable=no-member
+    plotter._attach(ax)  # pylint:disable=protected-access
+    plotter.plot(ax, {})
+    return plotter
+
+
+def _make_distance_over_time_plot_legend(
+    plotter: CustomCILinePlotter,
+    fig: plt.Figure,
+    ax: plt.Axes,
+    hue_col: str,
+    style_col: str,
+) -> None:
+    """Add legend to distance over time plot."""
+    plotter.add_legend_data(ax)
+    handles, labels = ax.get_legend_handles_labels()
+    if hue_col == style_col:
+        # Only one key, so legend can fit into one row.
+        ncol = len(handles)
+    else:
+        # Different keys. Legend needs two rows.
+
+        # Make number of columns large enough to fit hue and style each in one row.
+        n_hue = len(plotter.lower[hue_col].dtype.categories)
+        n_style = len(plotter.lower[style_col].dtype.categories)
+        ncol = max(n_hue, n_style)
+
+        # Delete subtitles
+        del handles[0], labels[0]  # delete hue subtitle
+        del handles[n_hue], labels[n_hue]  # delete style subtitle
+
+        # Pad the smaller row, if they're different length, so its entries are centered
+        if n_hue > n_style:
+            larger_handles, larger_labels = handles[:n_hue], labels[:n_hue]
+            smaller_handles, smaller_labels = handles[n_hue:], labels[n_hue:]
+        else:
+            larger_handles, larger_labels = handles[n_hue:], labels[n_hue:]
+            smaller_handles, smaller_labels = handles[:n_hue], labels[:n_hue]
+
+        delta = len(larger_handles) - len(smaller_handles)
+        pad_start = delta // 2 + (delta % 2)
+        pad_end = delta // 2
+        empty = mpatches.Patch(color="white")
+        smaller_handles = [empty] * pad_start + smaller_handles + [empty] * pad_end
+        smaller_labels = [""] * pad_start + smaller_labels + [""] * pad_end
+
+        # Reassemble. Note that matplotlib fills column by column, so we zip to "transpose".
+        handles = list(itertools.chain(*zip(larger_handles, smaller_handles)))
+        labels = list(itertools.chain(*zip(larger_labels, smaller_labels)))
+
+    outside_legend(
+        handles=handles,
+        labels=labels,
+        ncol=ncol,
+        fig=fig,
+        ax=ax,
+    )
+
+
+@combined_distances_ex.capture
+def _return_to_regret(df: pd.DataFrame, expert_returns: Mapping[str, float]) -> pd.DataFrame:
+    """Subtracts return from expert return to get an (estimate of) policy regret."""
+    df = df.copy()
+    for algo in df["Algorithm"].dtype.categories:
+        if algo.startswith("RL"):
+            best = expert_returns[algo]
+            mask = df["Algorithm"] == algo
+            df.loc[mask, "Distance"] = best - df.loc[mask, "Distance"]
+    return df
+
+
+def _make_distance_over_time_plot(
+    mid: pd.DataFrame,
+    lower: pd.DataFrame,
+    upper: pd.DataFrame,
+    filter_col: str,
+    filter_val: str,
+    group_col: str,
+):
+    """Plots timeseries of distance, filtering by `df[filter_col] == filter_val`."""
+    vals = [mid, lower, upper]
+    vals = [_return_to_regret(df) for df in vals]  # pylint:disable=no-value-for-parameter
+    hue_col = group_col
+    if filter_val == "RL *":
+        vals_distance = [pd.DataFrame() for _ in vals]
+        style_col = filter_col
+    else:
+        vals = [df.loc[df[filter_col] == filter_val] for df in vals]
+        vals_distance = [df.loc[~df["Algorithm"].str.startswith("RL")] for df in vals]
+        style_col = group_col
+    vals_rl = [df.loc[df["Algorithm"].str.startswith("RL")] for df in vals]
+    if filter_val == "RL *":
+        vals_rl = [df.copy() for df in vals_rl]
+        for df in vals_rl:
+            df["Algorithm"] = _make_cat_type(df["Algorithm"], ["RL Train", "RL Test"])
+    mid_dist, lower_dist, upper_dist = vals_distance
+    mid_rl, lower_rl, upper_rl = vals_rl
+
+    fig, ax = plt.subplots(1, 1)
+    if not mid_dist.empty:
+        plotter = custom_ci_line_plot(mid_dist, lower_dist, upper_dist, hue_col, style_col, ax)
+        ax.set_ylabel("Distance")
+    if not mid_rl.empty:
+        if mid_dist.empty:
+            rl_ax = ax
+        else:
+            rl_ax = ax.twinx()
+        plotter = custom_ci_line_plot(mid_rl, lower_rl, upper_rl, hue_col, style_col, rl_ax)
+        rl_ax.set_ylabel("Regret")
+    ax.set_xlabel("Training Progress (%)")
+
+    _make_distance_over_time_plot_legend(plotter, fig, ax, hue_col, style_col)
+
+    return fig
+
+
 @combined_distances_ex.capture
 def distance_over_time(
     vals_filtered: ValsFiltered,
+    pretty_algorithms: Mapping[str, common_config.RewardCfg],
     pretty_models: Mapping[str, common_config.RewardCfg],
     log_dir: str,
     styles: Iterable[str],
@@ -731,32 +985,28 @@ def distance_over_time(
 
     Only works with certain configs, like `point_maze_checkpoints`.
     """
-    lower = _timeseries_distances(vals_filtered[f"{prefix}_lower"], pretty_models)
-    mid = _timeseries_distances(vals_filtered[f"{prefix}_middle"], pretty_models)
-    upper = _timeseries_distances(vals_filtered[f"{prefix}_upper"], pretty_models)
+    _timeseries_distances_curried = functools.partial(
+        _timeseries_distances, pretty_algorithms=pretty_algorithms, pretty_models=pretty_models
+    )
+    lower = _timeseries_distances_curried(vals_filtered[f"{prefix}_lower"])
+    mid = _timeseries_distances_curried(vals_filtered[f"{prefix}_middle"])
+    upper = _timeseries_distances_curried(vals_filtered[f"{prefix}_upper"])
 
-    with stylesheets.setup_styles(styles):
-        fig, ax = plt.subplots(1, 1)
-        variables = sns.relational._LinePlotter.get_semantics(  # pylint:disable=protected-access
-            dict(x="Progress", y="Distance", hue="Label", style="Algorithm", size=None, units=None),
-        )
-        plotter = CustomCILinePlotter(
-            variables=variables,
-            data=mid,
-            lower=lower,
-            upper=upper,
-            legend="auto",
-        )
-        plotter.map_hue(palette=None, order=None, norm=None)  # pylint:disable=no-member
-        plotter.map_size(sizes=None, order=None, norm=None)  # pylint:disable=no-member
-        plotter.map_style(markers=True, dashes=True, order=None)  # pylint:disable=no-member
-        plotter._attach(ax)  # pylint:disable=protected-access
-        plotter.plot(ax, {})
+    algo_categories = list(mid["Algorithm"].dtype.categories) + ["RL *"]
+    for algorithm in algo_categories:
+        custom_styles = []
+        if algorithm == "RL *":
+            custom_styles = [style + "-tall-legend" for style in styles]
+            custom_styles = [style for style in custom_styles if style in stylesheets.STYLES]
 
-        plt.xlabel("Training Progress (%)")
-        plt.ylabel("Distance")
+        with stylesheets.setup_styles(list(styles) + custom_styles):
+            fig = _make_distance_over_time_plot(mid, lower, upper, "Algorithm", algorithm, "Reward")
+            visualize.save_fig(os.path.join(log_dir, "timeseries", f"algorithm_{algorithm}"), fig)
 
-        visualize.save_fig(os.path.join(log_dir, "timeseries"), fig)
+    for reward in mid["Reward"].dtype.categories:
+        with stylesheets.setup_styles(styles):
+            fig = _make_distance_over_time_plot(mid, lower, upper, "Reward", reward, "Algorithm")
+            visualize.save_fig(os.path.join(log_dir, "timeseries", f"reward_{reward}"), fig)
 
 
 @combined_distances_ex.main
