@@ -275,6 +275,13 @@ def point_maze_checkpoints():
         "RL Train": ("rl", "train"),
         "RL Test": ("rl", "test"),
     }
+    expert_returns = {
+        # From best policies in data/train_experts/ground_truth/20201203_105631_297835/
+        # Note this is higher than the mean (across seeds) reported in paper for GT, which
+        # is good since otherwise the regret would sometimes be negative!
+        "RL Train": -4.86,  # PointMazeLeftVel-v0
+        "RL Test": -4.38,  # PointMazeRightVel-v0
+    }
     tag = "point_maze_checkpoints"
     output_fn = distance_over_time
     _ = locals()
@@ -903,6 +910,17 @@ def _make_distance_over_time_plot_legend(
     )
 
 
+@combined_distances_ex.capture
+def _return_to_regret(df: pd.DataFrame, expert_returns: Mapping[str, float]) -> pd.DataFrame:
+    df = df.copy()
+    for algo in df["Algorithm"].dtype.categories:
+        if algo.startswith("RL"):
+            best = expert_returns[algo]
+            mask = df["Algorithm"] == algo
+            df.loc[mask, "Distance"] = best - df.loc[mask, "Distance"]
+    return df
+
+
 def _make_distance_over_time_plot(
     mid: pd.DataFrame,
     lower: pd.DataFrame,
@@ -912,6 +930,7 @@ def _make_distance_over_time_plot(
     group_col: str,
 ):
     vals = [mid, lower, upper]
+    vals = [_return_to_regret(df) for df in vals]  # pylint:disable=no-value-for-parameter
     hue_col = group_col
     if filter_val == "RL *":
         vals_distance = [pd.DataFrame() for _ in vals]
@@ -938,7 +957,7 @@ def _make_distance_over_time_plot(
         else:
             rl_ax = ax.twinx()
         plotter = custom_ci_line_plot(mid_rl, lower_rl, upper_rl, hue_col, style_col, rl_ax)
-        rl_ax.set_ylabel("Mean Return")
+        rl_ax.set_ylabel("Regret")
     ax.set_xlabel("Training Progress (%)")
 
     _make_distance_over_time_plot_legend(plotter, fig, ax, hue_col, style_col)
