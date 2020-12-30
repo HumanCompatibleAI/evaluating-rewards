@@ -70,6 +70,20 @@ def test():
     locals().update(**rl_common.FAST_CONFIG)
 
 
+@rollout_distance_ex.named_config
+def point_maze_learned_multi_seed_airl_sa():
+    y_reward_cfgs = [  # noqa: F841  pylint:disable=unused-variable
+        (
+            "imitation/RewardNet_unshaped-v0",
+            f"transfer_point_maze.multiseed/reward/irl_state_action.seed{seed}/"
+            "checkpoints/final/discrim/reward_net",
+        )
+        # seed 3 does very poorly in monitor_return_mean
+        # seed 2 we picked and already evaluated
+        for seed in (0, 1, 4)
+    ]
+
+
 @rollout_distance_ex.capture
 def do_training(
     ray_kwargs: Mapping[str, Any],
