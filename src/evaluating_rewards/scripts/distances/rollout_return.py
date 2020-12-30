@@ -71,16 +71,19 @@ def test():
 
 
 @rollout_distance_ex.named_config
-def point_maze_learned_multi_seed_airl_sa():
+def point_maze_learned_multi_seed():
+    """Compute returns of all seeds of AIRL, used to pick the best IRL model.
+
+    See appendix A.2.2 of the paper for more details.
+    """
     y_reward_cfgs = [  # noqa: F841  pylint:disable=unused-variable
         (
             "imitation/RewardNet_unshaped-v0",
-            f"transfer_point_maze.multiseed/reward/irl_state_action.seed{seed}/"
+            f"transfer_point_maze/reward/irl_state_{kind}.seed{seed}/"
             "checkpoints/final/discrim/reward_net",
         )
-        # seed 3 does very poorly in monitor_return_mean
-        # seed 2 we picked and already evaluated
-        for seed in (0, 1, 4)
+        for kind in ("only", "action")
+        for seed in range(5)
     ]
 
 
