@@ -54,7 +54,7 @@ def logging_config(env_name, discount, log_root):
     log_dir = os.path.join(  # noqa: F841  pylint:disable=unused-variable
         log_root,
         "rollout_distance",
-        env_name,
+        script_utils.sanitize_path(env_name),
         f"discount{discount}",
         imit_util.make_unique_timestamp(),
     )
