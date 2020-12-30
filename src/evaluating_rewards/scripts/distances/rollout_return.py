@@ -71,7 +71,7 @@ def test():
 
 
 @rollout_distance_ex.named_config
-def point_maze_learned_multi_seed():
+def point_maze_learned_multi_seed_airl():
     """Compute returns of all seeds of AIRL, used to pick the best IRL model.
 
     See appendix A.2.2 of the paper for more details.

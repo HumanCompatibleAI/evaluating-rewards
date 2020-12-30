@@ -75,8 +75,8 @@ wait
 # This is necessary since IRL is very high-variance, and sometimes fails entirely.
 
 IRL_RETURNS_LOG_DIR=${PM_OUTPUT}/irl_returns/
-python -m evaluating_rewards.scripts.distances.rollout_return with point_maze_learned point_maze_learned_multi_seed \
-  log_dir=${IRL_RETURNS_LOG_DIR}
+python -m evaluating_rewards.scripts.distances.rollout_return with point_maze_learned \
+  point_maze_learned_multi_seed_airl log_dir=${IRL_RETURNS_LOG_DIR}
 
 # Step 3) Instruct user on next steps
 echo "Reward models have finished training."
