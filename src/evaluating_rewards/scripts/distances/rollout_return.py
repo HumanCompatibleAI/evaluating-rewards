@@ -70,23 +70,6 @@ def test():
     locals().update(**rl_common.FAST_CONFIG)
 
 
-@rollout_distance_ex.named_config
-def point_maze_learned_multi_seed_airl():
-    """Compute returns of all seeds of AIRL, used to pick the best IRL model.
-
-    See appendix A.2.2 of the paper for more details.
-    """
-    y_reward_cfgs = [  # noqa: F841  pylint:disable=unused-variable
-        (
-            "imitation/RewardNet_unshaped-v0",
-            f"transfer_point_maze/reward/irl_state_{kind}.seed{seed}/"
-            "checkpoints/final/discrim/reward_net",
-        )
-        for kind in ("only", "action")
-        for seed in range(5)
-    ]
-
-
 @rollout_distance_ex.capture
 def do_training(
     ray_kwargs: Mapping[str, Any],

@@ -65,23 +65,16 @@ for use_action in True False; do
   for seed in {0..4}; do
     $(call_script "rewards.train_adversarial" "with") airl point_maze checkpoint_interval=1 \
         seed=${seed} algorithm_kwargs.airl.reward_net_kwargs.use_action=${use_action} \
-        ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
+        ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}.${seed}&
     done
 done
 
 wait
 
-# Step 2) Evaluate IRL reward models to pick the best one.
-# This is necessary since IRL is very high-variance, and sometimes fails entirely.
-
-IRL_RETURNS_LOG_DIR=${PM_OUTPUT}/irl_returns/
-python -m evaluating_rewards.scripts.distances.rollout_return with point_maze_learned \
-  point_maze_learned_multi_seed_airl log_dir=${IRL_RETURNS_LOG_DIR}
-
-# Step 3) Instruct user on next steps
+# Step 2) Instruct user on next steps
 echo "Reward models have finished training."
-echo "Look at ${IRL_RETURNS_LOG_DIR}/sacred/cout.txt to identify which IRL model to use."
-echo "In the paper, we chose the one with the highest return."
+echo "Look at ${PM_OUTPUT}/reward/irl_*/sacred/cout.txt to identify which IRL model to use."
+echo "In the paper, we chose the one with the highest `monitor_return_mean`."
 echo "Note this introduces a bias in favour of AIRL; see appendix A.2.2 in the paper for why this is tolerable."
 echo "Symlink `irl_state_{only,action}` to the relevant seeds."
 echo "Then to produce table of results, run:"
