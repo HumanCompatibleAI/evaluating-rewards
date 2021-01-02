@@ -958,6 +958,8 @@ def _make_distance_over_time_plot(
     if not mid_dist.empty:
         plotter = custom_ci_line_plot(mid_dist, lower_dist, upper_dist, hue_col, style_col, ax)
         ax.set_ylabel("Distance")
+        _, y_high = ax.get_ylim()
+        ax.set_ylim(0, y_high)
     if not mid_rl.empty:
         if mid_dist.empty:
             rl_ax = ax
