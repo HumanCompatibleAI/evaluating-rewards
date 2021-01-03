@@ -62,16 +62,26 @@ for use_action in True False; do
   else
     name="state_only"
   fi
-  $(call_script "rewards.train_adversarial" "with") airl point_maze checkpoint_interval=1 \
-      seed=${SEED} algorithm_kwargs.airl.reward_net_kwargs.use_action=${use_action} \
-      ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}&
+  for seed in {0..4}; do
+    $(call_script "rewards.train_adversarial" "with") airl point_maze checkpoint_interval=1 \
+        seed=${seed} algorithm_kwargs.airl.reward_net_kwargs.use_action=${use_action} \
+        ${TRAIN_TIMESTEPS_MODIFIER} ${IRL_EPOCHS} log_dir=${PM_OUTPUT}/reward/irl_${name}.${seed}&
+    done
 done
 
 wait
 
-# Step 2) Evaluate Reward Models with Distance Metrics
-
-python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_learned_good high_precision \
-    log_dir=${PM_OUTPUT}/distances/
-python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_learned_pathological high_precision \
-    log_dir=${PM_OUTPUT}/distances_pathological/
+# Step 2) Instruct user on next steps
+echo "Reward models have finished training."
+echo "Look at ${PM_OUTPUT}/reward/irl_*/sacred/cout.txt to identify which IRL model to use."
+echo "In the paper, we chose the one with the highest `monitor_return_mean`."
+echo "Note this introduces a bias in favour of AIRL; see appendix A.2.2 in the paper for why this is tolerable."
+echo "Symlink `irl_state_{only,action}` to the relevant seeds."
+echo "Then to produce table of results, run:"
+echo "python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_learned_good high_precision \
+      log_dir=${PM_OUTPUT}/distances/"
+echo "python -m evaluating_rewards.scripts.pipeline.combined_distances with point_maze_learned_pathological high_precision \
+      log_dir=${PM_OUTPUT}/distances_pathological/"
+echo "Or to produce the checkpoint figure, run:"
+echo ${DIR}/transfer_point_maze_checkpoints.sh
+echo "WARNING: The checkpoint experiment is slow -- it took around 10 days on a 64 vCPU machine."

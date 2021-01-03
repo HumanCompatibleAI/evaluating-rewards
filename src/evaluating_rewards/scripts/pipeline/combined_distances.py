@@ -954,9 +954,12 @@ def _make_distance_over_time_plot(
     mid_rl, lower_rl, upper_rl = vals_rl
 
     fig, ax = plt.subplots(1, 1)
+    plotter = None
     if not mid_dist.empty:
         plotter = custom_ci_line_plot(mid_dist, lower_dist, upper_dist, hue_col, style_col, ax)
         ax.set_ylabel("Distance")
+        _, y_high = ax.get_ylim()
+        ax.set_ylim(0, y_high)
     if not mid_rl.empty:
         if mid_dist.empty:
             rl_ax = ax
@@ -964,7 +967,14 @@ def _make_distance_over_time_plot(
             rl_ax = ax.twinx()
         plotter = custom_ci_line_plot(mid_rl, lower_rl, upper_rl, hue_col, style_col, rl_ax)
         rl_ax.set_ylabel("Regret")
-    ax.set_xlabel("Training Progress (%)")
+
+    if filter_col == "Reward":
+        # Prepend to clarify it is Reward training progress, not the distance Algorithm
+        x_label = filter_val
+    else:
+        x_label = "Reward Model"
+    x_label += " Training Progress (%)"
+    ax.set_xlabel(x_label)
 
     _make_distance_over_time_plot_legend(plotter, fig, ax, hue_col, style_col)
 
