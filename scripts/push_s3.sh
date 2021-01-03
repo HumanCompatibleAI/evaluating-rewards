@@ -8,4 +8,3 @@ for dir in ${COPY_DIRS}; do
     aws s3 sync ${DATA_ROOT}/${dir} ${S3_REPO}/${dir}
 done
 aws s3 sync --exclude rl ${DATA_ROOT}/transfer_point_maze/ ${S3_REPO}/transfer_point_maze/
-
