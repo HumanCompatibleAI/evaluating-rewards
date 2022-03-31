@@ -29,6 +29,7 @@ RUN    apt-get update -q \
     ffmpeg \
     software-properties-common \
     net-tools \
+    patchelf \
     parallel \
     python3.7 \
     python3.7-dev \
@@ -42,15 +43,13 @@ RUN    apt-get update -q \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sci-artifacts/manual-builds/patchelf_0.9_amd64.elf \
-    && chmod +x /usr/local/bin/patchelf
-
 ENV LANG C.UTF-8
 
 RUN    mkdir -p /root/.mujoco \
     && curl -o mjpro150.zip https://www.roboti.us/download/mjpro150_linux.zip \
     && unzip mjpro150.zip -d /root/.mujoco \
-    && rm mjpro150.zip
+    && rm mjpro150.zip \
+    && curl -o /root/.mujoco/mjkey.txt https://www.roboti.us/file/mjkey.txt
 
 # Set the PATH to the venv before we create the venv, so it's visible in base.
 # This is since we may create the venv outside of Docker, e.g. in CI
@@ -69,9 +68,7 @@ WORKDIR /evaluating-rewards
 COPY ./scripts /evaluating-rewards/scripts
 COPY ./requirements.txt /evaluating-rewards
 COPY ./requirements-dev.txt /evaluating-rewards
-
-# mjkey.txt needs to exist for build, but doesn't need to be a real key
-RUN touch /root/.mujoco/mjkey.txt && /evaluating-rewards/scripts/build_venv.sh /venv
+RUN /evaluating-rewards/scripts/build_venv.sh /venv
 
 # full stage contains everything.
 # Can be used for deployment and local testing.
@@ -81,7 +78,7 @@ FROM python-req as full
 COPY . /evaluating-rewards
 # Build a wheel then install to avoid copying whole directory (pip issue #2195)
 RUN python setup.py sdist bdist_wheel
-RUN pip install dist/evaluating_rewards-*.whl
+RUN pip install --upgrade dist/evaluating_rewards-*.whl
 
 # Default entrypoints
 CMD ["pytest", "-n", "auto", "-vv", "tests/", "examples/"]
