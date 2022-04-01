@@ -87,7 +87,8 @@ def recursive_dict_merge(
             elif overwrite:
                 dest[key] = update_by[key]
             else:
-                raise Exception("Conflict at {}".format(".".join(path + [str(key)])))
+                msg = "Conflict at " + ".".join(path + [str(key)])
+                raise Exception(msg)
         else:
             dest[key] = update_by[key]
     return dest

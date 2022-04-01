@@ -29,7 +29,7 @@ def get_version() -> str:
         0,
         os.path.join(os.path.dirname(__file__), "src", "evaluating_rewards"),
     )
-    from version import (  # type:ignore  # pylint:disable=no-name-in-module,import-outside-toplevel
+    from version import (  # type:ignore  # pylint:disable=import-outside-toplevel,import-error
         VERSION,
     )
 
@@ -38,7 +38,7 @@ def get_version() -> str:
 
 
 def load_requirements(fname):
-    with open(fname) as f:
+    with open(fname, "r", encoding="utf-8") as f:
         return f.read().strip().split("\n")
 
 

@@ -67,6 +67,7 @@ class RegressWrappedModel(comparisons.RegressModel):
 
     def fit(
         self,
+        *,
         dataset: datasets.TransitionsCallable,
         affine_size: Optional[int] = 4096,
         **kwargs,
@@ -136,6 +137,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
 
     def fit(
         self,
+        *,
         dataset: datasets.TransitionsCallable,
         total_timesteps: int = int(1e6),
         epoch_timesteps: int = 16384,
@@ -168,7 +170,7 @@ class RegressEquivalentLeastSqModel(RegressWrappedModel):
             logging.info(f"Epoch {epoch}: {affine_stats}")
 
             epoch_stats = super().fit(
-                dataset, total_timesteps=epoch_timesteps, affine_size=None, **kwargs
+                dataset=dataset, total_timesteps=epoch_timesteps, affine_size=None, **kwargs
             )
 
             for k, v in epoch_stats.items():

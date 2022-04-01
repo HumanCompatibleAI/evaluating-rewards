@@ -34,7 +34,7 @@ from evaluating_rewards.envs import mujoco, point_mass
 from evaluating_rewards.rewards import base
 from tests import common
 
-ENVS = ["FrozenLake-v0", "CartPole-v1", "Pendulum-v0"]
+ENVS = ["FrozenLake-v1", "CartPole-v1", "Pendulum-v1"]
 
 STANDALONE_REWARD_MODELS = {
     "halfcheetah_ground_truth": {
