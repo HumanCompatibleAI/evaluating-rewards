@@ -184,7 +184,7 @@ def _update_common_configs() -> None:
             COMMON_CONFIGS[chk_key] = dict(**base_cfg, y_reward_cfgs=chk_cfgs)
 
             nbits = 4
-            total_shards = 2 ** nbits
+            total_shards = 2**nbits
             if target_num > total_shards:
                 shards = _bisect_nbits(nbits)
                 for i, shard_num in zip(range(total_shards), shards):

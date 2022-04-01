@@ -153,7 +153,7 @@ def sample_mean_rews(
     mean_from_obs: np.ndarray,
     act_samples: np.ndarray,
     next_obs_samples: np.ndarray,
-    batch_size: int = 2 ** 28,
+    batch_size: int = 2**28,
 ) -> Mapping[K, np.ndarray]:
     """
     Estimates the mean reward from observations `mean_from_obs` using given samples.
