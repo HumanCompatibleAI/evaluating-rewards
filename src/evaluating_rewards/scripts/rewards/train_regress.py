@@ -32,7 +32,7 @@ def default_config():
     locals().update(**regress_utils.DEFAULT_CONFIG)
     checkpoint_interval = 50  # save every checkpoint_interval epochs
     dataset_factory = datasets.transitions_factory_from_serialized_policy
-    dataset_factory_kwargs = dict()
+    dataset_factory_kwargs = {}
 
     # Model to train and hyperparameters
     model_reward_type = base.MLPRewardModel
@@ -104,7 +104,7 @@ def train_regress(
         def do_training(target, trainer, callback: Optional[base.Callback]):
             del target
             return trainer.fit(
-                dataset_generator,
+                dataset=dataset_generator,
                 total_timesteps=total_timesteps,
                 batch_size=batch_size,
                 callback=callback,

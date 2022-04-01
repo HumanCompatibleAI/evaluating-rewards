@@ -388,7 +388,7 @@ def _fixed_width_format(x: float, figs: int = 3) -> str:
             num_leading_zeros += 1
         else:
             break
-    if x >= 10 ** figs:
+    if x >= 10**figs:
         # No decimal point gives us an extra character to use
         figs += 1
     fstr = "{:." + str(max(0, figs - num_leading_zeros)) + "g}"

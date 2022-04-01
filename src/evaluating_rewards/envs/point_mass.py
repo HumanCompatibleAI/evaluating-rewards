@@ -79,17 +79,17 @@ class PointMassEnv(resettable_env.ResettableEnv):
                 break
         return {"pos": pos, "vel": vel, "goal": goal}
 
-    def transition(self, old_state, action):
+    def transition(self, state, action):
         action = np.array(action)
         action = action.clip(-1, 1)
         return {
-            "pos": old_state["pos"] + self.dt * old_state["vel"],
-            "vel": old_state["vel"] + self.dt * action,
-            "goal": old_state["goal"],
+            "pos": state["pos"] + self.dt * state["vel"],
+            "vel": state["vel"] + self.dt * action,
+            "goal": state["goal"],
         }
 
-    def reward(self, old_state, action, new_state):
-        del old_state
+    def reward(self, state, action, new_state):
+        del state
         dist = np.linalg.norm(new_state["pos"] - new_state["goal"])
         ctrl_penalty = np.dot(action, action)
         return -dist - self.ctrl_coef * ctrl_penalty

@@ -171,7 +171,7 @@ def evaluate_reward_model(
 
 
 def plot_state_density(
-    dataset_generator: datasets.TransitionsCallable, nsamples: int = 2 ** 12, **kwargs
+    dataset_generator: datasets.TransitionsCallable, nsamples: int = 2**12, **kwargs
 ):
     """Plots the density of a state distribution.
 

@@ -65,11 +65,7 @@ commands:
           name: install dependencies
           # MUJOCO_KEY is defined in a CircleCI context
           # Do some sanity checks to make sure key works
-          command: |
-            curl -o /root/.mujoco/mjkey.txt ${MUJOCO_KEY}
-            md5sum /root/.mujoco/mjkey.txt
-            [[ -d /venv ]] || /evaluating-rewards/scripts/build_venv.sh /venv
-            python -c "import mujoco_py"
+          command: "[[ -d /venv ]] || /evaluating-rewards/scripts/build_venv.sh /venv"
 
       - save_cache:
           paths:

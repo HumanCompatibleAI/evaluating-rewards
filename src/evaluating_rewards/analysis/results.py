@@ -168,10 +168,10 @@ def _find_sacred_parent(
     seen[parent] = path
 
     config_path = os.path.join(parent, "sacred", "config.json")
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
     run_path = os.path.join(parent, "sacred", "run.json")
-    with open(run_path, "r") as f:
+    with open(run_path, "r", encoding="utf-8") as f:
         run = json.load(f)
 
     return config, run, parent

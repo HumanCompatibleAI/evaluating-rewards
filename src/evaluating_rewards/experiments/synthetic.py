@@ -225,7 +225,7 @@ def compare_synthetic(
     model_potential: bool = True,
     discount: float = 0.99,
     optimizer: Type[tf.train.Optimizer] = tf.train.AdamOptimizer,
-    total_timesteps: int = 2 ** 16,
+    total_timesteps: int = 2**16,
     batch_size: int = 128,
     test_size: int = 4096,
     pretrain: bool = True,
